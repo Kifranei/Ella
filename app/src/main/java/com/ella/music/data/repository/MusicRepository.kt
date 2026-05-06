@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -46,21 +47,28 @@ class MusicRepository(private val context: Context) {
     suspend fun getLyrics(song: Song): List<LyricLine> = withContext(Dispatchers.IO) {
         lyricsCache[song.id]?.let { return@withContext it }
 
+        Log.d("MusicRepo", "Loading lyrics for: ${song.title} path=${song.path}")
+
         val lrcContent = LrcParser.findLrcFile(song.path)
         if (lrcContent != null) {
             val parsed = LrcParser.parse(lrcContent)
+            Log.d("MusicRepo", "LRC parsed: ${parsed.lyrics.size} lines for ${song.title}")
             lyricsCache[song.id] = parsed.lyrics
             return@withContext parsed.lyrics
         }
 
+        Log.d("MusicRepo", "No LRC file found, trying embedded lyrics for ${song.title}")
         val embedded = scanner.extractEmbeddedLyrics(song.path)
         if (!embedded.isNullOrBlank()) {
+            Log.d("MusicRepo", "Embedded lyrics found (${embedded.length} chars) for ${song.title}")
             val parsed = LrcParser.parse(embedded)
             if (parsed.lyrics.isNotEmpty()) {
+                Log.d("MusicRepo", "Embedded lyrics parsed as LRC: ${parsed.lyrics.size} lines")
                 lyricsCache[song.id] = parsed.lyrics
                 return@withContext parsed.lyrics
             }
 
+            Log.d("MusicRepo", "Embedded lyrics not LRC format, using plain text")
             val result = mutableListOf<LyricLine>()
             val lines = embedded.lines()
             var timeOffset = 0L
@@ -72,11 +80,13 @@ class MusicRepository(private val context: Context) {
                 }
             }
             if (result.isNotEmpty()) {
+                Log.d("MusicRepo", "Plain text lyrics: ${result.size} lines")
                 lyricsCache[song.id] = result
                 return@withContext result
             }
         }
 
+        Log.d("MusicRepo", "No lyrics found for ${song.title}")
         lyricsCache[song.id] = emptyList()
         emptyList()
     }

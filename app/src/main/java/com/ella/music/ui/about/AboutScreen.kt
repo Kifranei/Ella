@@ -310,8 +310,13 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://ffmpeg.org") },
                     )
                     BasicComponent(
+                        title = "Jaudiotagger",
+                        summary = "音频标签、内嵌歌词与封面读取",
+                        onClick = { uriHandler.openUri("https://github.com/Adonai/jaudiotagger") },
+                    )
+                    BasicComponent(
                         title = "TagLib",
-                        summary = "音频标签、内嵌封面与内嵌歌词读取",
+                        summary = "音频标签与兜底读取",
                         onClick = { uriHandler.openUri("https://github.com/taglib/taglib") },
                     )
                     BasicComponent(

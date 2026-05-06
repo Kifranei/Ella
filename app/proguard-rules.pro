@@ -19,10 +19,6 @@
 -keep class io.github.proify.lyricon.** { *; }
 -dontwarn io.github.proify.lyricon.**
 
-# Keep TagLib
--keep class com.kyant.taglib.** { *; }
--dontwarn com.kyant.taglib.**
-
 # Keep FFmpeg decoder
 -keep class androidx.media3.decoder.ffmpeg.** { *; }
 -dontwarn androidx.media3.decoder.ffmpeg.**

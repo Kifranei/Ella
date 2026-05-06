@@ -40,7 +40,8 @@ The script builds FFmpeg through WSL with the Linux Android NDK.
 | [AndroidX Media3](https://github.com/androidx/media) | Playback, media session, and ExoPlayer FFmpeg extension |
 | [FFmpeg](https://ffmpeg.org) | Software decoding for ALAC and other audio formats |
 | [Lyricon](https://github.com/proify/lyricon) | Lyric provider API and status-bar lyrics |
-| [TagLib](https://github.com/taglib/taglib) | Audio tags, embedded artwork, and embedded lyrics |
+| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | Audio tags, embedded lyrics, and embedded artwork |
+| [TagLib](https://github.com/taglib/taglib) | Fallback audio tag reading |
 | [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android/Kotlin TagLib binding |
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Liquid glass and backdrop blur effects |
 | [Coil](https://github.com/coil-kt/coil) | Image loading for Compose |
@@ -51,7 +52,8 @@ The script builds FFmpeg through WSL with the Linux Android NDK.
 
 - **Mimo-V2.5-Pro** — Lead development
 - **GPT-5.5** — Code collaboration and bug fixing
-- Miuix, Media3, FFmpeg, Lyricon, TagLib, Backdrop, Coil, and the other open-source projects used by Ella Music
+- Retro Music Player's jaudiotagger-based tag reading approach
+- Miuix, Media3, FFmpeg, Lyricon, Jaudiotagger, TagLib, Backdrop, Coil, and the other open-source projects used by Ella Music
 
 ## License
 

@@ -69,6 +69,7 @@ dependencies {
     implementation(libs.lyricon.provider)
     implementation(libs.backdrop)
     implementation(libs.taglib)
+    implementation(libs.jaudiotagger)
     implementation(project(":ffmpeg-decoder"))
 
     implementation("top.yukonga.miuix.kmp:miuix-ui")

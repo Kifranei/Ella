@@ -137,8 +137,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentLyricIndex.value = index
 
             if (index >= 0 && index < currentLyrics.size) {
-                val line = currentLyrics[index].text
-                if (line != lastTickerLine) {
+                val line = currentLyrics[index].text.takeUnless { it.isMusicSymbolOnly() }
+                if (line != null && line != lastTickerLine) {
                     lastTickerLine = line
                     tickerBridge.sendLyric(line)
                 }
@@ -201,11 +201,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val index = _currentLyricIndex.value
                 val currentLyrics = _lyrics.value
                 if (index in currentLyrics.indices) {
-                    val line = currentLyrics[index].text
-                    lastTickerLine = line
-                    tickerBridge.sendLyric(line)
+                    val line = currentLyrics[index].text.takeUnless { it.isMusicSymbolOnly() }
+                    if (line != null) {
+                        lastTickerLine = line
+                        tickerBridge.sendLyric(line)
+                    }
                 }
             }
+        }
+    }
+
+    private fun String.isMusicSymbolOnly(): Boolean {
+        val content = trim()
+        if (content.isBlank()) return true
+        return content.all { char ->
+            char.isWhitespace() ||
+                char in setOf('♪', '♫', '♬', '♩', '♭', '♯', '♮') ||
+                Character.UnicodeBlock.of(char) == Character.UnicodeBlock.MUSICAL_SYMBOLS
         }
     }
 

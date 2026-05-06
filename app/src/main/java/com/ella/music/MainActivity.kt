@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity() {
                 WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !isDark
             }
 
-            LaunchedEffect(autoScan) {
+            LaunchedEffect(Unit) {
                 checkAndRequestPermissions()
                 if (autoScan) mainVm.scanMusic()
             }

@@ -1,10 +1,9 @@
 package com.ella.music.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -46,16 +45,19 @@ fun LyricView(
 
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0 && currentIndex < lyrics.size) {
+            val targetIndex = (currentIndex + 1).coerceAtMost(lyrics.size)
             listState.animateScrollToItem(
-                index = currentIndex + 1,
-                scrollOffset = 0
+                index = targetIndex,
+                scrollOffset = -200
             )
         }
     }
 
     LazyColumn(
         state = listState,
-        modifier = modifier.padding(horizontal = 24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { Box(modifier = Modifier.height(200.dp)) }
@@ -64,26 +66,25 @@ fun LyricView(
             val isActive = index == currentIndex
             val isPast = index < currentIndex
 
-            val textColor by animateColorAsState(
-                targetValue = when {
-                    isActive -> MiuixTheme.colorScheme.primary
-                    isPast -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f)
-                    else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
-                },
-                animationSpec = tween(300)
-            )
+            val textColor = when {
+                isActive -> MiuixTheme.colorScheme.primary
+                isPast -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f)
+                else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
+            }
 
             Text(
-                text = line.text,
+                text = line.text.ifBlank { "♪" },
                 fontSize = if (isActive) 18.sp else 15.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = if (isActive) 4.dp else 0.dp)
             )
         }
 
-        item { Box(modifier = Modifier.height(200.dp)) }
+        item { Box(modifier = Modifier.height(300.dp)) }
     }
 }
 
@@ -109,16 +110,19 @@ fun WordLyricView(
 
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0 && currentIndex < lyrics.size) {
+            val targetIndex = (currentIndex + 1).coerceAtMost(lyrics.size)
             listState.animateScrollToItem(
-                index = currentIndex + 1,
-                scrollOffset = 0
+                index = targetIndex,
+                scrollOffset = -200
             )
         }
     }
 
     LazyColumn(
         state = listState,
-        modifier = modifier.padding(horizontal = 24.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item { Box(modifier = Modifier.height(200.dp)) }
@@ -143,17 +147,20 @@ fun WordLyricView(
                         else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
                     }
                     Text(
-                        text = line.text,
+                        text = line.text.ifBlank { "♪" },
                         fontSize = if (isActive) 18.sp else 15.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                         color = textColor,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = if (isActive) 4.dp else 0.dp)
                     )
                 }
             }
         }
 
-        item { Box(modifier = Modifier.height(200.dp)) }
+        item { Box(modifier = Modifier.height(300.dp)) }
     }
 }
 

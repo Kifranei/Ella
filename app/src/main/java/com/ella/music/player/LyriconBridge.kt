@@ -110,7 +110,7 @@ class LyriconBridge(private val context: Context) {
                     end = nextLineTime,
                     text = line.text,
                     words = words.ifEmpty { null },
-                    translation = null
+                    translation = line.translation
                 )
             }
 
