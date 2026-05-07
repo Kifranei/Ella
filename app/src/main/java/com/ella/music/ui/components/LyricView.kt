@@ -66,6 +66,7 @@ fun LyricView(
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == currentIndex
             val isPast = index < currentIndex
+            val lineTextAlign = line.ttmlTextAlign()
 
             val textColor = when {
                 isActive -> MiuixTheme.colorScheme.primary
@@ -78,7 +79,7 @@ fun LyricView(
                 fontSize = if (isActive) 18.sp else 15.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
-                textAlign = if (line.agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start,
+                textAlign = lineTextAlign,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = if (isActive) 4.dp else 0.dp)
@@ -88,7 +89,18 @@ fun LyricView(
                     text = line.backgroundText,
                     fontSize = if (isActive) 14.sp else 12.sp,
                     color = textColor.copy(alpha = 0.56f),
-                    textAlign = TextAlign.Center,
+                    textAlign = lineTextAlign,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp)
+                )
+            }
+            if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) {
+                Text(
+                    text = line.backgroundTranslation,
+                    fontSize = if (isActive) 13.sp else 11.sp,
+                    color = textColor.copy(alpha = 0.48f),
+                    textAlign = lineTextAlign,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 2.dp)
@@ -99,7 +111,7 @@ fun LyricView(
                     text = line.translation,
                     fontSize = if (isActive) 14.sp else 12.sp,
                     color = textColor.copy(alpha = 0.72f),
-                    textAlign = TextAlign.Center,
+                    textAlign = lineTextAlign,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 2.dp)
@@ -153,20 +165,18 @@ fun WordLyricView(
 
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == currentIndex
+            val lineTextAlign = line.ttmlTextAlign()
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = if (line.agent.equals("v2", ignoreCase = true)) {
-                    Alignment.End
-                } else {
-                    Alignment.Start
-                }
+                horizontalAlignment = line.ttmlAlignment()
             ) {
                 if (line.words.isNotEmpty() && isActive) {
                     WordLine(
                         words = line.words,
                         currentPositionMs = currentPositionMs,
-                        isActive = true
+                        isActive = true,
+                        textAlign = lineTextAlign
                     )
                 } else {
                     val textColor = when {
@@ -179,7 +189,7 @@ fun WordLyricView(
                         fontSize = if (isActive) 18.sp else 15.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                         color = textColor,
-                        textAlign = if (line.agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start,
+                        textAlign = lineTextAlign,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
@@ -195,10 +205,26 @@ fun WordLyricView(
                         text = line.backgroundText,
                         fontSize = if (isActive) 14.sp else 12.sp,
                         color = backgroundColor,
-                        textAlign = TextAlign.Center,
+                        textAlign = lineTextAlign,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 3.dp)
+                    )
+                }
+                if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) {
+                    val backgroundTranslationColor = when {
+                        isActive -> MiuixTheme.colorScheme.primary.copy(alpha = 0.44f)
+                        index < currentIndex -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.28f)
+                        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.40f)
+                    }
+                    Text(
+                        text = line.backgroundTranslation,
+                        fontSize = if (isActive) 13.sp else 11.sp,
+                        color = backgroundTranslationColor,
+                        textAlign = lineTextAlign,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp)
                     )
                 }
                 if (showTranslation && !line.translation.isNullOrBlank()) {
@@ -211,7 +237,7 @@ fun WordLyricView(
                         text = line.translation,
                         fontSize = if (isActive) 14.sp else 12.sp,
                         color = translationColor,
-                        textAlign = TextAlign.Center,
+                        textAlign = lineTextAlign,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 3.dp)
@@ -228,7 +254,8 @@ fun WordLyricView(
 private fun WordLine(
     words: List<com.ella.music.data.model.LyricWord>,
     currentPositionMs: Long,
-    isActive: Boolean
+    isActive: Boolean,
+    textAlign: TextAlign
 ) {
     val builder = androidx.compose.ui.text.AnnotatedString.Builder()
     for (word in words) {
@@ -254,6 +281,17 @@ private fun WordLine(
 
     Text(
         text = builder.toAnnotatedString(),
-        textAlign = TextAlign.Center
+        textAlign = textAlign,
+        modifier = Modifier.fillMaxWidth()
     )
+}
+
+private fun LyricLine.ttmlTextAlign(): TextAlign {
+    if (agent.isNullOrBlank()) return TextAlign.Center
+    return if (agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start
+}
+
+private fun LyricLine.ttmlAlignment(): Alignment.Horizontal {
+    if (agent.isNullOrBlank()) return Alignment.CenterHorizontally
+    return if (agent.equals("v2", ignoreCase = true)) Alignment.End else Alignment.Start
 }

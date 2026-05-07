@@ -126,11 +126,10 @@ object LrcParser {
                 val mainBody = body
                     .replace(ttmlTranslationPattern, "")
                     .replace(ttmlBackgroundPattern, "")
-                val backgroundText = ttmlBackgroundPattern
+                val background = ttmlBackgroundPattern
                     .find(body)
                     ?.value
-                    ?.stripXmlText()
-                    ?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
+                    ?.parseTtmlBackground()
                 val text = mainBody.stripXmlText()
                 if (text.isMusicSymbolOnly()) return@mapNotNull null
 
@@ -148,7 +147,15 @@ object LrcParser {
                     }
                     .toList()
 
-                LyricLine(begin, text, words.withTextSpacing(text), translation, agent, backgroundText)
+                LyricLine(
+                    timeMs = begin,
+                    text = text,
+                    words = words.withTextSpacing(text),
+                    translation = translation,
+                    agent = agent,
+                    backgroundText = background?.text,
+                    backgroundTranslation = background?.translation
+                )
             }
             .sortedBy { it.timeMs }
             .toList()
@@ -171,7 +178,7 @@ object LrcParser {
                 val end = paragraph.getAttribute("end").parseTtmlTime()
                 val words = mutableListOf<LyricWord>()
                 val translations = mutableListOf<String>()
-                val backgrounds = mutableListOf<String>()
+                val backgrounds = mutableListOf<TtmlBackground>()
                 val agent = paragraph.getAttribute("ttm:agent")
                     .ifBlank { paragraph.getAttribute("agent") }
                     .ifBlank { null }
@@ -186,7 +193,8 @@ object LrcParser {
                     words = words.withTextSpacing(text),
                     translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() },
                     agent = agent,
-                    backgroundText = backgrounds.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
+                    backgroundText = backgrounds.firstOrNull { it.text.isNotBlank() && !it.text.isMusicSymbolOnly() }?.text,
+                    backgroundTranslation = backgrounds.firstOrNull { !it.translation.isNullOrBlank() }?.translation
                 )
             }.sortedBy { it.timeMs }
 
@@ -200,7 +208,7 @@ object LrcParser {
         node: Node,
         words: MutableList<LyricWord>,
         translations: MutableList<String>,
-        backgrounds: MutableList<String>,
+        backgrounds: MutableList<TtmlBackground>,
         lineEndMs: Long?
     ): String {
         val builder = StringBuilder()
@@ -214,7 +222,7 @@ object LrcParser {
                     val role = element.getAttribute("ttm:role").ifBlank { element.getAttribute("role") }
                     when (role) {
                         "x-translation" -> translations += element.textContent.cleanTtmlText()
-                        "x-bg" -> backgrounds += element.textContent.cleanTtmlText()
+                        "x-bg" -> backgrounds += collectTtmlBackground(element)
                         else -> {
                             val text = collectTtmlText(element, words, translations, backgrounds, lineEndMs)
                             val wordBegin = element.getAttribute("begin").parseTtmlTime()
@@ -231,6 +239,50 @@ object LrcParser {
             }
         }
         return builder.toString()
+    }
+
+    private data class TtmlBackground(
+        val text: String,
+        val translation: String? = null
+    )
+
+    private fun collectTtmlBackground(element: Element): TtmlBackground {
+        val translations = mutableListOf<String>()
+        val textBuilder = StringBuilder()
+        val children = element.childNodes
+        for (index in 0 until children.length) {
+            val child = children.item(index)
+            when (child.nodeType) {
+                Node.TEXT_NODE -> textBuilder.append(child.nodeValue)
+                Node.ELEMENT_NODE -> {
+                    val childElement = child as? Element ?: continue
+                    val role = childElement.getAttribute("ttm:role").ifBlank { childElement.getAttribute("role") }
+                    if (role == "x-translation") {
+                        translations += childElement.textContent.cleanTtmlText()
+                    } else {
+                        textBuilder.append(childElement.textContent)
+                    }
+                }
+            }
+        }
+        return TtmlBackground(
+            text = textBuilder.toString().cleanTtmlText(),
+            translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
+        )
+    }
+
+    private fun String.parseTtmlBackground(): TtmlBackground {
+        val translation = ttmlTranslationPattern
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.stripXmlText()
+            ?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
+        val text = replace(ttmlTranslationPattern, "")
+            .stripXmlText()
+            .takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
+            .orEmpty()
+        return TtmlBackground(text, translation)
     }
 
     private fun parseInlineTimedLine(line: String): LyricLine? {

@@ -112,7 +112,7 @@ class LyriconBridge(private val context: Context) {
                     text = line.text,
                     words = words.ifEmpty { null },
                     secondary = line.backgroundText,
-                    translation = line.translation
+                    translation = line.translation ?: line.backgroundTranslation
                 )
             }
 
@@ -158,7 +158,7 @@ class LyriconBridge(private val context: Context) {
                     text = line.text,
                     words = words.ifEmpty { null },
                     secondary = line.backgroundText,
-                    translation = translationMap[line.timeMs]
+                    translation = translationMap[line.timeMs] ?: line.backgroundTranslation
                 )
             }
 
