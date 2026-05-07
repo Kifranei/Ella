@@ -43,6 +43,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _showLyrics = MutableStateFlow(false)
     val showLyrics: StateFlow<Boolean> = _showLyrics.asStateFlow()
 
+    private val _showLyricTranslation = MutableStateFlow(true)
+    val showLyricTranslation: StateFlow<Boolean> = _showLyricTranslation.asStateFlow()
+
     private var positionUpdateJob: Job? = null
     private var lastSentPlayingState: Boolean? = null
     private var lastTickerLine: String? = null
@@ -54,6 +57,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         observePlayState()
         initLyricon()
         initTicker()
+        initLyricPageTranslation()
     }
 
     private fun initLyricon() {
@@ -146,6 +150,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private fun initLyricPageTranslation() {
+        viewModelScope.launch {
+            settingsManager.lyricPageTranslation.collect { enabled ->
+                _showLyricTranslation.value = enabled
+            }
+        }
+    }
+
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
         playerManager.setPlaylist(songs, startIndex)
     }
@@ -170,6 +182,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleLyrics() {
         _showLyrics.value = !_showLyrics.value
+    }
+
+    fun setLyricPageTranslation(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setLyricPageTranslation(enabled)
+            _showLyricTranslation.value = enabled
+        }
     }
 
     fun setLyriconEnabled(enabled: Boolean) {

@@ -24,6 +24,7 @@ class SettingsManager(private val context: Context) {
         val KEY_MIN_DURATION = intPreferencesKey("min_duration_sec")
         val KEY_REPLAYGAIN_ENABLED = booleanPreferencesKey("replaygain_enabled")
         val KEY_LIQUID_GLASS = booleanPreferencesKey("liquid_glass")
+        val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
     }
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: true }
@@ -35,6 +36,7 @@ class SettingsManager(private val context: Context) {
     val minDurationSec: Flow<Int> = context.dataStore.data.map { it[KEY_MIN_DURATION] ?: 15 }
     val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
     val liquidGlass: Flow<Boolean> = context.dataStore.data.map { it[KEY_LIQUID_GLASS] ?: true }
+    val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
 
     suspend fun setLyriconEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRICON_ENABLED] = enabled }
@@ -70,5 +72,9 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setLiquidGlass(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LIQUID_GLASS] = enabled }
+    }
+
+    suspend fun setLyricPageTranslation(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_PAGE_TRANSLATION] = enabled }
     }
 }

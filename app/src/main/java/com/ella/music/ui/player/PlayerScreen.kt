@@ -52,6 +52,7 @@ import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -74,6 +75,7 @@ fun PlayerScreen(
     val lyrics by playerViewModel.lyrics.collectAsState()
     val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
     val showLyrics by playerViewModel.showLyrics.collectAsState()
+    val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
 
     val song = currentSong
 
@@ -123,12 +125,32 @@ fun PlayerScreen(
                 transitionSpec = { fadeIn() togetherWith fadeOut() }
             ) { showLyric ->
                 if (showLyric) {
-                    WordLyricView(
-                        lyrics = lyrics,
-                        currentIndex = currentLyricIndex,
-                        currentPositionMs = currentPosition,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        WordLyricView(
+                            lyrics = lyrics,
+                            currentIndex = currentLyricIndex,
+                            currentPositionMs = currentPosition,
+                            showTranslation = showLyricTranslation,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 8.dp, end = 18.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "翻译",
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(end = 6.dp)
+                            )
+                            Switch(
+                                checked = showLyricTranslation,
+                                onCheckedChange = playerViewModel::setLyricPageTranslation
+                            )
+                        }
+                    }
                 } else {
                     AlbumArtView(
                         song = song,

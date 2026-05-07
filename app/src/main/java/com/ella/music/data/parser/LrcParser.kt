@@ -139,7 +139,7 @@ object LrcParser {
                     }
                     .toList()
 
-                LyricLine(begin, text, words, translation)
+                LyricLine(begin, text, words.withTextSpacing(text), translation)
             }
             .sortedBy { it.timeMs }
             .toList()
@@ -170,7 +170,7 @@ object LrcParser {
                 LyricLine(
                     timeMs = begin,
                     text = text,
-                    words = words,
+                    words = words.withTextSpacing(text),
                     translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
                 )
             }.sortedBy { it.timeMs }
@@ -322,6 +322,30 @@ object LrcParser {
         }
 
         return words
+    }
+
+    private fun List<LyricWord>.withTextSpacing(lineText: String): List<LyricWord> {
+        if (isEmpty() || lineText.isBlank()) return this
+
+        val result = mutableListOf<LyricWord>()
+        var cursor = 0
+
+        forEachIndexed { index, word ->
+            val start = lineText.indexOf(word.text, startIndex = cursor)
+            if (start < 0) {
+                result += word
+                return@forEachIndexed
+            }
+
+            val end = start + word.text.length
+            val nextText = getOrNull(index + 1)?.text
+            val nextStart = if (nextText != null) lineText.indexOf(nextText, startIndex = end) else -1
+            val suffix = if (nextStart > end) lineText.substring(end, nextStart) else ""
+            result += word.copy(text = word.text + suffix)
+            cursor = end + suffix.length
+        }
+
+        return result
     }
 
     private fun estimateWordDuration(text: String): Long {

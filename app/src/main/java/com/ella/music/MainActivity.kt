@@ -19,7 +19,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -34,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -133,6 +138,7 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 checkAndRequestPermissions()
+                mainVm.loadCachedLibrary()
                 if (autoScan) mainVm.scanMusic()
             }
 
@@ -204,101 +210,169 @@ fun EllaApp(
         Triple(Screen.Settings.route, "设置", MiuixIcons.Regular.Settings),
     )
 
-    Scaffold(
-        bottomBar = {
-            Column {
-                AnimatedVisibility(
-                    visible = showMiniPlayer,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                ) {
-                    currentSong?.let { song ->
-                        MiniPlayer(
-                            song = song,
-                            isPlaying = isPlaying,
-                            albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
-                            loadCoverArt = mainViewModel::getCoverArtBitmap,
-                            backdrop = if (useGlass) backdrop else null,
-                            liquidGlass = useGlass,
-                            onClick = { navController.navigate(Screen.Player.route) },
-                            onPlayPause = { playerViewModel.togglePlayPause() },
-                            onSkipNext = { playerViewModel.skipToNext() },
-                            onSkipPrevious = { playerViewModel.skipToPrevious() }
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = showBottomBar) {
-                    if (useGlass) {
-                        LiquidGlassBottomBar(
-                            backdrop = backdrop,
-                            isBlurEnabled = true
-                        ) {
-                            tabs.forEach { (route, label, icon) ->
-                                LiquidGlassBottomBarItem(
-                                    selected = currentRoute == route,
-                                    onClick = {
-                                        if (currentRoute != route) {
-                                            navController.navigate(route) {
-                                                popUpTo(Screen.Home.route) { inclusive = route == Screen.Home.route }
-                                            }
-                                        }
-                                    },
-                                    backdrop = backdrop,
-                                    isBlurEnabled = true,
-                                    icon = {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = label,
-                                            tint = if (currentRoute == route) MiuixTheme.colorScheme.primary
-                                            else MiuixTheme.colorScheme.onSurface,
-                                            modifier = Modifier
-                                        )
-                                    },
-                                    label = {
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            color = if (currentRoute == route) MiuixTheme.colorScheme.primary
-                                            else MiuixTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    } else {
-                        NavigationBar {
-                            tabs.forEach { (route, label, icon) ->
-                                NavigationBarItem(
-                                    selected = currentRoute == route,
-                                    onClick = {
-                                        if (currentRoute != route) {
-                                            navController.navigate(route) {
-                                                popUpTo(Screen.Home.route) { inclusive = route == Screen.Home.route }
-                                            }
-                                        }
-                                    },
-                                    icon = icon,
-                                    label = label
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .layerBackdrop(backdrop)
-        ) {
+    if (useGlass) {
+        Box(modifier = Modifier.fillMaxSize()) {
             AppNavigation(
                 navController = navController,
                 mainViewModel = mainViewModel,
-                playerViewModel = playerViewModel
+                playerViewModel = playerViewModel,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(backdrop)
             )
+            FloatingBottomControls(
+                showMiniPlayer = showMiniPlayer,
+                showBottomBar = showBottomBar,
+                currentSong = currentSong,
+                isPlaying = isPlaying,
+                tabs = tabs,
+                currentRoute = currentRoute,
+                backdrop = backdrop,
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onNavigate = { route ->
+                    if (currentRoute != route) {
+                        navController.navigate(route) {
+                            popUpTo(Screen.Home.route) { inclusive = route == Screen.Home.route }
+                        }
+                    }
+                },
+                onNavigatePlayer = { navController.navigate(Screen.Player.route) },
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
+            )
+        }
+    } else {
+        Scaffold(
+            bottomBar = {
+                FloatingBottomControls(
+                    showMiniPlayer = showMiniPlayer,
+                    showBottomBar = showBottomBar,
+                    currentSong = currentSong,
+                    isPlaying = isPlaying,
+                    tabs = tabs,
+                    currentRoute = currentRoute,
+                    backdrop = backdrop,
+                    mainViewModel = mainViewModel,
+                    playerViewModel = playerViewModel,
+                    onNavigate = { route ->
+                        if (currentRoute != route) {
+                            navController.navigate(route) {
+                                popUpTo(Screen.Home.route) { inclusive = route == Screen.Home.route }
+                            }
+                        }
+                    },
+                    onNavigatePlayer = { navController.navigate(Screen.Player.route) },
+                    useGlass = false
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(
+                        start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
+                        top = paddingValues.calculateTopPadding(),
+                        end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
+                        bottom = paddingValues.calculateBottomPadding()
+                    )
+                    .layerBackdrop(backdrop)
+            ) {
+                AppNavigation(
+                    navController = navController,
+                    mainViewModel = mainViewModel,
+                    playerViewModel = playerViewModel
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FloatingBottomControls(
+    showMiniPlayer: Boolean,
+    showBottomBar: Boolean,
+    currentSong: com.ella.music.data.model.Song?,
+    isPlaying: Boolean,
+    tabs: List<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>>,
+    currentRoute: String?,
+    backdrop: com.kyant.backdrop.Backdrop,
+    mainViewModel: MainViewModel,
+    playerViewModel: PlayerViewModel,
+    onNavigate: (String) -> Unit,
+    onNavigatePlayer: () -> Unit,
+    modifier: Modifier = Modifier,
+    useGlass: Boolean = true
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (useGlass) Modifier.navigationBarsPadding() else Modifier)
+    ) {
+        AnimatedVisibility(
+            visible = showMiniPlayer,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        ) {
+            currentSong?.let { song ->
+                MiniPlayer(
+                    song = song,
+                    isPlaying = isPlaying,
+                    albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
+                    loadCoverArt = mainViewModel::getCoverArtBitmap,
+                    backdrop = if (useGlass) backdrop else null,
+                    liquidGlass = useGlass,
+                    onClick = onNavigatePlayer,
+                    onPlayPause = { playerViewModel.togglePlayPause() },
+                    onSkipNext = { playerViewModel.skipToNext() },
+                    onSkipPrevious = { playerViewModel.skipToPrevious() }
+                )
+            }
+        }
+
+        AnimatedVisibility(visible = showBottomBar) {
+            if (useGlass) {
+                LiquidGlassBottomBar(
+                    backdrop = backdrop,
+                    isBlurEnabled = true
+                ) {
+                    tabs.forEach { (route, label, icon) ->
+                        LiquidGlassBottomBarItem(
+                            selected = currentRoute == route,
+                            onClick = { onNavigate(route) },
+                            backdrop = backdrop,
+                            isBlurEnabled = true,
+                            icon = {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = if (currentRoute == route) MiuixTheme.colorScheme.primary
+                                    else MiuixTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    color = if (currentRoute == route) MiuixTheme.colorScheme.primary
+                                    else MiuixTheme.colorScheme.onSurface
+                                )
+                            }
+                        )
+                    }
+                }
+            } else {
+                NavigationBar {
+                    tabs.forEach { (route, label, icon) ->
+                        NavigationBarItem(
+                            selected = currentRoute == route,
+                            onClick = { onNavigate(route) },
+                            icon = icon,
+                            label = label
+                        )
+                    }
+                }
+            }
         }
     }
 }

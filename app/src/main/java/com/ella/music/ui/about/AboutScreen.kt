@@ -281,12 +281,12 @@ private fun AboutContent(
                 SmallTitle(text = "致谢")
                 FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors) {
                     BasicComponent(
-                        title = "Mimo-V2.5-Pro",
+                        title = "Codex",
                         summary = "主要开发",
                     )
                     BasicComponent(
                         title = "GPT-5.5",
-                        summary = "代码协作与问题修复",
+                        summary = "代码协作",
                     )
                 }
             }

@@ -45,6 +45,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun loadCachedLibrary() {
+        viewModelScope.launch {
+            repository.loadCachedLibrary()
+        }
+    }
+
     fun getSongsForAlbum(albumId: Long): List<Song> {
         return repository.getSongsForAlbum(albumId)
     }

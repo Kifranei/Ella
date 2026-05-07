@@ -28,6 +28,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun LyricView(
     lyrics: List<LyricLine>,
     currentIndex: Int,
+    showTranslation: Boolean,
     modifier: Modifier = Modifier
 ) {
     if (lyrics.isEmpty()) {
@@ -82,6 +83,17 @@ fun LyricView(
                     .fillMaxWidth()
                     .padding(vertical = if (isActive) 4.dp else 0.dp)
             )
+            if (showTranslation && !line.translation.isNullOrBlank()) {
+                Text(
+                    text = line.translation,
+                    fontSize = if (isActive) 14.sp else 12.sp,
+                    color = textColor.copy(alpha = 0.72f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp)
+                )
+            }
         }
 
         item { Box(modifier = Modifier.height(300.dp)) }
@@ -93,6 +105,7 @@ fun WordLyricView(
     lyrics: List<LyricLine>,
     currentIndex: Int,
     currentPositionMs: Long,
+    showTranslation: Boolean,
     modifier: Modifier = Modifier
 ) {
     if (lyrics.isEmpty()) {
@@ -155,6 +168,22 @@ fun WordLyricView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
+                    )
+                }
+                if (showTranslation && !line.translation.isNullOrBlank()) {
+                    val translationColor = when {
+                        isActive -> MiuixTheme.colorScheme.primary.copy(alpha = 0.72f)
+                        index < currentIndex -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.42f)
+                        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.58f)
+                    }
+                    Text(
+                        text = line.translation,
+                        fontSize = if (isActive) 14.sp else 12.sp,
+                        color = translationColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 3.dp)
                     )
                 }
             }

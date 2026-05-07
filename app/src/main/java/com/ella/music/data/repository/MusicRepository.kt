@@ -11,11 +11,14 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.scanner.MusicScanner
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MusicRepository(private val context: Context) {
 
@@ -33,14 +36,30 @@ class MusicRepository(private val context: Context) {
     private val lyricsCache = mutableMapOf<Long, List<LyricLine>>()
     private val replayGainCache = mutableMapOf<Long, Float?>()
     private val coverArtCache = mutableMapOf<Long, ByteArray?>()
+    private val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
 
     suspend fun scanMusic(minDurationMs: Long = 0) {
         _isScanning.value = true
         try {
             _songs.value = scanner.scanAllSongs(minDurationMs)
             _albums.value = scanner.scanAlbums()
+            saveLibraryCache(_songs.value, _albums.value)
         } finally {
             _isScanning.value = false
+        }
+    }
+
+    suspend fun loadCachedLibrary() = withContext(Dispatchers.IO) {
+        if (!libraryCacheFile.exists()) return@withContext
+
+        runCatching {
+            val root = JSONObject(libraryCacheFile.readText())
+            val songs = root.getJSONArray("songs").toSongList()
+            val albums = root.optJSONArray("albums")?.toAlbumList() ?: songs.toAlbums()
+            _songs.value = songs
+            _albums.value = albums
+        }.onFailure {
+            Log.w("MusicRepo", "Failed to load music library cache", it)
         }
     }
 
@@ -126,5 +145,97 @@ class MusicRepository(private val context: Context) {
         lyricsCache.clear()
         replayGainCache.clear()
         coverArtCache.clear()
+    }
+
+    private suspend fun saveLibraryCache(songs: List<Song>, albums: List<Album>) = withContext(Dispatchers.IO) {
+        runCatching {
+            val root = JSONObject()
+                .put("version", 1)
+                .put("songs", songsToJsonArray(songs))
+                .put("albums", albumsToJsonArray(albums))
+            libraryCacheFile.writeText(root.toString())
+        }.onFailure {
+            Log.w("MusicRepo", "Failed to save music library cache", it)
+        }
+    }
+
+    private fun List<Song>.toAlbums(): List<Album> {
+        return groupBy { it.albumId }
+            .map { (albumId, albumSongs) ->
+                val first = albumSongs.first()
+                Album(
+                    id = albumId,
+                    name = first.album,
+                    artist = first.artist,
+                    songCount = albumSongs.size
+                )
+            }
+            .sortedBy { it.name.lowercase() }
+    }
+
+    private fun songsToJsonArray(songs: List<Song>): JSONArray {
+        val array = JSONArray()
+        songs.forEach { song ->
+            array.put(
+                JSONObject()
+                    .put("id", song.id)
+                    .put("title", song.title)
+                    .put("artist", song.artist)
+                    .put("album", song.album)
+                    .put("albumId", song.albumId)
+                    .put("duration", song.duration)
+                    .put("path", song.path)
+                    .put("fileName", song.fileName)
+                    .put("fileSize", song.fileSize)
+                    .put("mimeType", song.mimeType)
+            )
+        }
+        return array
+    }
+
+    private fun albumsToJsonArray(albums: List<Album>): JSONArray {
+        val array = JSONArray()
+        albums.forEach { album ->
+            array.put(
+                JSONObject()
+                    .put("id", album.id)
+                    .put("name", album.name)
+                    .put("artist", album.artist)
+                    .put("songCount", album.songCount)
+                    .put("year", album.year)
+            )
+        }
+        return array
+    }
+
+    private fun JSONArray.toSongList(): List<Song> {
+        return List(length()) { index ->
+            val item = getJSONObject(index)
+            Song(
+                id = item.getLong("id"),
+                title = item.optString("title"),
+                artist = item.optString("artist"),
+                album = item.optString("album"),
+                albumId = item.optLong("albumId"),
+                duration = item.optLong("duration"),
+                path = item.optString("path"),
+                fileName = item.optString("fileName"),
+                fileSize = item.optLong("fileSize"),
+                mimeType = item.optString("mimeType")
+            )
+        }
+    }
+
+    private fun JSONArray.toAlbumList(): List<Album> {
+        return List(length()) { index ->
+            val item = getJSONObject(index)
+            Album(
+                id = item.getLong("id"),
+                name = item.optString("name"),
+                artist = item.optString("artist"),
+                songCount = item.optInt("songCount"),
+                year = item.optInt("year")
+            )
+        }
     }
 }
