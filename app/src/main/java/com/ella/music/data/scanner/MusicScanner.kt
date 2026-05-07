@@ -37,7 +37,9 @@ class MusicScanner(private val context: Context) {
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.DISPLAY_NAME,
             MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.MIME_TYPE
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED
         )
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
@@ -55,6 +57,8 @@ class MusicScanner(private val context: Context) {
             val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
             val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
             val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
 
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idCol)
@@ -67,6 +71,8 @@ class MusicScanner(private val context: Context) {
                 val fileName = cursor.getString(nameCol) ?: ""
                 val size = cursor.getLong(sizeCol)
                 val mime = cursor.getString(mimeCol) ?: ""
+                val dateAdded = cursor.getLong(dateAddedCol) * 1000L
+                val dateModified = cursor.getLong(dateModifiedCol) * 1000L
 
                 if (path.isEmpty()) continue
                 val file = File(path)
@@ -126,7 +132,7 @@ class MusicScanner(private val context: Context) {
                 if (isMissingTag(album)) album = "Unknown"
 
                 if (duration > 0 && duration >= minDurationMs) {
-                    songs.add(Song(id, title, artist, album, albumId, duration, path, fileName, size, mime))
+                    songs.add(Song(id, title, artist, album, albumId, duration, path, fileName, size, mime, dateAdded, dateModified))
                 }
             }
         }

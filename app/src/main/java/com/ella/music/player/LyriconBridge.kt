@@ -108,8 +108,10 @@ class LyriconBridge(private val context: Context) {
                 RichLyricLine(
                     begin = line.timeMs,
                     end = nextLineTime,
+                    isAlignedRight = line.agent.equals("v2", ignoreCase = true),
                     text = line.text,
                     words = words.ifEmpty { null },
+                    secondary = line.backgroundText,
                     translation = line.translation
                 )
             }
@@ -152,8 +154,10 @@ class LyriconBridge(private val context: Context) {
                 RichLyricLine(
                     begin = line.timeMs,
                     end = nextLineTime,
+                    isAlignedRight = line.agent.equals("v2", ignoreCase = true),
                     text = line.text,
                     words = words.ifEmpty { null },
+                    secondary = line.backgroundText,
                     translation = translationMap[line.timeMs]
                 )
             }

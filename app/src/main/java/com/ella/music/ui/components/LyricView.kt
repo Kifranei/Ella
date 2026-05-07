@@ -78,11 +78,22 @@ fun LyricView(
                 fontSize = if (isActive) 18.sp else 15.sp,
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
-                textAlign = TextAlign.Center,
+                textAlign = if (line.agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = if (isActive) 4.dp else 0.dp)
             )
+            if (!line.backgroundText.isNullOrBlank()) {
+                Text(
+                    text = line.backgroundText,
+                    fontSize = if (isActive) 14.sp else 12.sp,
+                    color = textColor.copy(alpha = 0.56f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp)
+                )
+            }
             if (showTranslation && !line.translation.isNullOrBlank()) {
                 Text(
                     text = line.translation,
@@ -145,7 +156,11 @@ fun WordLyricView(
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = if (line.agent.equals("v2", ignoreCase = true)) {
+                    Alignment.End
+                } else {
+                    Alignment.Start
+                }
             ) {
                 if (line.words.isNotEmpty() && isActive) {
                     WordLine(
@@ -164,10 +179,26 @@ fun WordLyricView(
                         fontSize = if (isActive) 18.sp else 15.sp,
                         fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                         color = textColor,
-                        textAlign = TextAlign.Center,
+                        textAlign = if (line.agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
+                    )
+                }
+                if (!line.backgroundText.isNullOrBlank()) {
+                    val backgroundColor = when {
+                        isActive -> MiuixTheme.colorScheme.primary.copy(alpha = 0.56f)
+                        index < currentIndex -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.34f)
+                        else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.48f)
+                    }
+                    Text(
+                        text = line.backgroundText,
+                        fontSize = if (isActive) 14.sp else 12.sp,
+                        color = backgroundColor,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 3.dp)
                     )
                 }
                 if (showTranslation && !line.translation.isNullOrBlank()) {

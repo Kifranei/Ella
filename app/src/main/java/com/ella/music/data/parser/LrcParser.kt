@@ -111,6 +111,10 @@ object LrcParser {
                 val begin = beginAttributePattern.find(attributes)?.groupValues?.getOrNull(1)?.parseTtmlTime()
                     ?: return@mapNotNull null
                 val end = endAttributePattern.find(attributes)?.groupValues?.getOrNull(1)?.parseTtmlTime()
+                val agent = Regex("""\b(?:ttm:)?agent="([^"]+)"""", RegexOption.IGNORE_CASE)
+                    .find(attributes)
+                    ?.groupValues
+                    ?.getOrNull(1)
 
                 val translation = ttmlTranslationPattern
                     .find(body)
@@ -122,6 +126,11 @@ object LrcParser {
                 val mainBody = body
                     .replace(ttmlTranslationPattern, "")
                     .replace(ttmlBackgroundPattern, "")
+                val backgroundText = ttmlBackgroundPattern
+                    .find(body)
+                    ?.value
+                    ?.stripXmlText()
+                    ?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
                 val text = mainBody.stripXmlText()
                 if (text.isMusicSymbolOnly()) return@mapNotNull null
 
@@ -139,7 +148,7 @@ object LrcParser {
                     }
                     .toList()
 
-                LyricLine(begin, text, words.withTextSpacing(text), translation)
+                LyricLine(begin, text, words.withTextSpacing(text), translation, agent, backgroundText)
             }
             .sortedBy { it.timeMs }
             .toList()
@@ -162,7 +171,11 @@ object LrcParser {
                 val end = paragraph.getAttribute("end").parseTtmlTime()
                 val words = mutableListOf<LyricWord>()
                 val translations = mutableListOf<String>()
-                val text = collectTtmlText(paragraph, words, translations, end)
+                val backgrounds = mutableListOf<String>()
+                val agent = paragraph.getAttribute("ttm:agent")
+                    .ifBlank { paragraph.getAttribute("agent") }
+                    .ifBlank { null }
+                val text = collectTtmlText(paragraph, words, translations, backgrounds, end)
                     .replace(Regex("""[ \t\r\n]+"""), " ")
                     .trim()
                 if (text.isMusicSymbolOnly()) return@mapNotNull null
@@ -171,7 +184,9 @@ object LrcParser {
                     timeMs = begin,
                     text = text,
                     words = words.withTextSpacing(text),
-                    translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
+                    translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() },
+                    agent = agent,
+                    backgroundText = backgrounds.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
                 )
             }.sortedBy { it.timeMs }
 
@@ -185,6 +200,7 @@ object LrcParser {
         node: Node,
         words: MutableList<LyricWord>,
         translations: MutableList<String>,
+        backgrounds: MutableList<String>,
         lineEndMs: Long?
     ): String {
         val builder = StringBuilder()
@@ -198,9 +214,9 @@ object LrcParser {
                     val role = element.getAttribute("ttm:role").ifBlank { element.getAttribute("role") }
                     when (role) {
                         "x-translation" -> translations += element.textContent.cleanTtmlText()
-                        "x-bg" -> Unit
+                        "x-bg" -> backgrounds += element.textContent.cleanTtmlText()
                         else -> {
-                            val text = collectTtmlText(element, words, translations, lineEndMs)
+                            val text = collectTtmlText(element, words, translations, backgrounds, lineEndMs)
                             val wordBegin = element.getAttribute("begin").parseTtmlTime()
                             if (wordBegin != null && text.isNotBlank()) {
                                 val wordEnd = element.getAttribute("end").parseTtmlTime()

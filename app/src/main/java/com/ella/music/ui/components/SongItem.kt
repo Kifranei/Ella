@@ -3,7 +3,7 @@ package com.ella.music.ui.components
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,7 +42,10 @@ fun SongItem(
     isCurrent: Boolean = false,
     albumArtUri: Uri? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, loadCoverArt) {
@@ -53,10 +56,33 @@ fun SongItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .background(if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selectionMode) {
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (selected) MiuixTheme.colorScheme.primary
+                        else MiuixTheme.colorScheme.surfaceContainer
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Text(
+                        text = "✓",
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+        }
+
         Box(
             modifier = Modifier
                 .size(48.dp)

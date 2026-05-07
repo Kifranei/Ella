@@ -4,7 +4,9 @@ data class LyricLine(
     val timeMs: Long,
     val text: String,
     val words: List<LyricWord> = emptyList(),
-    val translation: String? = null
+    val translation: String? = null,
+    val agent: String? = null,
+    val backgroundText: String? = null
 )
 
 data class LyricWord(

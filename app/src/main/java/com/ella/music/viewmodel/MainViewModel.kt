@@ -62,4 +62,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun getReplayGain(song: Song): Float? {
         return repository.getReplayGain(song)
     }
+
+    fun deleteSongs(songs: Collection<Song>) {
+        if (songs.isEmpty()) return
+        viewModelScope.launch {
+            repository.deleteSongs(songs)
+        }
+    }
 }

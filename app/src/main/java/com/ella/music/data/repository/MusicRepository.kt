@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.MediaStore
 import android.util.Log
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.LyricLine
@@ -141,6 +142,35 @@ class MusicRepository(private val context: Context) {
         return _songs.value.filter { it.albumId == albumId }
     }
 
+    suspend fun deleteSongs(songs: Collection<Song>): Int = withContext(Dispatchers.IO) {
+        var deleted = 0
+        songs.forEach { song ->
+            val deletedFromStore = runCatching {
+                val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
+                context.contentResolver.delete(uri, null, null) > 0
+            }.getOrDefault(false)
+
+            val deletedFromFile = if (!deletedFromStore) {
+                runCatching {
+                    val file = File(song.path)
+                    file.exists() && file.delete()
+                }.getOrDefault(false)
+            } else {
+                true
+            }
+
+            if (deletedFromFile) deleted++
+        }
+
+        if (deleted > 0) {
+            val deletedIds = songs.map { it.id }.toSet()
+            _songs.value = _songs.value.filterNot { it.id in deletedIds }
+            _albums.value = _songs.value.toAlbums()
+            saveLibraryCache(_songs.value, _albums.value)
+        }
+        deleted
+    }
+
     fun clearCache() {
         lyricsCache.clear()
         replayGainCache.clear()
@@ -188,6 +218,8 @@ class MusicRepository(private val context: Context) {
                     .put("fileName", song.fileName)
                     .put("fileSize", song.fileSize)
                     .put("mimeType", song.mimeType)
+                    .put("dateAdded", song.dateAdded)
+                    .put("dateModified", song.dateModified)
             )
         }
         return array
@@ -221,7 +253,9 @@ class MusicRepository(private val context: Context) {
                 path = item.optString("path"),
                 fileName = item.optString("fileName"),
                 fileSize = item.optLong("fileSize"),
-                mimeType = item.optString("mimeType")
+                mimeType = item.optString("mimeType"),
+                dateAdded = item.optLong("dateAdded"),
+                dateModified = item.optLong("dateModified")
             )
         }
     }

@@ -10,7 +10,9 @@ data class Song(
     val path: String,
     val fileName: String,
     val fileSize: Long = 0L,
-    val mimeType: String = ""
+    val mimeType: String = "",
+    val dateAdded: Long = 0L,
+    val dateModified: Long = 0L
 ) {
     val durationText: String
         get() {
