@@ -139,11 +139,7 @@ private fun AboutContent(
 
     val titleBlend = remember(isDark) {
         if (isDark) {
-            listOf(
-                BlendColorEntry(Color(0xe6a1a1a1.toInt()), BlurBlendMode.ColorDodge),
-                BlendColorEntry(Color(0x4de6e6e6), BlurBlendMode.LinearLight),
-                BlendColorEntry(Color(0xff1af500.toInt()), BlurBlendMode.Lab),
-            )
+            emptyList()
         } else {
             listOf(
                 BlendColorEntry(Color(0xcc4a4a4a.toInt()), BlurBlendMode.ColorBurn),
@@ -156,12 +152,13 @@ private fun AboutContent(
     val cardBlendColors = remember(isDark) {
         if (isDark) {
             listOf(
-                BlendColorEntry(Color(0x4DA9A9A9), BlurBlendMode.Luminosity),
-                BlendColorEntry(Color(0x1A9C9C9C), BlurBlendMode.PlusDarker),
+                BlendColorEntry(Color(0x4D1D2A7A), BlurBlendMode.Screen),
+                BlendColorEntry(Color(0x332B1C60), BlurBlendMode.Lighten),
+                BlendColorEntry(Color(0x1A3E2C78), BlurBlendMode.Luminosity),
             )
         } else {
             listOf(
-                BlendColorEntry(Color(0x340034F9), BlurBlendMode.Overlay),
+                BlendColorEntry(Color(0x34F7D6FF), BlurBlendMode.Overlay),
                 BlendColorEntry(Color(0xB3FFFFFF.toInt()), BlurBlendMode.HardLight),
             )
         }
@@ -186,7 +183,7 @@ private fun AboutContent(
                     .size(90.dp)
                     .clip(CircleShape)
                     .then(
-                        if (blurEnable) Modifier.textureBlur(
+                        if (blurEnable && !isDark) Modifier.textureBlur(
                             backdrop = backdrop,
                             shape = SmoothRoundedCornerShape(45.dp),
                             blurRadius = 150f,
@@ -212,7 +209,7 @@ private fun AboutContent(
                 modifier = Modifier
                     .padding(bottom = 5.dp)
                     .then(
-                        if (blurEnable) Modifier.textureBlur(
+                        if (blurEnable && !isDark) Modifier.textureBlur(
                             backdrop = backdrop,
                             shape = SmoothRoundedCornerShape(16.dp),
                             blurRadius = 150f,
@@ -366,6 +363,7 @@ private fun FrostedCard(
     cardBlendColors: List<BlendColorEntry>,
     content: @Composable () -> Unit,
 ) {
+    val isDark = isSystemInDarkTheme()
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -375,15 +373,21 @@ private fun FrostedCard(
                 if (blurEnable) Modifier.textureBlur(
                     backdrop = backdrop,
                     shape = SmoothRoundedCornerShape(16.dp),
-                    blurRadius = 60f,
+                    blurRadius = 64f,
                     noiseCoefficient = BlurDefaults.NoiseCoefficient,
                     colors = BlurColors(blendColors = cardBlendColors),
                     enabled = true,
                 ) else Modifier
             ),
         colors = CardDefaults.defaultColors(
-            if (blurEnable) Color.Transparent else colorScheme.surfaceContainer,
-            Color.Transparent,
+            if (isDark) {
+                Color(0x4D52608E)
+            } else if (blurEnable) {
+                Color.Transparent
+            } else {
+                colorScheme.surfaceContainer
+            },
+            if (isDark) Color.White else colorScheme.onSurface,
         ),
     ) {
         content()

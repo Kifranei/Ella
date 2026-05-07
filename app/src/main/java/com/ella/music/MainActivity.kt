@@ -15,6 +15,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -194,6 +195,7 @@ fun EllaApp(
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val songs by mainViewModel.songs.collectAsState()
     val showMiniPlayer = currentSong != null && currentRoute != Screen.Player.route
 
     val backdrop = rememberLayerBackdrop()
@@ -202,6 +204,8 @@ fun EllaApp(
     val settingsManager = remember { SettingsManager(mainViewModel.getApplication()) }
     val liquidGlass by settingsManager.liquidGlass.collectAsState(initial = true)
     val useGlass = liquidGlass && isBlurEnabled
+    val useLightweightGlass = useGlass && currentRoute == Screen.Home.route && songs.size > 200
+    val activeBackdrop = if (useLightweightGlass) null else backdrop
 
     val tabs = listOf(
         Triple(Screen.Home.route, "首页", MiuixIcons.Regular.Music),
@@ -211,14 +215,23 @@ fun EllaApp(
     )
 
     if (useGlass) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        val contentModifier = Modifier
+            .fillMaxSize()
+            .background(MiuixTheme.colorScheme.background)
+            .then(
+                if (activeBackdrop != null) Modifier.layerBackdrop(activeBackdrop) else Modifier
+            )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MiuixTheme.colorScheme.background)
+        ) {
             AppNavigation(
                 navController = navController,
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(backdrop)
+                modifier = contentModifier
             )
             FloatingBottomControls(
                 showMiniPlayer = showMiniPlayer,
@@ -227,7 +240,7 @@ fun EllaApp(
                 isPlaying = isPlaying,
                 tabs = tabs,
                 currentRoute = currentRoute,
-                backdrop = backdrop,
+                backdrop = activeBackdrop,
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onNavigate = { route ->
@@ -251,7 +264,7 @@ fun EllaApp(
                     isPlaying = isPlaying,
                     tabs = tabs,
                     currentRoute = currentRoute,
-                    backdrop = backdrop,
+                    backdrop = null,
                     mainViewModel = mainViewModel,
                     playerViewModel = playerViewModel,
                     onNavigate = { route ->
@@ -275,7 +288,7 @@ fun EllaApp(
                         end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
                         bottom = paddingValues.calculateBottomPadding()
                     )
-                    .layerBackdrop(backdrop)
+                    .background(MiuixTheme.colorScheme.background)
             ) {
                 AppNavigation(
                     navController = navController,
@@ -295,7 +308,7 @@ private fun FloatingBottomControls(
     isPlaying: Boolean,
     tabs: List<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>>,
     currentRoute: String?,
-    backdrop: com.kyant.backdrop.Backdrop,
+    backdrop: com.kyant.backdrop.Backdrop?,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onNavigate: (String) -> Unit,

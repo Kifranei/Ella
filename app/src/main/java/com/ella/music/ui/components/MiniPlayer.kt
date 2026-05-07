@@ -33,8 +33,6 @@ import com.ella.music.data.model.Song
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +67,9 @@ fun MiniPlayer(
     val shape = RoundedCornerShape(if (liquidGlass) 24.dp else 0.dp)
     val glassBackdrop = if (liquidGlass) backdrop else null
     val isGlass = glassBackdrop != null
+    val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
+    val glassSurface = if (isLight) Color(0xFFF8F8FA).copy(alpha = 0.84f) else Color(0xFF111114).copy(alpha = 0.92f)
 
     Row(
         modifier = modifier
@@ -84,14 +84,12 @@ fun MiniPlayer(
                             backdrop = glassBackdrop,
                             shape = { shape },
                             effects = {
-                                vibrancy()
-                                blur(10f.dp.toPx())
-                                lens(18f.dp.toPx(), 18f.dp.toPx())
+                                blur(6f.dp.toPx())
                             },
-                            highlight = { Highlight.Default.copy(alpha = 0.55f) },
+                            highlight = { Highlight.Default.copy(alpha = 0.25f) },
                             shadow = { Shadow.Default.copy(color = Color.Black.copy(alpha = 0.18f)) },
                             onDrawSurface = {
-                                drawRect(surfaceContainer.copy(alpha = 0.45f))
+                                drawRect(glassSurface)
                             }
                         )
                 } else {
@@ -182,4 +180,8 @@ fun MiniPlayer(
             )
         }
     }
+}
+
+private fun Color.luminance(): Float {
+    return 0.2126f * red + 0.7152f * green + 0.0722f * blue
 }
