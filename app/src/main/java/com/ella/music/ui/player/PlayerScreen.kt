@@ -154,10 +154,17 @@ fun PlayerScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .clickable { onBack() },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Back,
                     contentDescription = "返回",
@@ -165,6 +172,7 @@ fun PlayerScreen(
                     modifier = Modifier.size(24.dp)
                 )
             }
+
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "正在播放",
@@ -172,29 +180,26 @@ fun PlayerScreen(
                 color = Color.White.copy(alpha = 0.72f)
             )
             Spacer(modifier = Modifier.weight(1f))
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = if (showLyrics) 0.24f else 0.10f))
-                    .clickable { playerViewModel.setShowLyrics(!showLyrics) },
-                contentAlignment = Alignment.Center
-            ) {
-                if (showLyrics) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Music,
-                        contentDescription = "显示封面",
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                } else {
+            if (showLyrics) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = if (showLyricTranslation) 0.24f else 0.10f))
+                        .clickable {
+                            playerViewModel.setLyricPageTranslation(!showLyricTranslation)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = "词",
+                        text = "译",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Color.White.copy(alpha = if (showLyricTranslation) 1f else 0.62f)
                     )
                 }
+            } else {
+                Spacer(modifier = Modifier.size(48.dp))
             }
         }
 
@@ -211,7 +216,30 @@ fun PlayerScreen(
                 }
             ) { showLyric ->
                 if (showLyric) {
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                var totalDrag = 0f
+                                detectDragGestures(
+                                    onDragStart = { totalDrag = 0f },
+                                    onDrag = { change, dragAmount ->
+                                        totalDrag += dragAmount.x
+                                        change.consume()
+                                    },
+                                    onDragEnd = {
+                                        if (kotlin.math.abs(totalDrag) > 72f) {
+                                            playerViewModel.setShowLyrics(false)
+                                        }
+                                    }
+                                )
+                            }
+                            .pointerInput(Unit) {
+                                detectTapGestures(
+                                    onTap = { playerViewModel.setShowLyrics(false) }
+                                )
+                            }
+                    ) {
                         WordLyricView(
                             lyrics = lyrics,
                             currentIndex = currentLyricIndex,
@@ -220,28 +248,6 @@ fun PlayerScreen(
                             onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
                             modifier = Modifier.fillMaxSize()
                         )
-                        Row(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(top = 8.dp, end = 18.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = if (showLyricTranslation) 0.24f else 0.10f))
-                                    .clickable { playerViewModel.setLyricPageTranslation(!showLyricTranslation) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "译",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White.copy(alpha = if (showLyricTranslation) 1f else 0.62f)
-                                )
-                            }
-                        }
                     }
                 } else {
                     Column(
@@ -268,7 +274,11 @@ fun PlayerScreen(
                             MiniLyricBlock(
                                 line = currentLyricLine,
                                 showTranslation = showLyricTranslation,
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable { playerViewModel.setShowLyrics(true) }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
                             )
                         }
                     }
@@ -433,7 +443,7 @@ private fun PlayerBlurBackground(
         ),
         label = "cover_background_rotation"
     )
-    val movingScale = if (isPlaying) 2.28f + motion * 0.04f else 2.24f
+    val movingScale = if (isPlaying) 2.96f + motion * 0.08f else 2.90f
     val movingOffset = if (isPlaying) (motion - 0.5f) * 10f else 0f
 
     Box(modifier = modifier.background(palette.middle)) {
