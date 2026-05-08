@@ -175,7 +175,6 @@ fun WordLyricView(
                     WordLine(
                         words = line.words,
                         currentPositionMs = currentPositionMs,
-                        isActive = true,
                         textAlign = lineTextAlign
                     )
                 } else {
@@ -201,15 +200,28 @@ fun WordLyricView(
                         index < currentIndex -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.34f)
                         else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.48f)
                     }
-                    Text(
-                        text = line.backgroundText,
-                        fontSize = if (isActive) 14.sp else 12.sp,
-                        color = backgroundColor,
-                        textAlign = lineTextAlign,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 3.dp)
-                    )
+                    if (isActive && line.backgroundWords.isNotEmpty()) {
+                        WordLine(
+                            words = line.backgroundWords,
+                            currentPositionMs = currentPositionMs,
+                            textAlign = lineTextAlign,
+                            fontSizeSp = 14,
+                            currentColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.66f),
+                            sungColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.46f),
+                            pendingColor = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.48f),
+                            modifier = Modifier.padding(top = 3.dp)
+                        )
+                    } else {
+                        Text(
+                            text = line.backgroundText,
+                            fontSize = if (isActive) 14.sp else 12.sp,
+                            color = backgroundColor,
+                            textAlign = lineTextAlign,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 3.dp)
+                        )
+                    }
                 }
                 if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) {
                     val backgroundTranslationColor = when {
@@ -254,8 +266,12 @@ fun WordLyricView(
 private fun WordLine(
     words: List<com.ella.music.data.model.LyricWord>,
     currentPositionMs: Long,
-    isActive: Boolean,
-    textAlign: TextAlign
+    textAlign: TextAlign,
+    modifier: Modifier = Modifier,
+    fontSizeSp: Int = 18,
+    currentColor: Color = MiuixTheme.colorScheme.primary,
+    sungColor: Color = MiuixTheme.colorScheme.primary.copy(alpha = 0.8f),
+    pendingColor: Color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
 ) {
     val builder = androidx.compose.ui.text.AnnotatedString.Builder()
     for (word in words) {
@@ -263,15 +279,15 @@ private fun WordLine(
         val isWordCurrent = currentPositionMs in word.startMs..word.endMs
 
         val color = when {
-            isWordCurrent -> MiuixTheme.colorScheme.primary
-            isWordActive -> MiuixTheme.colorScheme.primary.copy(alpha = 0.8f)
-            else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
+            isWordCurrent -> currentColor
+            isWordActive -> sungColor
+            else -> pendingColor
         }
 
         builder.pushStyle(
             androidx.compose.ui.text.SpanStyle(
                 color = color,
-                fontSize = 18.sp,
+                fontSize = fontSizeSp.sp,
                 fontWeight = if (isWordCurrent) FontWeight.ExtraBold else FontWeight.Bold
             )
         )
@@ -282,7 +298,7 @@ private fun WordLine(
     Text(
         text = builder.toAnnotatedString(),
         textAlign = textAlign,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     )
 }
 

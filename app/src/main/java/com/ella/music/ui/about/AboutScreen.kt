@@ -312,11 +312,6 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/Adonai/jaudiotagger") },
                     )
                     BasicComponent(
-                        title = "TagLib",
-                        summary = "音频标签与兜底读取",
-                        onClick = { uriHandler.openUri("https://github.com/taglib/taglib") },
-                    )
-                    BasicComponent(
                         title = "Kyant TagLib",
                         summary = "Android/Kotlin TagLib 绑定",
                         onClick = { uriHandler.openUri("https://github.com/Kyant0/TagLib") },
@@ -335,16 +330,6 @@ private fun AboutContent(
                         title = "Coil",
                         summary = "Kotlin 图片加载库",
                         onClick = { uriHandler.openUri("https://github.com/coil-kt/coil") },
-                    )
-                    BasicComponent(
-                        title = "AndroidX DataStore",
-                        summary = "设置持久化",
-                        onClick = { uriHandler.openUri("https://developer.android.com/jetpack/androidx/releases/datastore") },
-                    )
-                    BasicComponent(
-                        title = "Kotlinx Coroutines",
-                        summary = "异步任务与 Flow 状态流",
-                        onClick = { uriHandler.openUri("https://github.com/Kotlin/kotlinx.coroutines") },
                     )
                 }
             }

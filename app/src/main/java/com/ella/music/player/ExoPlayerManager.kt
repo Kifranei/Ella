@@ -2,7 +2,6 @@ package com.ella.music.player
 
 import android.content.ComponentName
 import android.content.Context
-import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -81,6 +80,10 @@ class ExoPlayerManager(private val context: Context) {
                 updateCurrentSong()
             }
 
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                refreshStateFromController()
+            }
+
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                 _shuffleEnabled.value = shuffleModeEnabled
             }
@@ -95,8 +98,7 @@ class ExoPlayerManager(private val context: Context) {
         }
         mediaController?.addListener(playerListener!!)
 
-        _shuffleEnabled.value = mediaController?.shuffleModeEnabled ?: false
-        _repeatMode.value = mediaController?.repeatMode ?: Player.REPEAT_MODE_OFF
+        refreshStateFromController()
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
@@ -127,6 +129,7 @@ class ExoPlayerManager(private val context: Context) {
             prepare()
             play()
         }
+        updateCurrentSong()
     }
 
     fun playSong(song: Song) {
@@ -172,13 +175,59 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun updatePosition() {
+        if (_currentSong.value == null && (mediaController?.mediaItemCount ?: 0) > 0) {
+            refreshStateFromController()
+        }
         _currentPosition.value = mediaController?.currentPosition?.coerceAtLeast(0) ?: 0L
         _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
     }
 
+    fun refreshStateFromController() {
+        val controller = mediaController ?: return
+        _isPlaying.value = controller.isPlaying
+        _playbackState.value = controller.playbackState
+        _shuffleEnabled.value = controller.shuffleModeEnabled
+        _repeatMode.value = controller.repeatMode
+        _currentPosition.value = controller.currentPosition.coerceAtLeast(0)
+        _duration.value = controller.duration.coerceAtLeast(0)
+
+        val mediaItemCount = controller.mediaItemCount
+        if (mediaItemCount > 0 && playlist.isEmpty()) {
+            playlist.clear()
+            for (index in 0 until mediaItemCount) {
+                playlist += controller.getMediaItemAt(index).toSong()
+            }
+        }
+        updateCurrentSong()
+    }
+
     private fun updateCurrentSong() {
-        val currentIndex = mediaController?.currentMediaItemIndex ?: return
-        _currentSong.value = if (currentIndex in playlist.indices) playlist[currentIndex] else null
-        _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
+        val controller = mediaController ?: return
+        val currentIndex = controller.currentMediaItemIndex
+        val restoredSong = if (currentIndex in playlist.indices) {
+            playlist[currentIndex]
+        } else {
+            controller.currentMediaItem?.toSong()
+        }
+        _currentSong.value = restoredSong
+        _duration.value = controller.duration.coerceAtLeast(0)
+    }
+
+    private fun MediaItem.toSong(): Song {
+        val metadata = mediaMetadata
+        val path = localConfiguration?.uri?.toString().orEmpty()
+        val mediaIdValue = mediaId.toLongOrNull() ?: path.hashCode().toLong()
+        val fileName = path.substringAfterLast('/').ifBlank { metadata.title?.toString().orEmpty() }
+        return Song(
+            id = mediaIdValue,
+            title = metadata.title?.toString()?.ifBlank { fileName } ?: fileName,
+            artist = metadata.artist?.toString()?.ifBlank { "Unknown" } ?: "Unknown",
+            album = metadata.albumTitle?.toString()?.ifBlank { "Music" } ?: "Music",
+            albumId = 0L,
+            duration = mediaController?.duration?.coerceAtLeast(0) ?: 0L,
+            path = path,
+            fileName = fileName,
+            mimeType = localConfiguration?.mimeType.orEmpty()
+        )
     }
 }
