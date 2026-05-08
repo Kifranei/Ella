@@ -263,6 +263,7 @@ fun HomeScreen(
                                         isCurrent = currentSong?.id == song.id,
                                         albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                                         loadCoverArt = mainViewModel::getCoverArtBitmap,
+                                        loadAudioInfo = mainViewModel::getAudioInfo,
                                         selectionMode = selectionMode,
                                         selected = selected,
                                         onLongClick = {
@@ -276,7 +277,8 @@ fun HomeScreen(
                                                 playerViewModel.setPlaylist(sortedSongs, sortedSongs.indexOf(song))
                                                 onNavigateToPlayer()
                                             }
-                                        }
+                                        },
+                                        onAddToQueue = { playerViewModel.addToPlaylist(song) }
                                     )
                                 }
                             }

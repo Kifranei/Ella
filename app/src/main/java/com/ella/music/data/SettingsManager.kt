@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -25,6 +26,9 @@ class SettingsManager(private val context: Context) {
         val KEY_REPLAYGAIN_ENABLED = booleanPreferencesKey("replaygain_enabled")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
+        val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
+        val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
+        val KEY_WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
     }
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: true }
@@ -37,6 +41,9 @@ class SettingsManager(private val context: Context) {
     val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
+    val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
+    val webDavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
+    val webDavPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
 
     suspend fun setLyriconEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRICON_ENABLED] = enabled }
@@ -76,5 +83,13 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setPlayerHdrGlow(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_HDR_GLOW] = enabled }
+    }
+
+    suspend fun setWebDavConfig(url: String, username: String, password: String) {
+        context.dataStore.edit {
+            it[KEY_WEBDAV_URL] = url.trim()
+            it[KEY_WEBDAV_USERNAME] = username
+            it[KEY_WEBDAV_PASSWORD] = password
+        }
     }
 }

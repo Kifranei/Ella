@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
@@ -339,20 +340,35 @@ private fun WordLine(
                 0f
             }
 
-            Box {
+            Box(
+                modifier = Modifier.padding(vertical = 5.dp)
+            ) {
                 if (isLongSustain && displayText.isNotBlank()) {
                     Text(
                         text = displayText,
                         fontSize = fontSizeSp.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = currentColor.copy(alpha = glowPulse),
+                        color = currentColor.copy(alpha = glowPulse * 0.34f),
                         modifier = Modifier
                             .offset(y = (-liftDp).dp)
                             .graphicsLayer {
-                                scaleX = 1.035f
-                                scaleY = 1.035f
+                                scaleX = 1.12f
+                                scaleY = 1.12f
                             }
-                            .blur(5.dp)
+                            .blur(11.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                    )
+                    Text(
+                        text = displayText,
+                        fontSize = fontSizeSp.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = currentColor.copy(alpha = glowPulse * 0.56f),
+                        modifier = Modifier
+                            .offset(y = (-liftDp).dp)
+                            .graphicsLayer {
+                                scaleX = 1.05f
+                                scaleY = 1.05f
+                            }
+                            .blur(5.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     )
                 }
                 Text(

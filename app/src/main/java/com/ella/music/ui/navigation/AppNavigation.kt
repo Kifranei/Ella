@@ -12,8 +12,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ella.music.ui.about.AboutScreen
+import com.ella.music.ui.analytics.AnalyticsScreen
 import com.ella.music.ui.album.AlbumDetailScreen
 import com.ella.music.ui.album.AlbumScreen
+import com.ella.music.ui.artist.ArtistScreen
 import com.ella.music.ui.folder.FolderDetailScreen
 import com.ella.music.ui.folder.FolderScreen
 import com.ella.music.ui.home.HomeScreen
@@ -28,11 +30,15 @@ sealed class Screen(val route: String) {
     data object AlbumDetail : Screen("album/{albumId}") {
         fun createRoute(albumId: Long) = "album/$albumId"
     }
+    data object ArtistDetail : Screen("artist/{artistName}") {
+        fun createRoute(artistName: String) = "artist/${java.net.URLEncoder.encode(artistName, "UTF-8")}"
+    }
     data object Folder : Screen("folder")
     data object FolderDetail : Screen("folder/{folderPath}") {
         fun createRoute(folderPath: String) = "folder/${java.net.URLEncoder.encode(folderPath, "UTF-8")}"
     }
     data object Settings : Screen("settings")
+    data object Analytics : Screen("analytics")
     data object About : Screen("about")
     data object Player : Screen("player")
 }
@@ -97,9 +103,29 @@ fun AppNavigation(
         composable(Screen.Folder.route) {
             FolderScreen(
                 mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
                 onFolderClick = { folderPath ->
                     navController.navigate(Screen.FolderDetail.createRoute(folderPath))
                 }
+            )
+        }
+
+        composable(
+            route = Screen.ArtistDetail.route,
+            arguments = listOf(navArgument("artistName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val artistName = java.net.URLDecoder.decode(
+                backStackEntry.arguments?.getString("artistName") ?: "",
+                "UTF-8"
+            )
+            ArtistScreen(
+                artistName = artistName,
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() },
+                onAlbumClick = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
             )
         }
 
@@ -123,7 +149,15 @@ fun AppNavigation(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onNavigateToAbout = { navController.navigate(Screen.About.route) },
+                onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 playerViewModel = playerViewModel
+            )
+        }
+
+        composable(Screen.Analytics.route) {
+            AnalyticsScreen(
+                mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -136,7 +170,13 @@ fun AppNavigation(
         composable(Screen.Player.route) {
             PlayerScreen(
                 playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistName ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                }
             )
         }
     }

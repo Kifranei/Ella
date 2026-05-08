@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun SettingsScreen(
     onNavigateToAbout: () -> Unit,
+    onNavigateToAnalytics: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
     val context = LocalContext.current
@@ -294,6 +295,24 @@ fun SettingsScreen(
                 color = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
             )
+
+            Card(
+                modifier = Modifier.padding(vertical = 4.dp),
+                onClick = onNavigateToAnalytics
+            ) {
+                BasicComponent(
+                    title = "歌曲库分析",
+                    summary = "查看音质占比、听歌时长和播放次数排行",
+                    endActions = {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.ArrowRight,
+                            contentDescription = null,
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                )
+            }
 
             Card(
                 modifier = Modifier.padding(vertical = 4.dp),

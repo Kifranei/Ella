@@ -246,10 +246,12 @@ fun FolderDetailScreen(
                                 isCurrent = currentSong?.id == song.id,
                                 albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
+                                loadAudioInfo = mainViewModel::getAudioInfo,
                                 onClick = {
                                     playerViewModel.setPlaylist(sortedSongs, index)
                                     onNavigateToPlayer()
-                                }
+                                },
+                                onAddToQueue = { playerViewModel.addToPlaylist(song) }
                             )
                         }
                     }

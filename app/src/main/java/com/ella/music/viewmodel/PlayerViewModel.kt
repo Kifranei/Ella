@@ -1,8 +1,10 @@
 package com.ella.music.viewmodel
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -26,6 +29,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val settingsManager = SettingsManager(application)
     val lyriconBridge = LyriconBridge(application)
     val tickerBridge = TickerBridge(application)
+    private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
 
     val currentSong: StateFlow<Song?> = playerManager.currentSong
     val isPlaying: StateFlow<Boolean> = playerManager.isPlaying
@@ -33,6 +37,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val duration: StateFlow<Long> = playerManager.duration
     val shuffleEnabled: StateFlow<Boolean> = playerManager.shuffleEnabled
     val repeatMode: StateFlow<Int> = playerManager.repeatMode
+    val playlist: StateFlow<List<Song>> = playerManager.playlistFlow
 
     private val _lyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val lyrics: StateFlow<List<LyricLine>> = _lyrics.asStateFlow()
@@ -49,6 +54,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var positionUpdateJob: Job? = null
     private var lastSentPlayingState: Boolean? = null
     private var lastTickerLine: String? = null
+    private var statsSongId: Long? = null
+    private var statsSong: Song? = null
+    private var playCountedSongId: Long? = null
+    private var pendingListenMs = 0L
+    private var lastStatsTickMs = 0L
 
     init {
         playerManager.connect()
@@ -83,6 +93,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             while (isActive) {
                 playerManager.updatePosition()
                 updateCurrentLyricIndex()
+                updatePlaybackStats()
 
                 if (lyriconBridge.isEnabled()) {
                     lyriconBridge.sendPosition(playerManager.currentPosition.value)
@@ -155,6 +166,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    private suspend fun updatePlaybackStats() {
+        val now = SystemClock.elapsedRealtime()
+        val song = currentSong.value
+        val songId = song?.id
+
+        if (songId != statsSongId) {
+            flushPlaybackStats()
+            statsSongId = songId
+            statsSong = song
+            playCountedSongId = null
+            lastStatsTickMs = now
+            return
+        }
+
+        if (song != null && isPlaying.value) {
+            if (playCountedSongId != song.id) {
+                playbackStatsStore.recordPlay(song)
+                playCountedSongId = song.id
+            }
+            if (lastStatsTickMs > 0L) {
+                pendingListenMs += (now - lastStatsTickMs).coerceIn(0L, 1500L)
+            }
+            if (pendingListenMs >= 5000L) {
+                playbackStatsStore.addListenTime(song, pendingListenMs)
+                pendingListenMs = 0L
+            }
+        } else {
+            flushPlaybackStats()
+        }
+        lastStatsTickMs = now
+    }
+
+    private suspend fun flushPlaybackStats() {
+        val song = statsSong
+        if (song != null && pendingListenMs > 0L) {
+            playbackStatsStore.addListenTime(song, pendingListenMs)
+        }
+        pendingListenMs = 0L
+    }
+
     private suspend fun resendExternalLyrics() {
         val song = currentSong.value ?: return
         val songLyrics = _lyrics.value.ifEmpty { repository.getLyrics(song) }
@@ -205,8 +256,35 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleShuffle() = playerManager.toggleShuffle()
     fun toggleRepeat() = playerManager.toggleRepeat()
+    fun addToPlaylist(song: Song) = playerManager.addToPlaylist(song)
+    fun playQueueIndex(index: Int) = playerManager.playQueueIndex(index)
+
+    fun cyclePlaybackMode() {
+        val shuffle = shuffleEnabled.value
+        val repeat = repeatMode.value
+        when {
+            shuffle -> {
+                playerManager.toggleShuffle()
+                if (repeat != androidx.media3.common.Player.REPEAT_MODE_OFF) {
+                    playerManager.toggleRepeat()
+                }
+            }
+            repeat == androidx.media3.common.Player.REPEAT_MODE_OFF -> {
+                playerManager.toggleRepeat()
+            }
+            repeat == androidx.media3.common.Player.REPEAT_MODE_ALL -> {
+                playerManager.toggleRepeat()
+            }
+            else -> {
+                playerManager.toggleRepeat()
+                playerManager.toggleShuffle()
+            }
+        }
+    }
 
     fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song)
+
+    fun getAudioInfo(song: Song) = repository.getAudioInfo(song)
 
     fun toggleLyrics() {
         _showLyrics.value = !_showLyrics.value
@@ -273,6 +351,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     override fun onCleared() {
+        runBlocking {
+            flushPlaybackStats()
+        }
         super.onCleared()
         positionUpdateJob?.cancel()
         tickerBridge.clearLyric()

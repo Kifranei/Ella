@@ -1,8 +1,13 @@
 package com.ella.music.ui.player
 
+import android.content.ContentUris
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.RepeatMode
@@ -32,19 +37,25 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -56,16 +67,25 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.media3.common.Player
 import com.ella.music.R
+import com.ella.music.data.splitArtistNames
+import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.WordLyricView
 import com.ella.music.ui.components.SafeCoverImage
@@ -86,19 +106,29 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun PlayerScreen(
     playerViewModel: PlayerViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
     val currentPosition by playerViewModel.currentPosition.collectAsState()
     val duration by playerViewModel.duration.collectAsState()
     val shuffleEnabled by playerViewModel.shuffleEnabled.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
+    val playlist by playerViewModel.playlist.collectAsState()
     val lyrics by playerViewModel.lyrics.collectAsState()
     val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
     val showLyrics by playerViewModel.showLyrics.collectAsState()
     val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
+    val miniLyricLine = currentLyricLine
+        ?.takeIf { it.hasMiniLyric() }
+        ?: lyrics.firstOrNull { it.hasMiniLyric() }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var queueExpanded by remember { mutableStateOf(false) }
 
     val song = currentSong
     val embeddedCover by produceState<Bitmap?>(initialValue = null, song?.id) {
@@ -106,6 +136,9 @@ fun PlayerScreen(
     }
     val palette by produceState(initialValue = PlayerPalette.Default, embeddedCover) {
         value = withContext(Dispatchers.Default) { PlayerPalette.from(embeddedCover) }
+    }
+    val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id) {
+        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
     }
     val motionTransition = rememberInfiniteTransition(label = "player_motion")
     val coverMotion by motionTransition.animateFloat(
@@ -199,7 +232,65 @@ fun PlayerScreen(
                     )
                 }
             } else {
-                Spacer(modifier = Modifier.size(48.dp))
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                            .clickable { menuExpanded = !menuExpanded },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "⋮",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    if (menuExpanded) {
+                        Popup(
+                            alignment = Alignment.TopEnd,
+                            offset = with(density) {
+                                IntOffset(x = (-8).dp.roundToPx(), y = 58.dp.roundToPx())
+                            },
+                            onDismissRequest = { menuExpanded = false },
+                            properties = PopupProperties(
+                                focusable = true,
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
+                            )
+                        ) {
+                            PlayerActionMenu(
+                                modifier = Modifier.width(168.dp),
+                                onAlbum = {
+                                    menuExpanded = false
+                                    val albumId = song?.albumId ?: 0L
+                                    if (albumId > 0L) onNavigateToAlbum(albumId)
+                                    else Toast.makeText(context, "这首歌没有可跳转的专辑信息", Toast.LENGTH_SHORT).show()
+                                },
+                                onArtist = {
+                                    menuExpanded = false
+                                    val artist = splitArtistNames(song?.artist.orEmpty()).firstOrNull().orEmpty()
+                                    if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
+                                        onNavigateToArtist(artist)
+                                    } else {
+                                        Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                onEditTags = {
+                                    menuExpanded = false
+                                    val current = song
+                                    if (current != null) openExternalTagEditor(context, current)
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -269,10 +360,10 @@ fun PlayerScreen(
                                     shadowElevation = if (isPlaying) 18f + coverMotion * 10f else 14f
                                 }
                         )
-                        if (currentLyricLine != null && currentLyricLine.hasMiniLyric()) {
+                        if (miniLyricLine != null) {
                             Spacer(modifier = Modifier.height(18.dp))
                             MiniLyricBlock(
-                                line = currentLyricLine,
+                                line = miniLyricLine,
                                 showTranslation = showLyricTranslation,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -314,6 +405,21 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center
             )
+            audioInfo?.let { info ->
+                val infoText = formatAudioInfo(info)
+                if (infoText.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = infoText,
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.46f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -358,12 +464,11 @@ fun PlayerScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { playerViewModel.toggleShuffle() }) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_shuffle),
-                    contentDescription = "随机播放",
-                    tint = if (shuffleEnabled) palette.accent else Color.White.copy(alpha = 0.42f),
-                    modifier = Modifier.size(22.dp)
+            IconButton(onClick = { playerViewModel.cyclePlaybackMode() }) {
+                PlaybackModeIcon(
+                    shuffleEnabled = shuffleEnabled,
+                    repeatMode = repeatMode,
+                    accent = palette.accent
                 )
             }
 
@@ -401,22 +506,76 @@ fun PlayerScreen(
                 )
             }
 
-            IconButton(onClick = { playerViewModel.toggleRepeat() }) {
-                val iconRes = when (repeatMode) {
-                    Player.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
-                    else -> R.drawable.ic_repeat
+            Box(contentAlignment = Alignment.Center) {
+                IconButton(onClick = { queueExpanded = !queueExpanded }) {
+                    Text(
+                        text = "≡",
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.72f)
+                    )
                 }
-                Icon(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = "循环模式",
-                    tint = if (repeatMode != Player.REPEAT_MODE_OFF) palette.accent else Color.White.copy(alpha = 0.42f),
-                    modifier = Modifier.size(22.dp)
-                )
+                if (queueExpanded) {
+                    Popup(
+                        alignment = Alignment.BottomEnd,
+                        offset = with(density) { IntOffset(x = (-12).dp.roundToPx(), y = (-76).dp.roundToPx()) },
+                        onDismissRequest = { queueExpanded = false },
+                        properties = PopupProperties(
+                            focusable = true,
+                            dismissOnBackPress = true,
+                            dismissOnClickOutside = true
+                        )
+                    ) {
+                        PlayerQueueMenu(
+                            playlist = playlist,
+                            currentSongId = song?.id,
+                            onSongClick = { index ->
+                                queueExpanded = false
+                                playerViewModel.playQueueIndex(index)
+                            },
+                            modifier = Modifier.width(280.dp)
+                        )
+                    }
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+    }
+}
+
+@Composable
+private fun PlaybackModeIcon(
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    accent: Color
+) {
+    val active = shuffleEnabled || repeatMode != Player.REPEAT_MODE_OFF
+    val iconRes = when {
+        shuffleEnabled -> R.drawable.ic_shuffle
+        repeatMode == Player.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
+        else -> R.drawable.ic_repeat
+    }
+    val label = when {
+        shuffleEnabled -> "随机播放"
+        repeatMode == Player.REPEAT_MODE_ONE -> "单曲循环"
+        repeatMode == Player.REPEAT_MODE_ALL -> "列表循环"
+        else -> "顺序播放"
+    }
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background((if (active) accent else Color.White).copy(alpha = if (active) 0.28f else 0.10f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(id = iconRes),
+            contentDescription = label,
+            tint = if (active) Color.White else Color.White.copy(alpha = 0.52f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -494,6 +653,64 @@ private fun PlayerBlurBackground(
                     )
                 )
         )
+    }
+}
+
+@Composable
+private fun PlayerQueueMenu(
+    playlist: List<Song>,
+    currentSongId: Long?,
+    onSongClick: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.56f))
+            .padding(vertical = 8.dp)
+    ) {
+        Text(
+            text = "当前播放列表",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.92f),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        )
+        if (playlist.isEmpty()) {
+            Text(
+                text = "暂无歌曲",
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.54f),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+            )
+        } else {
+            LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                itemsIndexed(playlist, key = { _, item -> item.id }) { index, item ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSongClick(index) }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = item.title,
+                            fontSize = 13.sp,
+                            fontWeight = if (item.id == currentSongId) FontWeight.Bold else FontWeight.Medium,
+                            color = if (item.id == currentSongId) Color.White else Color.White.copy(alpha = 0.82f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = item.artist,
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.48f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -577,6 +794,41 @@ private fun MiniLyricBlock(
 }
 
 @Composable
+private fun PlayerActionMenu(
+    onAlbum: () -> Unit,
+    onArtist: () -> Unit,
+    onEditTags: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.50f))
+            .padding(vertical = 6.dp)
+    ) {
+        PlayerActionMenuItem("查看专辑页", onAlbum)
+        PlayerActionMenuItem("查看歌手页", onArtist)
+        PlayerActionMenuItem("外部编辑标签", onEditTags)
+    }
+}
+
+@Composable
+private fun PlayerActionMenuItem(
+    text: String,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        fontSize = 14.sp,
+        color = Color.White.copy(alpha = 0.92f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    )
+}
+
+@Composable
 private fun AlbumArtView(
     song: Song?,
     embeddedCover: Bitmap?,
@@ -622,98 +874,41 @@ private fun GlowSeekBar(
     modifier: Modifier = Modifier
 ) {
     val safeProgress = value.coerceIn(0f, 1f)
-    val shownProgress by animateFloatAsState(
-        targetValue = safeProgress,
-        animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
-        label = "player_progress"
-    )
-    val glowTransition = rememberInfiniteTransition(label = "player_progress_glow")
-    val glowPulse by glowTransition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow_pulse"
-    )
 
     fun seek(width: Float, x: Float) {
         onSeek((x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
     }
 
-    Canvas(
-        modifier = modifier
-            .height(18.dp)
-            .pointerInput(Unit) {
-                detectTapGestures { offset -> seek(size.width.toFloat(), offset.x) }
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, _ ->
-                    seek(size.width.toFloat(), change.position.x)
-                }
-            }
+    Box(
+        modifier = modifier.height(38.dp)
     ) {
-        val trackHeight = 4.dp.toPx()
-        val centerY = size.height / 2f
-        val radius = trackHeight / 2f
-        val progressWidth = size.width * shownProgress
-        val visibleProgressWidth = progressWidth.coerceAtLeast(if (shownProgress > 0f) trackHeight else 0f)
-
-        drawRoundRect(
-            color = Color.White.copy(alpha = 0.16f),
-            topLeft = Offset(0f, centerY - trackHeight / 2f),
-            size = Size(size.width, trackHeight),
-            cornerRadius = CornerRadius(radius, radius)
+        AndroidView(
+            factory = { context ->
+                SuperIslandGlowProgressBar(context).apply {
+                    shaderMode = SuperIslandGlowProgressBar.ShaderMode.HIGH_END
+                    trackHeightPx = resources.displayMetrics.density * 6f
+                    trackHorizontalPaddingPx = 0f
+                    headGlowAlpha = 1f
+                    trackColor = AndroidColor.argb(48, 255, 255, 255)
+                }
+            },
+            update = { view ->
+                view.progressFraction = safeProgress
+                view.fallbackProgressColor = accent.copy(alpha = 0.82f).toArgb()
+            },
+            modifier = Modifier.fillMaxSize()
         )
-
-        if (visibleProgressWidth <= 0f) return@Canvas
-
-        drawRoundRect(
-            brush = Brush.horizontalGradient(
-                colors = listOf(
-                    accent.copy(alpha = 0.75f),
-                    accent,
-                    Color.White.copy(alpha = 0.95f)
-                ),
-                startX = 0f,
-                endX = max(visibleProgressWidth, 1f)
-            ),
-            topLeft = Offset(0f, centerY - trackHeight / 2f),
-            size = Size(visibleProgressWidth, trackHeight),
-            cornerRadius = CornerRadius(radius, radius)
-        )
-
-        val glowRadius = trackHeight * 3.2f
-        val headX = visibleProgressWidth.coerceIn(0f, size.width)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    accent.copy(alpha = 0.75f * glowPulse),
-                    accent.copy(alpha = 0.25f * glowPulse),
-                    Color.Transparent
-                ),
-                center = Offset(headX, centerY),
-                radius = glowRadius
-            ),
-            radius = glowRadius,
-            center = Offset(headX, centerY),
-            blendMode = BlendMode.Screen
-        )
-
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.80f),
-                    Color.White.copy(alpha = 0.18f),
-                    Color.Transparent
-                ),
-                center = Offset(headX, centerY),
-                radius = glowRadius * 0.82f
-            ),
-            radius = glowRadius * 0.82f,
-            center = Offset(headX, centerY),
-            blendMode = BlendMode.Screen
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset -> seek(size.width.toFloat(), offset.x) }
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, _ ->
+                        seek(size.width.toFloat(), change.position.x)
+                    }
+                }
         )
     }
 }
@@ -812,4 +1007,42 @@ private fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%02d:%02d".format(minutes, seconds)
+}
+
+private fun formatAudioInfo(info: AudioInfo): String {
+    val parts = mutableListOf<String>()
+    parts += info.format
+    if (info.bitDepth > 0) parts += "${info.bitDepth}-bit"
+    if (info.sampleRate > 0) {
+        parts += if (info.sampleRate % 1000 == 0) {
+            "${info.sampleRate / 1000} kHz"
+        } else {
+            "%.1f kHz".format(info.sampleRate / 1000f)
+        }
+    }
+    if (info.bitRate > 0) parts += "${(info.bitRate / 1000).coerceAtLeast(1)} kbps"
+    if (info.channels > 0) parts += "${info.channels}ch"
+    return parts.distinct().joinToString(" · ")
+}
+
+private fun openExternalTagEditor(context: Context, song: Song) {
+    val uri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
+    val mimeType = song.mimeType.ifBlank { "audio/*" }
+    val editIntent = Intent(Intent.ACTION_EDIT).apply {
+        setDataAndType(uri, mimeType)
+        putExtra(Intent.EXTRA_TITLE, song.title)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+    }
+    val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, mimeType)
+        putExtra(Intent.EXTRA_TITLE, song.title)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    runCatching {
+        context.startActivity(Intent.createChooser(editIntent, "编辑歌曲标签"))
+    }.recoverCatching {
+        context.startActivity(Intent.createChooser(viewIntent, "打开歌曲"))
+    }.onFailure {
+        Toast.makeText(context, "没有找到可编辑标签的外部应用", Toast.LENGTH_SHORT).show()
+    }
 }

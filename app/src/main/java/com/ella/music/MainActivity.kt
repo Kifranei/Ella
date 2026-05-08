@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            mainViewModel?.scanMusic()
+            mainViewModel?.scanMusicIfAutoEnabled()
         }
         requestNotificationPermissionIfNeeded()
     }
@@ -99,7 +99,6 @@ class MainActivity : ComponentActivity() {
 
             val settingsManager = remember { SettingsManager(this@MainActivity) }
             val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
-            val autoScan by settingsManager.autoScan.collectAsState(initial = true)
 
             val isDark = when (themeMode) {
                 THEME_DARK -> true
@@ -136,7 +135,7 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 checkAndRequestPermissions()
                 mainVm.loadCachedLibrary()
-                if (autoScan) mainVm.scanMusic()
+                mainVm.scanMusicIfAutoEnabled()
             }
 
             EllaTheme(themeMode = themeMode) {

@@ -283,7 +283,9 @@ object LrcParser {
                 }
             }
         }
-        val text = textBuilder.toString().normalizeTtmlText()
+        val text = textBuilder.toString()
+            .normalizeTtmlText()
+            .removeTtmlBackgroundParentheses()
         val ownBegin = element.attr("begin").parseTtmlTime()
         if (ownBegin != null && words.isEmpty() && text.isNotBlank()) {
             val ownEnd = element.attr("end").parseTtmlTime()
@@ -291,9 +293,12 @@ object LrcParser {
                 ?: (ownBegin + estimateWordDuration(text))
             words += LyricWord(text, ownBegin, ownEnd)
         }
+        val cleanedWords = words
+            .map { word -> word.copy(text = word.text.removeTtmlBackgroundParentheses()) }
+            .filter { it.text.isNotBlank() }
         return TtmlBackground(
             text = text,
-            words = words.toTtmlDisplayWords(text),
+            words = cleanedWords.toTtmlDisplayWords(text),
             translation = translations.firstOrNull { it.isNotBlank() && !it.isMusicSymbolOnly() }
         )
     }
@@ -307,6 +312,7 @@ object LrcParser {
             ?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
         val text = replace(ttmlTranslationPattern, "")
             .stripXmlText()
+            .removeTtmlBackgroundParentheses()
             .takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
             .orEmpty()
         val words = ttmlSpanPattern.findAll(this)
@@ -315,14 +321,20 @@ object LrcParser {
                 if (attributes.contains("ttm:role=", ignoreCase = true)) return@mapNotNull null
                 val begin = beginAttributePattern.find(attributes)?.groupValues?.getOrNull(1)?.parseTtmlTime()
                     ?: return@mapNotNull null
-                val wordText = span.groupValues[2].stripXmlText()
+                val wordText = span.groupValues[2]
+                    .stripXmlText()
+                    .removeTtmlBackgroundParentheses()
                 if (wordText.isBlank()) return@mapNotNull null
                 val end = endAttributePattern.find(attributes)?.groupValues?.getOrNull(1)?.parseTtmlTime()
                     ?: (begin + estimateWordDuration(wordText))
                 LyricWord(wordText, begin, end)
             }
             .toList()
-        return TtmlBackground(text, words.toTtmlDisplayWords(text), translation)
+        return TtmlBackground(
+            text = text,
+            words = words.toTtmlDisplayWords(text),
+            translation = translation
+        )
     }
 
     private fun List<LyricWord>.toTtmlDisplayWords(lineText: String): List<LyricWord> {
@@ -567,6 +579,19 @@ object LrcParser {
 
     private fun String.normalizeTtmlText(): String =
         replace(Regex("""[ \t\r\n]+"""), " ")
+
+    private fun String.removeTtmlBackgroundParentheses(): String =
+        replace(Regex("""[()（）]"""), "")
+            .replace(Regex("""[ \t\r\n]+"""), " ")
+            .trim()
+
+    private fun String.completeOpenParentheticalAdlib(): String {
+        val trimmed = trim()
+        if (trimmed.length !in 2..24) return this
+        if (!trimmed.startsWith("(") || trimmed.endsWith(")")) return this
+        if (trimmed.count { it == '(' } != 1 || trimmed.any { it == ')' }) return this
+        return this + ")"
+    }
 
     private fun String.withoutFormattingWhitespace(): String {
         if (isBlank() && any { it == '\n' || it == '\r' || it == '\t' }) return ""

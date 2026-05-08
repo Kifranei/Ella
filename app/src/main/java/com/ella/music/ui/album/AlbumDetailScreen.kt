@@ -107,10 +107,12 @@ fun AlbumDetailScreen(
                     isCurrent = currentSong?.id == song.id,
                     albumArtUri = albumArtUri,
                     loadCoverArt = mainViewModel::getCoverArtBitmap,
+                    loadAudioInfo = mainViewModel::getAudioInfo,
                     onClick = {
                         playerViewModel.setPlaylist(albumSongs, index)
                         onNavigateToPlayer()
-                    }
+                    },
+                    onAddToQueue = { playerViewModel.addToPlaylist(song) }
                 )
             }
         }

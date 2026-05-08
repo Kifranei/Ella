@@ -43,6 +43,8 @@ class ExoPlayerManager(private val context: Context) {
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
     private var playlist = mutableListOf<Song>()
+    private val _playlist = MutableStateFlow<List<Song>>(emptyList())
+    val playlistFlow: StateFlow<List<Song>> = _playlist.asStateFlow()
     private var playerListener: Player.Listener? = null
 
     private val directExecutor = Executor { it.run() }
@@ -104,31 +106,32 @@ class ExoPlayerManager(private val context: Context) {
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
         playlist.clear()
         playlist.addAll(songs)
+        _playlist.value = playlist.toList()
 
-        val mediaItems = songs.map { song ->
-            val builder = MediaItem.Builder()
-                .setUri(song.path.toUri())
-                .setMediaId(song.id.toString())
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(song.title)
-                        .setArtist(song.artist)
-                        .setAlbumTitle(song.album)
-                        .build()
-                )
-
-            if (song.mimeType.isNotBlank()) {
-                builder.setMimeType(song.mimeType)
-            }
-
-            builder.build()
-        }
+        val mediaItems = songs.map(::songToMediaItem)
 
         mediaController?.apply {
             setMediaItems(mediaItems, startIndex, 0L)
             prepare()
             play()
         }
+        updateCurrentSong()
+    }
+
+    fun addToPlaylist(song: Song) {
+        val item = songToMediaItem(song)
+        playlist.add(song)
+        _playlist.value = playlist.toList()
+        mediaController?.addMediaItem(item)
+        if ((mediaController?.mediaItemCount ?: 0) == 1) {
+            mediaController?.prepare()
+        }
+    }
+
+    fun playQueueIndex(index: Int) {
+        if (index !in playlist.indices) return
+        mediaController?.seekToDefaultPosition(index)
+        mediaController?.play()
         updateCurrentSong()
     }
 
@@ -198,7 +201,27 @@ class ExoPlayerManager(private val context: Context) {
                 playlist += controller.getMediaItemAt(index).toSong()
             }
         }
+        _playlist.value = playlist.toList()
         updateCurrentSong()
+    }
+
+    private fun songToMediaItem(song: Song): MediaItem {
+        val builder = MediaItem.Builder()
+            .setUri(song.path.toUri())
+            .setMediaId(song.id.toString())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(song.title)
+                    .setArtist(song.artist)
+                    .setAlbumTitle(song.album)
+                    .build()
+            )
+
+        if (song.mimeType.isNotBlank()) {
+            builder.setMimeType(song.mimeType)
+        }
+
+        return builder.build()
     }
 
     private fun updateCurrentSong() {

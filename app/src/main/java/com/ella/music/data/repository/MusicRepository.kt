@@ -4,11 +4,14 @@ import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import android.util.LruCache
 import com.ella.music.data.model.Album
+import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.parser.LrcParser
@@ -39,6 +42,7 @@ class MusicRepository(private val context: Context) {
     val scanProgress: StateFlow<Int> = _scanProgress.asStateFlow()
 
     private val lyricsCache = mutableMapOf<Long, List<LyricLine>>()
+    private val audioInfoCache = mutableMapOf<Long, AudioInfo>()
     private val replayGainCache = mutableMapOf<Long, Float?>()
     private val coverArtCache = mutableMapOf<Long, ByteArray?>()
     private val coverBitmapCache = object : LruCache<Long, Bitmap>(16 * 1024) {
@@ -128,6 +132,41 @@ class MusicRepository(private val context: Context) {
         return gain
     }
 
+    fun getAudioInfo(song: Song): AudioInfo {
+        audioInfoCache[song.id]?.let { return it }
+        val info = runCatching {
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(song.path)
+                var audioFormat: MediaFormat? = null
+                for (index in 0 until extractor.trackCount) {
+                    val format = extractor.getTrackFormat(index)
+                    val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
+                    if (mime.startsWith("audio/")) {
+                        audioFormat = format
+                        break
+                    }
+                }
+
+                val format = audioFormat
+                AudioInfo(
+                    format = song.audioFormatLabel(format?.getString(MediaFormat.KEY_MIME)),
+                    bitRate = format?.getIntOrZero(MediaFormat.KEY_BIT_RATE) ?: 0,
+                    sampleRate = format?.getIntOrZero(MediaFormat.KEY_SAMPLE_RATE) ?: 0,
+                    bitDepth = format?.getIntOrZero("bits-per-sample") ?: 0,
+                    channels = format?.getIntOrZero(MediaFormat.KEY_CHANNEL_COUNT) ?: 0
+                )
+            } finally {
+                extractor.release()
+            }
+        }.getOrElse {
+            Log.w("MusicRepo", "Failed to read audio info for ${song.path}", it)
+            AudioInfo(format = song.audioFormatLabel(null))
+        }
+        audioInfoCache[song.id] = info
+        return info
+    }
+
     fun getCoverArt(song: Song): ByteArray? {
         coverArtCache[song.id]?.let { return it }
         val art = scanner.extractCoverArt(song.path)
@@ -200,8 +239,29 @@ class MusicRepository(private val context: Context) {
 
     fun clearCache() {
         lyricsCache.clear()
+        audioInfoCache.clear()
         replayGainCache.clear()
         coverArtCache.clear()
+    }
+
+    private fun MediaFormat.getIntOrZero(key: String): Int {
+        return if (containsKey(key)) runCatching { getInteger(key) }.getOrDefault(0) else 0
+    }
+
+    private fun Song.audioFormatLabel(mime: String?): String {
+        val source = (mime ?: mimeType).lowercase()
+        val extension = fileName.substringAfterLast('.', path.substringAfterLast('.')).lowercase()
+        return when {
+            "flac" in source || extension == "flac" -> "FLAC"
+            "mpeg" in source || "mp3" in source || extension == "mp3" -> "MP3"
+            "wav" in source || extension == "wav" -> "WAV"
+            "aac" in source || extension == "aac" -> "AAC"
+            "mp4" in source || "m4a" in source || extension == "m4a" -> "ALAC/M4A"
+            "ogg" in source || extension == "ogg" -> "OGG"
+            "opus" in source || extension == "opus" -> "OPUS"
+            extension.isNotBlank() -> extension.uppercase()
+            else -> "Audio"
+        }
     }
 
     private suspend fun saveLibraryCache(songs: List<Song>, albums: List<Album>) = withContext(Dispatchers.IO) {
