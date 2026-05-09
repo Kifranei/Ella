@@ -7,6 +7,7 @@
 - 新增 WebDAV 音乐库配置、连接测试、远程目录浏览和远程音频播放。
 - 新增落雪音乐源入口，支持通过 URL 或本地 JS 文件导入源脚本，并搜索、播放在线歌曲。
 - 新增落雪在线歌曲下载功能，解析后保存到系统 `Music/Ella/` 目录。
+- 新增歌词字体自定义，可在设置中预览系统字体或导入字体文件并应用到歌词页。
 - 新增歌手页、当前播放队列、歌曲库分析和播放页音频信息展示。
 - 改进歌曲列表排序，中日韩标题会按拉丁化读音参与 A-Z 排序和快速索引。
 
@@ -39,6 +40,7 @@
 ### 歌词
 
 - 改进 TTML 背景歌词、翻译歌词、逐字歌词和词幕/Ticker 同步处理。
+- 歌词页支持自定义字体，设置页可选择系统字体或导入 TTF/OTF/TTC 字体文件。
 - 修复 TTML `x-bg` 背景歌词残留括号的问题。
 - 播放状态恢复后同步恢复词幕和 Ticker 歌词推送。
 
@@ -62,6 +64,7 @@
 - Added WebDAV library configuration, connection testing, remote directory browsing, and remote audio playback.
 - Added an LX Music source entry with URL and local JS import for online song search and playback.
 - Added LX online song downloads, saving resolved tracks to the system `Music/Ella/` directory.
+- Added configurable lyric fonts with system-font previews and imported font files from Settings.
 - Added artist pages, current queue support, library analytics, and audio information on the now-playing page.
 - Improved library sorting so CJK titles participate in A-Z ordering and fast indexing through Latinized sort keys.
 
@@ -94,6 +97,7 @@
 ### Lyrics
 
 - Improved TTML background vocals, translations, word-level lyrics, and Lyricon/Ticker synchronization.
+- The lyric page now supports custom fonts selected from system fonts or imported TTF/OTF/TTC files.
 - Fixed leftover parentheses in TTML `x-bg` background-vocal lyrics.
 - Restored Lyricon and Ticker lyric pushes after playback-state restoration.
 
