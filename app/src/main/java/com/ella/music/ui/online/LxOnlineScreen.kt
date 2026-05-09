@@ -1,5 +1,6 @@
 package com.ella.music.ui.online
 
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -68,6 +69,7 @@ fun LxOnlineScreen(
 
     val sourceName by settingsManager.lxSourceName.collectAsState(initial = "")
     val sourceUrl by settingsManager.lxSourceUrl.collectAsState(initial = "")
+    val sourceScript by settingsManager.lxSourceScript.collectAsState(initial = "")
     var importUrl by remember(sourceUrl) { mutableStateOf(sourceUrl) }
     var searchQuery by remember { mutableStateOf("") }
     var importExpanded by remember { mutableStateOf(sourceName.isBlank()) }
@@ -277,11 +279,12 @@ fun LxOnlineScreen(
                     items(results, key = { it.song.id }) { item ->
                         SongItem(
                             song = item.song,
+                            albumArtUri = item.coverUrl.takeIf { it.isNotBlank() }?.let(Uri::parse),
                             onClick = {
                                 scope.launch {
                                     isBusy = true
                                     runCatching {
-                                        val playable = service.resolvePlayableSong(item)
+                                        val playable = service.resolvePlayableSong(item, sourceScript)
                                         playerViewModel.setPlaylist(listOf(playable), 0)
                                         onNavigateToPlayer()
                                     }.onFailure {
@@ -295,7 +298,7 @@ fun LxOnlineScreen(
                                 scope.launch {
                                     isBusy = true
                                     runCatching {
-                                        playerViewModel.addToPlaylist(service.resolvePlayableSong(item))
+                                        playerViewModel.addToPlaylist(service.resolvePlayableSong(item, sourceScript))
                                         showToast("已加入播放队列")
                                     }.onFailure {
                                         message = it.localizedMessage ?: "加入队列失败"

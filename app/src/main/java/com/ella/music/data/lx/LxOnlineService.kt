@@ -13,7 +13,8 @@ data class LxOnlineSong(
     val song: Song,
     val source: String,
     val songmid: String,
-    val quality: String
+    val quality: String,
+    val coverUrl: String = ""
 )
 
 class LxOnlineService {
@@ -75,13 +76,22 @@ class LxOnlineService {
                     ),
                     source = "kw",
                     songmid = mid,
-                    quality = pickQuality(item.optString("N_MINFO"))
+                    quality = pickQuality(item.optString("N_MINFO")),
+                    coverUrl = buildKuwoCoverUrl(item.optString("web_albumpic_short"))
                 )
             }.filter { it.songmid.isNotBlank() && it.song.title.isNotBlank() }
         }
     }
 
-    suspend fun resolvePlayableSong(item: LxOnlineSong): Song = withContext(Dispatchers.IO) {
+    suspend fun resolvePlayableSong(item: LxOnlineSong, sourceScript: String = ""): Song = withContext(Dispatchers.IO) {
+        resolveByImportedSource(item, sourceScript)?.let { playableUrl ->
+            val extension = playableUrl.substringBefore('?')
+                .substringAfterLast('.', missingDelimiterValue = "")
+                .takeIf { it.length in 2..5 }
+                ?: if (item.quality.startsWith("flac")) "flac" else "mp3"
+            return@withContext item.song.copy(path = playableUrl, fileName = "${item.song.title}.$extension")
+        }
+
         val format = when (item.quality) {
             "flac", "flac24bit" -> "flac"
             else -> "mp3"
@@ -99,6 +109,32 @@ class LxOnlineService {
         item.song.copy(path = playableUrl, fileName = "${item.song.title}.${if (format == "flac") "flac" else "mp3"}")
     }
 
+    private fun resolveByImportedSource(item: LxOnlineSong, sourceScript: String): String? {
+        val config = extractRenderApiConfig(sourceScript) ?: return null
+        val quality = config.bestQuality(item.source, item.quality)
+        val url = "${config.apiUrl}/url/${item.source}/${item.songmid}/$quality"
+        val request = Request.Builder()
+            .url(url)
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "lx-music-mobile/1.0.0")
+            .header("X-Request-Key", config.apiKey)
+            .build()
+        return client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("源解析失败: HTTP ${response.code}")
+            val body = response.body?.string().orEmpty()
+            val root = JSONObject(body)
+            when (root.optInt("code", -1)) {
+                0 -> root.optString("url").takeIf { it.startsWith("http") } ?: error("源没有返回播放地址")
+                1 -> error("源解析失败: IP 被限制")
+                2 -> error("源解析失败: 获取播放地址失败")
+                4 -> error("源解析失败: 服务内部错误")
+                5 -> error("源解析失败: 请求过于频繁")
+                6 -> error("源解析失败: 参数错误")
+                else -> error(root.optString("msg").ifBlank { "源解析失败" })
+            }
+        }
+    }
+
     private fun extractSourceName(script: String): String {
         val currentInfoName = Regex("""name\s*:\s*['"]([^'"]+)['"]""").find(script)?.groupValues?.getOrNull(1)
         val commentName = Regex("""@name\s+(.+)""").find(script)?.groupValues?.getOrNull(1)?.trim()
@@ -111,6 +147,53 @@ class LxOnlineService {
             "bitrate:2000" in raw -> "flac"
             "bitrate:320" in raw -> "320k"
             else -> "128k"
+        }
+    }
+
+    private fun buildKuwoCoverUrl(path: String): String {
+        val normalized = path.trim()
+        return when {
+            normalized.startsWith("http://") || normalized.startsWith("https://") -> normalized
+            normalized.isNotBlank() -> "https://img1.kuwo.cn/star/albumcover/$normalized"
+            else -> ""
+        }
+    }
+
+    private fun extractRenderApiConfig(script: String): RenderApiConfig? {
+        if (script.isBlank() || "/url/" !in script || "X-Request-Key" !in script) return null
+        val apiUrl = Regex("""API_URL\s*=\s*['"]([^'"]+)['"]""").find(script)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trimEnd('/')
+            ?: return null
+        val apiKey = Regex("""API_KEY\s*=\s*['"]([^'"]+)['"]""").find(script)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?: return null
+        val qualitys = mutableMapOf<String, List<String>>()
+        Regex("""(\w+)\s*:\s*\[([^\]]+)]""").findAll(script.substringAfter("MUSIC_QUALITY", script)).forEach { match ->
+            val source = match.groupValues[1]
+            val values = Regex("""['"]([^'"]+)['"]""").findAll(match.groupValues[2]).map { it.groupValues[1] }.toList()
+            if (values.isNotEmpty()) qualitys[source] = values
+        }
+        return RenderApiConfig(apiUrl = apiUrl, apiKey = apiKey, qualitys = qualitys)
+    }
+
+    private data class RenderApiConfig(
+        val apiUrl: String,
+        val apiKey: String,
+        val qualitys: Map<String, List<String>>
+    ) {
+        fun bestQuality(source: String, requested: String): String {
+            val available = qualitys[source].orEmpty()
+            if (available.isEmpty() || requested in available) return requested
+            return when {
+                "flac24bit" in available -> "flac24bit"
+                "flac" in available -> "flac"
+                "320k" in available -> "320k"
+                "128k" in available -> "128k"
+                else -> available.last()
+            }
         }
     }
 
