@@ -8,25 +8,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,16 +33,15 @@ import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
-import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun AlbumDetailScreen(
@@ -61,32 +57,9 @@ fun AlbumDetailScreen(
     val albumSongs = mainViewModel.getSongsForAlbum(albumId)
     val albumArtUri = mainViewModel.getAlbumArtUri(albumId)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Text(
-                text = album?.name ?: "专辑",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
@@ -120,6 +93,22 @@ fun AlbumDetailScreen(
                 )
             }
         }
+
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(start = 8.dp, top = 8.dp)
+                .size(48.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Back,
+                contentDescription = "返回",
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 
@@ -130,62 +119,78 @@ private fun AlbumHeader(
     songCount: Int,
     onPlayAll: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .height(420.dp)
     ) {
+        SafeCoverImage(
+            model = albumArtUri,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            sizePx = 3000
+        )
+
         Box(
             modifier = Modifier
-                .fillMaxWidth(0.6f)
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(MiuixTheme.colorScheme.surfaceContainer),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.05f),
+                            Color.Black.copy(alpha = 0.18f),
+                            MiuixTheme.colorScheme.background
+                        )
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            SafeCoverImage(
-                model = albumArtUri,
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop,
-                sizePx = 768
+            Text(
+                text = album?.name ?: "未知专辑",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = album?.name ?: "",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = album?.artist ?: "",
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Text(
-            text = "$songCount 首歌曲",
-            fontSize = 13.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Button(
-            onClick = onPlayAll,
-            modifier = Modifier.fillMaxWidth(0.6f)
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Play,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
+            Text(
+                text = listOfNotNull(
+                    album?.artist?.takeIf { it.isNotBlank() },
+                    "$songCount 首歌曲"
+                ).joinToString(" · "),
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.78f)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "全部播放")
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .clickable(onClick = onPlayAll),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Play,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "播放全部",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
     }
 }

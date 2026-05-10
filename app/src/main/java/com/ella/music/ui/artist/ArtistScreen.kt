@@ -1,8 +1,12 @@
 package com.ella.music.ui.artist
 
+import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,7 +19,6 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,10 +26,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
+import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -52,35 +59,22 @@ fun ArtistScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
-    val artistSongs = remember(songs, artistName) { mainViewModel.getSongsForArtist(artistName) }
-    val artistAlbums = remember(albums, songs, artistName) { mainViewModel.getAlbumsForArtist(artistName) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
+    val artistSongs = remember(songs, artistName) {
+        mainViewModel.getSongsForArtist(artistName)
+    }
+    val artistAlbums = remember(albums, songs, artistName) {
+        mainViewModel.getAlbumsForArtist(artistName)
+    }
+
+    // 暂时用该歌手第一首歌的专辑封面作为歌手页顶部大图
+    val artistCoverUri = artistSongs.firstOrNull()?.albumId
+        ?.takeIf { it > 0L }
+        ?.let { mainViewModel.getAlbumArtUri(it) }
+
+    Box(
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Text(
-                text = artistName.ifBlank { "歌手" },
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
@@ -88,6 +82,7 @@ fun ArtistScreen(
             item {
                 ArtistHeader(
                     artistName = artistName,
+                    coverUri = artistCoverUri,
                     songCount = artistSongs.size,
                     albumCount = artistAlbums.size,
                     onPlayAll = {
@@ -103,6 +98,7 @@ fun ArtistScreen(
                 item {
                     SectionTitle("专辑")
                 }
+
                 items(
                     items = artistAlbums,
                     key = { it.id }
@@ -117,6 +113,7 @@ fun ArtistScreen(
             item {
                 SectionTitle("歌曲")
             }
+
             itemsIndexed(artistSongs) { index, song ->
                 SongItem(
                     song = song,
@@ -131,7 +128,26 @@ fun ArtistScreen(
                     onAddToQueue = { playerViewModel.addToPlaylist(song) }
                 )
             }
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(start = 8.dp, top = 8.dp)
+                .size(48.dp)
+                .align(Alignment.TopStart)
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Back,
+                contentDescription = "返回",
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
+            )
         }
     }
 }
@@ -139,44 +155,86 @@ fun ArtistScreen(
 @Composable
 private fun ArtistHeader(
     artistName: String,
+    coverUri: Uri?,
     songCount: Int,
     albumCount: Int,
     onPlayAll: () -> Unit
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .height(420.dp)
     ) {
-        Text(
-            text = artistName,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = "$songCount 首歌曲 · $albumCount 张专辑",
-            fontSize = 14.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        Row(
-            modifier = Modifier
-                .padding(top = 8.dp)
-                .clickable(onClick = onPlayAll),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Play,
+        if (coverUri != null) {
+            SafeCoverImage(
+                model = coverUri,
                 contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                sizePx = 3000
             )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MiuixTheme.colorScheme.surfaceContainer)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.06f),
+                            Color.Black.copy(alpha = 0.26f),
+                            MiuixTheme.colorScheme.background
+                        )
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Text(
-                text = "播放全部",
-                color = MiuixTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold
+                text = artistName.ifBlank { "未知歌手" },
+                fontSize = 34.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
+
+            Text(
+                text = "$albumCount 张专辑 · $songCount 首歌曲",
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.78f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .clickable(onClick = onPlayAll),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Play,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "播放全部",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -211,14 +269,20 @@ private fun ArtistAlbumRow(
             tint = MiuixTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp)
         )
+
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = album.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = album.name,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
             Text(
                 text = "${album.songCount} 首歌曲",
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
         }
+
         Icon(
             imageVector = MiuixIcons.Basic.ArrowRight,
             contentDescription = null,
@@ -227,4 +291,3 @@ private fun ArtistAlbumRow(
         )
     }
 }
-
