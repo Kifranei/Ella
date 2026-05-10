@@ -190,6 +190,21 @@ fun EllaApp(
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val lyrics by playerViewModel.lyrics.collectAsState()
+    val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
+
+    val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
+    val miniPlayerLyricText = if (isPlaying) {
+        currentLyricLine?.text?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
+    } else {
+        null
+    }
+    val miniPlayerLyricTranslation = if (isPlaying) {
+        currentLyricLine?.translation?.takeIf { it.isNotBlank() }
+    } else {
+        null
+    }
+
     val showMiniPlayer = currentSong != null && currentRoute != Screen.Player.route
 
     val backdrop = rememberLayerBackdrop()
@@ -222,6 +237,8 @@ fun EllaApp(
             showBottomBar = showBottomBar,
             currentSong = currentSong,
             isPlaying = isPlaying,
+            lyricText = miniPlayerLyricText,
+            lyricTranslation = miniPlayerLyricTranslation,
             tabs = tabs,
             currentRoute = currentRoute,
             backdrop = backdrop,
@@ -246,6 +263,8 @@ private fun FloatingBottomControls(
     showBottomBar: Boolean,
     currentSong: com.ella.music.data.model.Song?,
     isPlaying: Boolean,
+    lyricText: String?,
+    lyricTranslation: String?,
     tabs: List<Triple<String, String, androidx.compose.ui.graphics.vector.ImageVector>>,
     currentRoute: String?,
     backdrop: com.kyant.backdrop.Backdrop?,
@@ -270,6 +289,8 @@ private fun FloatingBottomControls(
                 MiniPlayer(
                     song = song,
                     isPlaying = isPlaying,
+                    lyricText = lyricText,
+                    lyricTranslation = lyricTranslation,
                     albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                     loadCoverArt = mainViewModel::getCoverArtBitmap,
                     backdrop = if (useGlass) backdrop else null,
@@ -316,5 +337,15 @@ private fun FloatingBottomControls(
                 }
             }
         }
+    }
+}
+private fun String.isMusicSymbolOnly(): Boolean {
+    val content = trim()
+    if (content.isBlank()) return true
+
+    return content.all { char ->
+        char.isWhitespace() ||
+                char in setOf('♪', '♫', '♬', '♩', '♭', '♯', '♮') ||
+                Character.UnicodeBlock.of(char) == Character.UnicodeBlock.MUSICAL_SYMBOLS
     }
 }

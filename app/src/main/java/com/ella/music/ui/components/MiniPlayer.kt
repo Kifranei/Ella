@@ -53,6 +53,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun MiniPlayer(
     song: Song,
     isPlaying: Boolean,
+    lyricText: String? = null,
+    lyricTranslation: String? = null,
     albumArtUri: Uri? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
@@ -152,16 +154,28 @@ fun MiniPlayer(
 
         Spacer(modifier = Modifier.width(10.dp))
 
+        val primaryText = lyricText ?: song.title
+        val secondaryText = if (lyricText != null) {
+            lyricTranslation ?: song.artist
+        } else {
+            song.artist
+        }
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = song.title,
+                text = primaryText,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
+                color = if (lyricText != null) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = song.artist,
+                text = secondaryText,
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,
