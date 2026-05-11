@@ -200,6 +200,8 @@ class LxOnlineService(private val context: Context) {
         val apiKey = Regex("""API_KEY\s*=\s*['"]([^'"]+)['"]""").find(script)
             ?.groupValues
             ?.getOrNull(1)
+            ?.replace(Regex("[\r\n\t]"), "")
+            ?.takeIf { it.isNotBlank() }
             ?: return null
         val qualitys = mutableMapOf<String, List<String>>()
         Regex("""(\w+)\s*:\s*\[([^\]]+)]""").findAll(script.substringAfter("MUSIC_QUALITY", script)).forEach { match ->
