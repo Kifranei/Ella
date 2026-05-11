@@ -11,14 +11,15 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -55,6 +56,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -141,6 +143,14 @@ fun PlayerScreen(
         ?: lyrics.firstOrNull { it.hasMiniLyric() }
     var menuExpanded by remember { mutableStateOf(false) }
     var queueExpanded by remember { mutableStateOf(false) }
+    var dragDismissOffset by remember { mutableFloatStateOf(0f) }
+    val animatedDismissOffset by animateFloatAsState(
+        targetValue = dragDismissOffset,
+        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
+        label = "player_dismiss_offset"
+    )
+    val topDragLimitPx = with(density) { 132.dp.toPx() }
+    val dismissThresholdPx = with(density) { 112.dp.toPx() }
 
     val song = currentSong
     val embeddedCover by produceState<Bitmap?>(initialValue = null, song?.id) {
@@ -156,22 +166,42 @@ fun PlayerScreen(
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id) {
         value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
     }
-    val motionTransition = rememberInfiniteTransition(label = "player_motion")
-    val coverMotion by motionTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 4200),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cover_motion"
-    )
-    val coverScale = if (isPlaying) 1f + coverMotion * 0.018f else 1f
-    val coverTranslation = if (isPlaying) -coverMotion * 8f else 0f
+    BackHandler { onBack() }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                translationY = animatedDismissOffset
+                alpha = (1f - animatedDismissOffset / (dismissThresholdPx * 2.8f)).coerceIn(0.72f, 1f)
+            }
+            .pointerInput(showLyrics) {
+                var closeGesture = false
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        closeGesture = offset.y <= topDragLimitPx
+                    },
+                    onDrag = { change, dragAmount ->
+                        if (closeGesture) {
+                            val nextOffset = (dragDismissOffset + dragAmount.y).coerceAtLeast(0f)
+                            dragDismissOffset = nextOffset
+                            if (nextOffset > 0f) change.consume()
+                        }
+                    },
+                    onDragCancel = {
+                        closeGesture = false
+                        dragDismissOffset = 0f
+                    },
+                    onDragEnd = {
+                        closeGesture = false
+                        if (dragDismissOffset >= dismissThresholdPx) {
+                            onBack()
+                        } else {
+                            dragDismissOffset = 0f
+                        }
+                    }
+                )
+            }
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
@@ -182,12 +212,8 @@ fun PlayerScreen(
                 )
             )
     ) {
-        PlayerBlurBackground(
-            song = song,
-            embeddedCover = embeddedCover,
+        ImmersiveCoverBackground(
             palette = palette,
-            motion = coverMotion,
-            isPlaying = isPlaying,
             modifier = Modifier.fillMaxSize()
         )
 
@@ -218,17 +244,19 @@ fun PlayerScreen(
                     imageVector = MiuixIcons.Regular.Back,
                     contentDescription = "返回",
                     tint = Color.White,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier
+                        .size(24.dp)
+                        .graphicsLayer { rotationZ = -90f }
                 )
             }
 
-            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "正在播放",
                 fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.72f)
+                color = Color.White.copy(alpha = 0.72f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.weight(1f))
             if (showLyrics) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -392,23 +420,20 @@ fun PlayerScreen(
                 } else {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth(0.86f)
-                            .padding(horizontal = 4.dp),
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Spacer(modifier = Modifier.height(8.dp))
                         AlbumArtView(
                             song = song,
                             embeddedCover = embeddedCover,
                             modifier = Modifier
-                                .fillMaxWidth(0.82f)
+                                .fillMaxWidth()
+                                .widthIn(max = 520.dp)
                                 .aspectRatio(1f)
-                                .graphicsLayer {
-                                    scaleX = coverScale
-                                    scaleY = coverScale
-                                    translationY = coverTranslation
-                                    shadowElevation = if (isPlaying) 18f + coverMotion * 10f else 14f
-                                }
                         )
+
                         if (miniLyricLine != null) {
                             Spacer(modifier = Modifier.height(18.dp))
                             MiniLyricBlock(
@@ -418,11 +443,11 @@ fun PlayerScreen(
                                 fontFamily = lyricFontFamily,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(18.dp))
                                     .clickable { playerViewModel.setShowLyrics(true) }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .padding(horizontal = 4.dp, vertical = 10.dp)
                             )
                         }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -649,6 +674,43 @@ private fun PlaybackModeIcon(
             contentDescription = label,
             tint = if (active) Color.White else Color.White.copy(alpha = 0.52f),
             modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+@Composable
+private fun ImmersiveCoverBackground(
+    palette: PlayerPalette,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.background(palette.middle)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            palette.top,
+                            palette.middle,
+                            palette.bottom
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            palette.accent.copy(alpha = 0.20f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.18f)
+                        ),
+                        start = Offset.Zero,
+                        end = Offset.Infinite
+                    )
+                )
         )
     }
 }

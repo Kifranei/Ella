@@ -38,7 +38,7 @@ android {
                 ?.split(",")
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
-                ?: listOf("arm64-v8a", "armeabi-v7a")
+                ?: listOf("arm64-v8a")
 
             isEnable = true
             reset()

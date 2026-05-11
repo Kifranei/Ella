@@ -199,7 +199,23 @@ fun AppNavigation(
             )
         }
 
-        composable(Screen.Player.route) {
+        composable(
+            route = Screen.Player.route,
+            enterTransition = {
+                fadeIn(animationSpec = tween(180)) + slideIntoContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Up,
+                    tween(320)
+                )
+            },
+            exitTransition = { fadeOut(animationSpec = tween(180)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(220)) + slideOutOfContainer(
+                    AnimatedContentTransitionScope.SlideDirection.Down,
+                    tween(320)
+                )
+            }
+        ) {
             PlayerScreen(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },

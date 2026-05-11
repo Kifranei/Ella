@@ -443,14 +443,16 @@ object LrcParser {
             .map { sameTimeLines ->
                 if (sameTimeLines.size == 1) return@map sameTimeLines.first()
 
-                val primary = sameTimeLines.firstOrNull { it.text.hasCjk() && !it.text.isMusicSymbolOnly() }
-                    ?: sameTimeLines.firstOrNull { it.words.isNotEmpty() }
-                    ?: sameTimeLines.firstOrNull { !it.text.isMusicSymbolOnly() }
+                val primary = sameTimeLines.firstOrNull { !it.text.isMusicSymbolOnly() }
                     ?: sameTimeLines.first()
-                val pronunciation = sameTimeLines
-                    .asSequence()
-                    .filter { it !== primary }
-                    .firstOrNull { it.text.isPronunciationLine() }
+                val pronunciation = if (sameTimeLines.size >= 3 && primary.text.hasCjk()) {
+                    sameTimeLines
+                        .asSequence()
+                        .filter { it !== primary }
+                        .firstOrNull { it.text.isPronunciationLine() }
+                } else {
+                    null
+                }
                 val translation = sameTimeLines
                     .asSequence()
                     .filter { it !== primary }

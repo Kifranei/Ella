@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.math.abs
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -147,17 +148,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun sendBluetoothLyric(line: LyricLine?) {
+    private fun sendBluetoothLyric(index: Int, lyrics: List<LyricLine>) {
         if (!bluetoothLyricEnabled) return
         if (!playerManager.isPlaying.value) return
 
-        val text = line?.text?.takeUnless { it.isMusicSymbolOnly() } ?: return
-        val translation = line.bluetoothTranslation()
-        val payload = text to translation
+        val payload = lyrics.bluetoothPayloadAt(index) ?: return
         if (payload == lastBluetoothLyricPayload) return
 
         lastBluetoothLyricPayload = payload
-        playerManager.updateBluetoothLyric(text, translation)
+        playerManager.updateBluetoothLyric(payload.first, payload.second)
     }
 
     private fun resendBluetoothLyric() {
@@ -165,14 +164,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val index = _currentLyricIndex.value
         val currentLyrics = _lyrics.value
-        val line = currentLyrics.getOrNull(index)
-        val text = line?.text?.takeUnless { it.isMusicSymbolOnly() }
+        val payload = currentLyrics.bluetoothPayloadAt(index) ?: return
 
-        if (text != null) {
-            val translation = line.bluetoothTranslation()
-            lastBluetoothLyricPayload = text to translation
-            playerManager.updateBluetoothLyric(text, translation)
-        }
+        lastBluetoothLyricPayload = payload
+        playerManager.updateBluetoothLyric(payload.first, payload.second)
     }
 
     private fun startPositionUpdates() {
@@ -267,7 +262,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     lastTickerLine = line
                     tickerBridge.sendLyric(line)
                 }
-                sendBluetoothLyric(currentLine)
+                sendBluetoothLyric(index, currentLyrics)
             }
         }
     }
@@ -576,6 +571,77 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             ?: this?.backgroundTranslation?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
     }
 
+    private fun List<LyricLine>.bluetoothPayloadAt(index: Int): Pair<String, String?>? {
+        val line = getOrNull(index) ?: return null
+        val text = line.text.cleanBluetoothLyricText() ?: return null
+        val directTranslation = line.bluetoothTranslation()?.cleanBluetoothLyricText()
+
+        if (!bluetoothLyricTranslationEnabled) return text to null
+
+        if (directTranslation != null) {
+            return orderBluetoothLyricPair(text, directTranslation, preferFirstAsPrimary = true)
+        }
+
+        val paired = findBluetoothTranslationPair(index)
+        val pairedText = paired
+            ?.second
+            ?.text
+            ?.cleanBluetoothLyricText()
+            ?: return text to null
+
+        return orderBluetoothLyricPair(text, pairedText, preferFirstAsPrimary = index <= paired.first)
+    }
+
+    private fun List<LyricLine>.findBluetoothTranslationPair(index: Int): Pair<Int, LyricLine>? {
+        val line = getOrNull(index) ?: return null
+        return sequenceOf(index - 1, index + 1, index - 2, index + 2)
+            .mapNotNull { candidateIndex -> getOrNull(candidateIndex)?.let { candidateIndex to it } }
+            .firstOrNull { (_, candidate) ->
+                abs(candidate.timeMs - line.timeMs) <= BLUETOOTH_LYRIC_PAIR_WINDOW_MS &&
+                    candidate.text.cleanBluetoothLyricText() != null &&
+                    candidate.text.trim() != line.text.trim()
+            }
+    }
+
+    private fun orderBluetoothLyricPair(
+        first: String,
+        second: String,
+        preferFirstAsPrimary: Boolean
+    ): Pair<String, String> {
+        val firstLooksTranslated = first.looksLikeChineseTranslationOf(second)
+        val secondLooksTranslated = second.looksLikeChineseTranslationOf(first)
+        return when {
+            firstLooksTranslated && !secondLooksTranslated -> second to first
+            secondLooksTranslated && !firstLooksTranslated -> first to second
+            preferFirstAsPrimary -> first to second
+            else -> second to first
+        }
+    }
+
+    private fun String.cleanBluetoothLyricText(): String? =
+        trim().takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
+
+    private fun String.looksLikeChineseTranslationOf(other: String): Boolean =
+        hasCjkOrHangul() && other.hasLatinLetter()
+
+    private fun String.hasLatinLetter(): Boolean =
+        any { it in 'A'..'Z' || it in 'a'..'z' }
+
+    private fun String.hasCjkOrHangul(): Boolean =
+        any { char ->
+            Character.UnicodeBlock.of(char) in setOf(
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+                Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS,
+                Character.UnicodeBlock.HIRAGANA,
+                Character.UnicodeBlock.KATAKANA,
+                Character.UnicodeBlock.HANGUL_SYLLABLES,
+                Character.UnicodeBlock.HANGUL_JAMO,
+                Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+            )
+        }
+
     private fun String.isMusicSymbolOnly(): Boolean {
         val content = trim()
         if (content.isBlank()) return true
@@ -584,6 +650,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 char in setOf('♪', '♫', '♬', '♩', '♭', '♯', '♮') ||
                 Character.UnicodeBlock.of(char) == Character.UnicodeBlock.MUSICAL_SYMBOLS
         }
+    }
+
+    private companion object {
+        const val BLUETOOTH_LYRIC_PAIR_WINDOW_MS = 300L
     }
 
     override fun onCleared() {
