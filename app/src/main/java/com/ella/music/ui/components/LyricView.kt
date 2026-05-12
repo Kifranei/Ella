@@ -26,7 +26,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
@@ -41,10 +46,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.sin
@@ -191,13 +198,28 @@ fun WordLyricView(
     }
 
     val listState = rememberLazyListState()
+    var userBrowsing by remember { mutableStateOf(false) }
+    var lastUserScrollMs by remember { mutableLongStateOf(0L) }
+    val isUserScrolling by remember { derivedStateOf { listState.isScrollInProgress } }
 
     LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0 && currentIndex < lyrics.size) {
+        if (!userBrowsing && currentIndex >= 0 && currentIndex < lyrics.size) {
             listState.animateScrollToItem(
                 index = currentIndex,
                 scrollOffset = -140
             )
+        }
+    }
+
+    LaunchedEffect(isUserScrolling) {
+        if (isUserScrolling) {
+            userBrowsing = true
+            lastUserScrollMs = android.os.SystemClock.uptimeMillis()
+        } else if (userBrowsing) {
+            val marker = android.os.SystemClock.uptimeMillis()
+            lastUserScrollMs = marker
+            delay(USER_BROWSING_TIMEOUT_MS)
+            if (lastUserScrollMs == marker) userBrowsing = false
         }
     }
 
@@ -235,12 +257,14 @@ fun WordLyricView(
                 else -> index - currentIndex
             }
             val targetAlpha = when {
+                userBrowsing -> 1f
                 isActive -> 1f
                 distance == 1 -> 0.58f
                 distance == 2 -> 0.36f
                 else -> 0.22f
             }
             val targetScale = when {
+                userBrowsing -> 1f
                 isActive -> 1f
                 distance == 1 -> 0.94f
                 else -> 0.90f
@@ -256,7 +280,7 @@ fun WordLyricView(
                 label = "lyric_line_scale"
             )
             val blur by animateFloatAsState(
-                targetValue = if (isActive || distance <= 1) 0f else (distance - 1).coerceAtMost(3) * 1.35f,
+                targetValue = if (userBrowsing || isActive || distance <= 1) 0f else (distance - 1).coerceAtMost(3) * 1.35f,
                 animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing),
                 label = "lyric_line_blur"
             )
@@ -295,10 +319,13 @@ fun WordLyricView(
                     } else {
                         Text(
                             text = line.pronunciation,
-                            fontSize = if (isActive) 14.sp else 11.sp,
+                            fontSize = fittedLyricFontSp(line.pronunciation.orEmpty(), if (isActive) 14 else 11, minSp = 9).sp,
                             fontFamily = fontFamily,
                             color = pronunciationColor,
                             textAlign = lineTextAlign,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 2.dp)
@@ -310,7 +337,7 @@ fun WordLyricView(
                         words = line.words,
                         currentPositionMs = currentPositionMs,
                         textAlign = lineTextAlign,
-                        fontSizeSp = 36,
+                        fontSizeSp = fittedLyricFontSp(line.words.joinToString("") { it.text }, 36, minSp = 9),
                         fontFamily = fontFamily
                     )
                 } else {
@@ -321,11 +348,14 @@ fun WordLyricView(
                     }
                     Text(
                         text = line.text.ifBlank { "♪" },
-                        fontSize = if (isActive) 36.sp else 24.sp,
+                        fontSize = fittedLyricFontSp(line.text, if (isActive) 36 else 24, minSp = if (isActive) 9 else 8).sp,
                         fontFamily = fontFamily,
                         fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold,
                         color = textColor,
                         textAlign = lineTextAlign,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
@@ -339,10 +369,13 @@ fun WordLyricView(
                     }
                     Text(
                         text = line.translation,
-                        fontSize = if (isActive) 20.sp else 14.sp,
+                        fontSize = fittedLyricFontSp(line.translation.orEmpty(), if (isActive) 20 else 14, minSp = 8).sp,
                         fontFamily = fontFamily,
                         color = translationColor,
                         textAlign = lineTextAlign,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 3.dp)
@@ -359,7 +392,7 @@ fun WordLyricView(
                             words = line.backgroundWords,
                             currentPositionMs = currentPositionMs,
                             textAlign = lineTextAlign,
-                            fontSizeSp = 24,
+                            fontSizeSp = fittedLyricFontSp(line.backgroundWords.joinToString("") { it.text }, 24, minSp = 8),
                             fontFamily = fontFamily,
                             currentColor = Color.White.copy(alpha = 0.78f),
                             sungColor = Color.White.copy(alpha = 0.56f),
@@ -369,10 +402,13 @@ fun WordLyricView(
                     } else {
                         Text(
                             text = line.backgroundText,
-                            fontSize = if (isActive) 24.sp else 14.sp,
+                            fontSize = fittedLyricFontSp(line.backgroundText.orEmpty(), if (isActive) 24 else 14, minSp = 8).sp,
                             fontFamily = fontFamily,
                             color = backgroundColor,
                             textAlign = lineTextAlign,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Clip,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
@@ -387,10 +423,13 @@ fun WordLyricView(
                     }
                     Text(
                         text = line.backgroundTranslation,
-                        fontSize = if (isActive) 13.sp else 11.sp,
+                        fontSize = fittedLyricFontSp(line.backgroundTranslation.orEmpty(), if (isActive) 13 else 11, minSp = 8).sp,
                         fontFamily = fontFamily,
                         color = backgroundTranslationColor,
                         textAlign = lineTextAlign,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 2.dp)
@@ -412,7 +451,6 @@ fun WordLyricView(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WordLine(
     words: List<LyricWord>,
@@ -431,10 +469,10 @@ private fun WordLine(
         else -> Arrangement.Center
     }
 
-    FlowRow(
+    Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = arrangement,
-        verticalArrangement = Arrangement.Center
+        verticalAlignment = Alignment.CenterVertically
     ) {
         words.forEach { word ->
             val isWordActive = currentPositionMs >= word.startMs
@@ -501,6 +539,9 @@ private fun WordLine(
                     fontFamily = fontFamily,
                     fontWeight = if (isWordCurrent) FontWeight.ExtraBold else FontWeight.Bold,
                     color = color,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
                     modifier = Modifier
                         .alpha(if (displayText.isBlank()) 0f else 1f)
                 )
@@ -508,6 +549,8 @@ private fun WordLine(
         }
     }
 }
+
+private const val USER_BROWSING_TIMEOUT_MS = 3_600L
 
 @Composable
 private fun InterludeDots(
@@ -581,6 +624,31 @@ private fun LyricLine.shouldShowInterlude(nextLine: LyricLine?, positionMs: Long
         positionMs < nextStart &&
         nextStart - lineEnd >= 1_800L &&
         nextStart - positionMs > 180L
+}
+
+private fun fittedLyricFontSp(text: String, baseSp: Int, minSp: Int): Int {
+    val visualLength = text.visualLength()
+    val threshold = when {
+        baseSp >= 34 -> 18f
+        baseSp >= 24 -> 27f
+        baseSp >= 20 -> 34f
+        else -> 44f
+    }
+    if (visualLength <= threshold) return baseSp
+    val scaled = (baseSp * threshold / visualLength).toInt()
+    return scaled.coerceIn(minSp, baseSp)
+}
+
+private fun String.visualLength(): Float {
+    if (isBlank()) return 1f
+    return sumOf { char ->
+        when {
+            char.isWhitespace() -> 0.35
+            char.isCjk() -> 1.0
+            char.isLetterOrDigit() -> 0.58
+            else -> 0.45
+        }
+    }.toFloat().coerceAtLeast(1f)
 }
 
 private fun Char.isCjk(): Boolean {
