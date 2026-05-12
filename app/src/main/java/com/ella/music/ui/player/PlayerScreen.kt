@@ -249,7 +249,7 @@ fun PlayerScreen(
             targetState = showLyrics,
             transitionSpec = {
                 (fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180)))
-                    .using(SizeTransform(clip = false))
+                    .using(SizeTransform(clip = true))
             },
             modifier = Modifier.fillMaxSize()
         ) { showLyric ->
@@ -263,6 +263,9 @@ fun PlayerScreen(
                     showTranslation = showLyricTranslation,
                     showPronunciation = showLyricPronunciation,
                     fontFamily = lyricFontFamily,
+                    palette = palette,
+                    currentPositionMs = currentPosition,
+                    isPlaying = isPlaying,
                     onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
                     onDismissLyrics = { playerViewModel.setShowLyrics(false) },
                     onTogglePronunciation = {
@@ -380,6 +383,8 @@ fun PlayerScreen(
                 showTranslation = showLyricTranslation,
                 showPronunciation = showLyricPronunciation,
                 fontFamily = lyricFontFamily,
+                palette = palette,
+                isPlaying = isPlaying,
                 onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
                 onDismiss = { landscapeExpanded = false },
                 modifier = Modifier.fillMaxSize()
@@ -622,96 +627,119 @@ private fun LyricsPlayerPage(
     showTranslation: Boolean,
     showPronunciation: Boolean,
     fontFamily: FontFamily?,
+    palette: PlayerPalette,
+    currentPositionMs: Long,
+    isPlaying: Boolean,
     onLineClick: (com.ella.music.data.model.LyricLine) -> Unit,
     onDismissLyrics: () -> Unit,
     onTogglePronunciation: () -> Unit,
     onToggleTranslation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 28.dp)
-    ) {
-        Row(
+    var lyricMenuExpanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.background(palette.middle)) {
+        FluidLyricBackground(
+            palette = palette,
+            positionMs = currentPositionMs,
+            isPlaying = isPlaying,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 28.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 28.dp)
         ) {
-            SmallCover(
-                song = song,
-                embeddedCover = embeddedCover,
+            Row(
                 modifier = Modifier
-                    .size(72.dp)
-                    .clickable(onClick = onDismissLyrics)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = song?.title ?: "未在播放",
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White.copy(alpha = 0.96f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    .fillMaxWidth()
+                    .padding(top = 28.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SmallCover(
+                    song = song,
+                    embeddedCover = embeddedCover,
+                    modifier = Modifier
+                        .size(66.dp)
+                        .clickable(onClick = onDismissLyrics)
                 )
-                Text(
-                    text = song?.artist.orEmpty(),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.72f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            PlayerHeaderAction(kind = PlayerHeaderActionKind.Favorite, onClick = {})
-            PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = {})
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 14.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            LyricToggleButton(text = "音", active = showPronunciation, onClick = onTogglePronunciation)
-            Spacer(modifier = Modifier.width(8.dp))
-            LyricToggleButton(text = "译", active = showTranslation, onClick = onToggleTranslation)
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .pointerInput(Unit) {
-                    var totalDrag = 0f
-                    detectDragGestures(
-                        onDragStart = { totalDrag = 0f },
-                        onDrag = { change, dragAmount ->
-                            totalDrag += dragAmount.x
-                            change.consume()
-                        },
-                        onDragEnd = {
-                            if (kotlin.math.abs(totalDrag) > 72f) onDismissLyrics()
-                        }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = song?.title ?: "未在播放",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White.copy(alpha = 0.96f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = song?.artist.orEmpty(),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { onDismissLyrics() })
-                }
-        ) {
-            WordLyricView(
-                lyrics = lyrics,
-                currentIndex = currentLyricIndex,
-                currentPositionMs = currentPosition,
-                showTranslation = showTranslation,
-                showPronunciation = showPronunciation,
-                fontFamily = fontFamily,
-                onLineClick = onLineClick,
-                modifier = Modifier.fillMaxSize()
-            )
+                PlayerHeaderAction(kind = PlayerHeaderActionKind.Favorite, onClick = {})
+                PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = { lyricMenuExpanded = true })
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .pointerInput(Unit) {
+                        var totalDrag = 0f
+                        detectDragGestures(
+                            onDragStart = { totalDrag = 0f },
+                            onDrag = { change, dragAmount ->
+                                totalDrag += dragAmount.x
+                                change.consume()
+                            },
+                            onDragEnd = {
+                                if (kotlin.math.abs(totalDrag) > 72f) onDismissLyrics()
+                            }
+                        )
+                    }
+            ) {
+                WordLyricView(
+                    lyrics = lyrics,
+                    currentIndex = currentLyricIndex,
+                    currentPositionMs = currentPositionMs,
+                    showTranslation = showTranslation,
+                    showPronunciation = showPronunciation,
+                    fontFamily = fontFamily,
+                    onLineClick = onLineClick,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        if (lyricMenuExpanded) {
+            Popup(
+                alignment = Alignment.BottomCenter,
+                onDismissRequest = { lyricMenuExpanded = false },
+                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
+            ) {
+                LyricActionMenu(
+                    showPronunciation = showPronunciation,
+                    showTranslation = showTranslation,
+                    onTogglePronunciation = {
+                        lyricMenuExpanded = false
+                        onTogglePronunciation()
+                    },
+                    onToggleTranslation = {
+                        lyricMenuExpanded = false
+                        onToggleTranslation()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -726,6 +754,8 @@ private fun LandscapeLyricsOverlay(
     showTranslation: Boolean,
     showPronunciation: Boolean,
     fontFamily: FontFamily?,
+    palette: PlayerPalette,
+    isPlaying: Boolean,
     onLineClick: (com.ella.music.data.model.LyricLine) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -741,77 +771,86 @@ private fun LandscapeLyricsOverlay(
         }
     }
     BackHandler(onBack = onDismiss)
-    Row(
-        modifier = modifier
-            .background(Color.Black.copy(alpha = 0.92f))
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 22.dp, vertical = 18.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+    Box(modifier = modifier.background(palette.middle)) {
+        FluidLyricBackground(
+            palette = palette,
+            positionMs = currentPosition,
+            isPlaying = isPlaying,
+            modifier = Modifier.fillMaxSize()
+        )
+        Row(
             modifier = Modifier
-                .fillMaxHeight()
-                .weight(0.86f),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(horizontal = 30.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            AlbumArtView(
-                song = song,
-                embeddedCover = embeddedCover,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(22.dp))
-            )
-        }
-        Spacer(modifier = Modifier.width(24.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .weight(1.14f)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = song?.title ?: "Ella Music",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White.copy(alpha = 0.96f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = song?.artist.orEmpty(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.48f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                WordLyricView(
-                    lyrics = lyrics,
-                    currentIndex = currentLyricIndex,
-                    currentPositionMs = currentPosition,
-                    showTranslation = showTranslation,
-                    showPronunciation = showPronunciation,
-                    fontFamily = fontFamily,
-                    onLineClick = onLineClick,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .clickable(onClick = onDismiss),
+                    .fillMaxHeight()
+                    .weight(0.58f)
+                    .widthIn(max = 330.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CloseIcon(
-                    color = Color.White.copy(alpha = 0.92f),
-                    modifier = Modifier.size(20.dp)
+                AlbumArtView(
+                    song = song,
+                    embeddedCover = embeddedCover,
+                    modifier = Modifier
+                        .fillMaxHeight(0.78f)
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(20.dp))
                 )
+            }
+            Spacer(modifier = Modifier.width(28.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1.42f)
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Text(
+                        text = song?.title ?: "Ella Music",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White.copy(alpha = 0.96f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = song?.artist.orEmpty(),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.48f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    WordLyricView(
+                        lyrics = lyrics,
+                        currentIndex = currentLyricIndex,
+                        currentPositionMs = currentPosition,
+                        showTranslation = showTranslation,
+                        showPronunciation = showPronunciation,
+                        fontFamily = fontFamily,
+                        onLineClick = onLineClick,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CloseIcon(
+                        color = Color.White.copy(alpha = 0.92f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -1106,6 +1145,48 @@ private fun LyricToggleButton(
 }
 
 @Composable
+private fun LyricActionMenu(
+    showPronunciation: Boolean,
+    showTranslation: Boolean,
+    onTogglePronunciation: () -> Unit,
+    onToggleTranslation: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(Color.Black.copy(alpha = 0.74f))
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(42.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(Color.White.copy(alpha = 0.24f))
+                .align(Alignment.CenterHorizontally)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "歌词显示",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White.copy(alpha = 0.94f),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+        )
+        PlayerActionMenuItem(
+            text = if (showPronunciation) "隐藏注音" else "显示注音",
+            onClick = onTogglePronunciation
+        )
+        PlayerActionMenuItem(
+            text = if (showTranslation) "隐藏翻译" else "显示翻译",
+            onClick = onToggleTranslation
+        )
+    }
+}
+
+@Composable
 private fun PlaybackModeIcon(
     shuffleEnabled: Boolean,
     repeatMode: Int,
@@ -1172,6 +1253,78 @@ private fun ImmersiveCoverBackground(
                         end = Offset.Infinite
                     )
                 )
+        )
+    }
+}
+
+@Composable
+private fun FluidLyricBackground(
+    palette: PlayerPalette,
+    positionMs: Long,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "fluid_lyric_background")
+    val drift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 18_000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "fluid_lyric_background_drift"
+    )
+    val pulse = if (isPlaying) {
+        0.5f + 0.5f * kotlin.math.sin(positionMs / 900.0).toFloat()
+    } else {
+        0.28f
+    }
+
+    Canvas(modifier = modifier.background(palette.middle)) {
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    palette.top.copy(alpha = 0.98f),
+                    palette.middle.copy(alpha = 0.98f),
+                    palette.bottom.copy(alpha = 1f)
+                )
+            )
+        )
+        val w = size.width
+        val h = size.height
+        val t = drift * kotlin.math.PI.toFloat() * 2f
+        val centers = listOf(
+            Offset((0.18f + 0.04f * kotlin.math.sin(t)) * w, (0.24f + 0.08f * kotlin.math.cos(t * 0.7f)) * h),
+            Offset((0.82f + 0.05f * kotlin.math.cos(t * 0.8f)) * w, (0.20f + 0.06f * kotlin.math.sin(t)) * h),
+            Offset((0.48f + 0.08f * kotlin.math.sin(t * 0.55f)) * w, (0.62f + 0.05f * kotlin.math.cos(t * 0.9f)) * h),
+            Offset((0.72f + 0.06f * kotlin.math.sin(t * 0.95f)) * w, (0.86f + 0.04f * kotlin.math.cos(t * 0.6f)) * h)
+        )
+        val colors = listOf(
+            palette.accent.copy(alpha = 0.22f + pulse * 0.05f),
+            Color.White.copy(alpha = 0.10f),
+            palette.top.copy(alpha = 0.20f),
+            Color.Black.copy(alpha = 0.20f)
+        )
+        centers.forEachIndexed { index, center ->
+            val radius = minOf(w, h) * (0.34f + index * 0.055f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(colors[index], Color.Transparent),
+                    center = center,
+                    radius = radius
+                ),
+                radius = radius,
+                center = center
+            )
+        }
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color.Black.copy(alpha = 0.10f),
+                    Color.Transparent,
+                    Color.Black.copy(alpha = 0.42f)
+                )
+            )
         )
     }
 }

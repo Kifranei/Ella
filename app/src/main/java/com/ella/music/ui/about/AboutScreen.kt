@@ -1,6 +1,5 @@
 package com.ella.music.ui.about
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -129,7 +129,7 @@ private fun AboutContent(
     onLogoHeightChanged: (Int) -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
-    val isDark = isSystemInDarkTheme()
+    val isDark = colorScheme.background.luminance() < 0.5f
     val blurEnable by remember { mutableStateOf(isRenderEffectSupported()) }
     val shaderSupported = remember { isRuntimeShaderSupported() }
     val uriHandler = LocalUriHandler.current
@@ -361,7 +361,7 @@ private fun FrostedCard(
     cardBlendColors: List<BlendColorEntry>,
     content: @Composable () -> Unit,
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = colorScheme.background.luminance() < 0.5f
     Card(
         modifier = Modifier
             .fillMaxWidth()

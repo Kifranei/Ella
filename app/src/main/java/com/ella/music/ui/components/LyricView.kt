@@ -334,7 +334,7 @@ fun WordLyricView(
                         )
                     }
                 }
-                if (line.words.isNotEmpty() && isActive) {
+                if (line.words.isNotEmpty() && isActive && line.text.visualLength() <= 30f) {
                     WordLine(
                         words = line.words,
                         currentPositionMs = currentPositionMs,
@@ -355,9 +355,9 @@ fun WordLyricView(
                         fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Bold,
                         color = textColor,
                         textAlign = lineTextAlign,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip,
+                        maxLines = if (isActive) 2 else 1,
+                        softWrap = isActive,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
@@ -389,7 +389,7 @@ fun WordLyricView(
                         index < currentIndex -> Color.White.copy(alpha = 0.28f)
                         else -> Color.White.copy(alpha = 0.42f)
                     }
-                    if (isActive && line.backgroundWords.isNotEmpty()) {
+                    if (isActive && line.backgroundWords.isNotEmpty() && line.backgroundText.orEmpty().visualLength() <= 30f) {
                         WordLine(
                             words = line.backgroundWords,
                             currentPositionMs = currentPositionMs,
@@ -408,9 +408,9 @@ fun WordLyricView(
                             fontFamily = fontFamily,
                             color = backgroundColor,
                             textAlign = backgroundTextAlign,
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Clip,
+                            maxLines = if (isActive) 2 else 1,
+                            softWrap = isActive,
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 3.dp)
@@ -649,9 +649,9 @@ private fun LyricLine.shouldShowInterlude(nextLine: LyricLine?, positionMs: Long
 private fun fittedLyricFontSp(text: String, baseSp: Int, minSp: Int): Int {
     val visualLength = text.visualLength()
     val threshold = when {
-        baseSp >= 34 -> 18f
-        baseSp >= 24 -> 27f
-        baseSp >= 20 -> 34f
+        baseSp >= 34 -> 13f
+        baseSp >= 24 -> 20f
+        baseSp >= 20 -> 30f
         else -> 44f
     }
     if (visualLength <= threshold) return baseSp
