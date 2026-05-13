@@ -66,7 +66,11 @@ fun LyricView(
     showTranslation: Boolean,
     showPronunciation: Boolean = true,
     modifier: Modifier = Modifier,
-    fontFamily: FontFamily? = null
+    fontFamily: FontFamily? = null,
+    usePlayerColors: Boolean = false,
+    topSpacer: androidx.compose.ui.unit.Dp = 200.dp,
+    bottomSpacer: androidx.compose.ui.unit.Dp = 300.dp,
+    onLineClick: (LyricLine) -> Unit = {}
 ) {
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -74,7 +78,7 @@ fun LyricView(
                 text = "暂无歌词",
                 fontSize = 16.sp,
                 fontFamily = fontFamily,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                color = if (usePlayerColors) Color.White.copy(alpha = 0.72f) else MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
         }
         return
@@ -99,7 +103,7 @@ fun LyricView(
             .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        item { Box(modifier = Modifier.height(200.dp)) }
+        item { Box(modifier = Modifier.height(topSpacer)) }
 
         itemsIndexed(lyrics) { index, line ->
             val isActive = index == currentIndex
@@ -108,10 +112,16 @@ fun LyricView(
             val backgroundTextAlign = line.ttmlBackgroundTextAlign()
 
             val textColor = when {
+                usePlayerColors && isActive -> Color.White.copy(alpha = 0.96f)
+                usePlayerColors && isPast -> Color.White.copy(alpha = 0.34f)
+                usePlayerColors -> Color.White.copy(alpha = 0.58f)
                 isActive -> MiuixTheme.colorScheme.primary
                 isPast -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f)
                 else -> MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f)
             }
+            val lineModifier = Modifier
+                .fillMaxWidth()
+                .clickable { onLineClick(line) }
 
             if (showPronunciation && !line.pronunciation.isNullOrBlank()) {
                 Text(
@@ -120,8 +130,7 @@ fun LyricView(
                     fontFamily = fontFamily,
                     color = textColor.copy(alpha = 0.58f),
                     textAlign = lineTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = lineModifier
                         .padding(bottom = 2.dp)
                 )
             }
@@ -132,8 +141,7 @@ fun LyricView(
                 fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
                 textAlign = lineTextAlign,
-                modifier = Modifier
-                    .fillMaxWidth()
+                modifier = lineModifier
                     .padding(vertical = if (isActive) 4.dp else 0.dp)
             )
             if (showTranslation && !line.translation.isNullOrBlank()) {
@@ -143,8 +151,7 @@ fun LyricView(
                     fontFamily = fontFamily,
                     color = textColor.copy(alpha = 0.72f),
                     textAlign = lineTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = lineModifier
                         .padding(top = 2.dp)
                 )
             }
@@ -155,8 +162,7 @@ fun LyricView(
                     fontFamily = fontFamily,
                     color = textColor.copy(alpha = 0.56f),
                     textAlign = backgroundTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = lineModifier
                         .padding(top = 2.dp)
                 )
             }
@@ -167,14 +173,13 @@ fun LyricView(
                     fontFamily = fontFamily,
                     color = textColor.copy(alpha = 0.48f),
                     textAlign = backgroundTextAlign,
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier = lineModifier
                         .padding(top = 2.dp)
                 )
             }
         }
 
-        item { Box(modifier = Modifier.height(300.dp)) }
+        item { Box(modifier = Modifier.height(bottomSpacer)) }
     }
 }
 
