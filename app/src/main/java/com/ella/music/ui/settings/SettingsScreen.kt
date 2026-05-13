@@ -91,6 +91,7 @@ fun SettingsScreen(
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val replayGainEnabled by settingsManager.replayGainEnabled.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
+    val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val scanIncludeFolders by settingsManager.scanIncludeFolders.collectAsState(initial = "")
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
@@ -98,6 +99,8 @@ fun SettingsScreen(
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
+    val shuffleModeLabels = listOf("伪随机", "真随机")
+    val selectedShuffleMode = shuffleMode.coerceIn(shuffleModeLabels.indices)
     var scanIncludeExpanded by remember { mutableStateOf(false) }
     var scanIncludeDraft by remember(scanIncludeFolders) { mutableStateOf(scanIncludeFolders) }
     val themeEntries = remember { themeLabels.map { SpinnerEntry(title = it) } }
@@ -109,6 +112,17 @@ fun SettingsScreen(
                     0 -> "只使用 Android 系统解码；不支持的格式会播放失败"
                     1 -> "优先使用 FFmpeg 扩展解码"
                     else -> "系统不支持时才回落到 FFmpeg"
+                }
+            )
+        }
+    }
+    val shuffleModeEntries = remember {
+        shuffleModeLabels.mapIndexed { index, label ->
+            SpinnerEntry(
+                title = label,
+                summary = when (index) {
+                    SettingsManager.SHUFFLE_MODE_TRUE_RANDOM -> "每次随机抽取，可能连续随机到同一首"
+                    else -> "洗牌队列播放，一轮内尽量不重复"
                 }
             )
         }
@@ -255,6 +269,17 @@ fun SettingsScreen(
                         scope.launch { settingsManager.setAudioFocusDisabled(it) }
                     }
                 )
+
+                    WindowSpinnerPreference(
+                        title = "随机播放模式",
+                        summary = "当前：${shuffleModeLabels[selectedShuffleMode]}",
+                        items = shuffleModeEntries,
+                        selectedIndex = selectedShuffleMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setShuffleMode(index) }
+                            playerViewModel?.setShuffleMode(index)
+                        }
+                    )
 
                     WindowSpinnerPreference(
                         title = "解码器",

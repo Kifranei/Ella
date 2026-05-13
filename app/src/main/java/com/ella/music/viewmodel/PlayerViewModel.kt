@@ -91,6 +91,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initSuperLyric()
         initLyricPageTranslation()
         initBluetoothLyric()
+        initShuffleMode()
     }
 
     private fun initLyricon() {
@@ -159,6 +160,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 bluetoothLyricTranslationEnabled = enabled
                 lastBluetoothLyricPayload = null
                 if (bluetoothLyricEnabled) resendBluetoothLyric()
+            }
+        }
+    }
+
+    private fun initShuffleMode() {
+        viewModelScope.launch {
+            settingsManager.shuffleMode.collect { mode ->
+                playerManager.setShuffleMode(mode)
             }
         }
     }
@@ -409,6 +418,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleShuffle() = playerManager.toggleShuffle()
     fun toggleRepeat() = playerManager.toggleRepeat()
+    fun setShuffleMode(mode: Int) {
+        viewModelScope.launch {
+            settingsManager.setShuffleMode(mode)
+            playerManager.setShuffleMode(mode)
+        }
+    }
     fun addToPlaylist(song: Song) = playerManager.addToPlaylist(song)
     fun addToPlaylist(songs: List<Song>) = playerManager.addToPlaylist(songs)
     fun playQueueIndex(index: Int) = playerManager.playQueueIndex(index)

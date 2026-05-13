@@ -11,6 +11,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Executor
+import kotlin.random.Random
 
 class ExoPlayerManager(private val context: Context) {
 
@@ -57,6 +59,7 @@ class ExoPlayerManager(private val context: Context) {
     val playlistFlow: StateFlow<List<Song>> = _playlist.asStateFlow()
     private var playerListener: Player.Listener? = null
     private var lastQueueSaveMs = 0L
+    private var shuffleMode = SettingsManager.SHUFFLE_MODE_PSEUDO
 
     private val directExecutor = Executor { it.run() }
 
@@ -90,6 +93,9 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && shouldUseTrueRandomShuffle()) {
+                    if (playTrueRandomItem()) return
+                }
                 updateCurrentSong()
             }
 
@@ -202,7 +208,9 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun skipToNext() {
-        mediaController?.seekToNext()
+        if (!playTrueRandomItem()) {
+            mediaController?.seekToNext()
+        }
         savePlaybackQueue(force = true)
     }
 
@@ -219,6 +227,13 @@ class ExoPlayerManager(private val context: Context) {
     fun toggleShuffle() {
         mediaController?.shuffleModeEnabled = !(mediaController?.shuffleModeEnabled ?: false)
         savePlaybackQueue(force = true)
+    }
+
+    fun setShuffleMode(mode: Int) {
+        shuffleMode = mode.coerceIn(
+            SettingsManager.SHUFFLE_MODE_PSEUDO,
+            SettingsManager.SHUFFLE_MODE_TRUE_RANDOM
+        )
     }
 
     fun toggleRepeat() {
@@ -351,6 +366,23 @@ class ExoPlayerManager(private val context: Context) {
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
         savePlaybackQueue(force = true)
+    }
+
+    private fun shouldUseTrueRandomShuffle(): Boolean =
+        shuffleMode == SettingsManager.SHUFFLE_MODE_TRUE_RANDOM && _shuffleEnabled.value
+
+    private fun playTrueRandomItem(): Boolean {
+        if (!shouldUseTrueRandomShuffle()) return false
+
+        val controller = mediaController ?: return false
+        val itemCount = controller.mediaItemCount
+        if (itemCount <= 0) return false
+
+        val randomIndex = Random.nextInt(itemCount)
+        controller.seekToDefaultPosition(randomIndex)
+        controller.play()
+        updateCurrentSong()
+        return true
     }
 
     private fun restoreSavedQueueIfNeeded() {

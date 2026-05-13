@@ -38,6 +38,7 @@ class SettingsManager(private val context: Context) {
         val KEY_MIN_DURATION = intPreferencesKey("min_duration_sec")
         val KEY_REPLAYGAIN_ENABLED = booleanPreferencesKey("replaygain_enabled")
         val KEY_AUDIO_FOCUS_DISABLED = booleanPreferencesKey("audio_focus_disabled")
+        val KEY_SHUFFLE_MODE = intPreferencesKey("shuffle_mode")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
@@ -57,6 +58,9 @@ class SettingsManager(private val context: Context) {
 
         val KEY_BLUETOOTH_LYRIC_ENABLED = booleanPreferencesKey("bluetooth_lyric_enabled")
         val KEY_BLUETOOTH_LYRIC_TRANSLATION = booleanPreferencesKey("bluetooth_lyric_translation")
+
+        const val SHUFFLE_MODE_PSEUDO = 0
+        const val SHUFFLE_MODE_TRUE_RANDOM = 1
     }
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: false }
@@ -73,6 +77,8 @@ class SettingsManager(private val context: Context) {
     val minDurationSec: Flow<Int> = context.dataStore.data.map { it[KEY_MIN_DURATION] ?: 15 }
     val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_REPLAYGAIN_ENABLED] ?: false }
     val audioFocusDisabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUDIO_FOCUS_DISABLED] ?: false }
+    val shuffleMode: Flow<Int> =
+        context.dataStore.data.map { it[KEY_SHUFFLE_MODE] ?: SHUFFLE_MODE_PSEUDO }
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
@@ -157,6 +163,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAudioFocusDisabled(disabled: Boolean) {
         context.dataStore.edit { it[KEY_AUDIO_FOCUS_DISABLED] = disabled }
+    }
+
+    suspend fun setShuffleMode(mode: Int) {
+        context.dataStore.edit { it[KEY_SHUFFLE_MODE] = mode.coerceIn(SHUFFLE_MODE_PSEUDO, SHUFFLE_MODE_TRUE_RANDOM) }
     }
 
     suspend fun setLyricPageTranslation(enabled: Boolean) {
