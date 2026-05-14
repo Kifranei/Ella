@@ -200,7 +200,9 @@ fun AppNavigation(
 
         composable(Screen.MusicFreeOnline.route) {
             MusicFreeOnlineScreen(
-                onBack = { navController.popBackStack() }
+                playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
             )
         }
 
