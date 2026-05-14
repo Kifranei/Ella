@@ -60,6 +60,7 @@ class ExoPlayerManager(private val context: Context) {
     private var playerListener: Player.Listener? = null
     private var lastQueueSaveMs = 0L
     private var shuffleMode = SettingsManager.SHUFFLE_MODE_PSEUDO
+    private var virtualPlaylistCurrentIndex: Int? = null
 
     private val directExecutor = Executor { it.run() }
 
@@ -127,6 +128,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+        virtualPlaylistCurrentIndex = null
         playlist.clear()
         playlist.addAll(songs)
         _playlist.value = playlist.toList()
@@ -142,7 +144,26 @@ class ExoPlayerManager(private val context: Context) {
         savePlaybackQueue(force = true)
     }
 
+    fun playResolvedFromVirtualQueue(songs: List<Song>, currentIndex: Int, resolvedSong: Song) {
+        if (songs.isEmpty()) return
+        val safeIndex = currentIndex.coerceIn(songs.indices)
+        virtualPlaylistCurrentIndex = safeIndex
+        playlist.clear()
+        playlist.addAll(songs.mapIndexed { index, song -> if (index == safeIndex) resolvedSong else song })
+        _playlist.value = playlist.toList()
+
+        mediaController?.apply {
+            setMediaItems(listOf(songToMediaItem(resolvedSong)), 0, 0L)
+            prepare()
+            play()
+        }
+        _currentSong.value = resolvedSong
+        _duration.value = resolvedSong.duration
+        savePlaybackQueue(force = true)
+    }
+
     fun addToPlaylist(song: Song) {
+        virtualPlaylistCurrentIndex = null
         val item = songToMediaItem(song)
         playlist.add(song)
         _playlist.value = playlist.toList()
@@ -155,6 +176,7 @@ class ExoPlayerManager(private val context: Context) {
 
     fun addToPlaylist(songs: List<Song>) {
         if (songs.isEmpty()) return
+        virtualPlaylistCurrentIndex = null
         playlist.addAll(songs)
         _playlist.value = playlist.toList()
         mediaController?.addMediaItems(songs.map(::songToMediaItem))
@@ -173,6 +195,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun clearPlaylist() {
+        virtualPlaylistCurrentIndex = null
         playlist.clear()
         _playlist.value = emptyList()
         _currentSong.value = null
@@ -359,7 +382,7 @@ class ExoPlayerManager(private val context: Context) {
         val controller = mediaController ?: return
         val currentIndex = controller.currentMediaItemIndex
         val restoredSong = if (currentIndex in playlist.indices) {
-            playlist[currentIndex]
+            playlist[virtualPlaylistCurrentIndex?.takeIf { it in playlist.indices } ?: currentIndex]
         } else {
             controller.currentMediaItem?.toSong()
         }
@@ -373,6 +396,7 @@ class ExoPlayerManager(private val context: Context) {
 
     private fun playTrueRandomItem(): Boolean {
         if (!shouldUseTrueRandomShuffle()) return false
+        if (virtualPlaylistCurrentIndex != null) return false
 
         val controller = mediaController ?: return false
         val itemCount = controller.mediaItemCount

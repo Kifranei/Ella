@@ -64,6 +64,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Album
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Music
+import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -222,6 +223,7 @@ fun EllaApp(
 
     val bottomBarScreens = listOf(
         Screen.Home.route,
+        Screen.Library.route,
         Screen.Album.route,
         Screen.Folder.route,
         Screen.Settings.route
@@ -267,6 +269,7 @@ fun EllaApp(
     val useGlass = true
     val tabs = listOf(
         Triple(Screen.Home.route, "首页", MiuixIcons.Regular.Music),
+        Triple(Screen.Library.route, "音乐库", MiuixIcons.Regular.Playlist),
         Triple(Screen.Album.route, "专辑", MiuixIcons.Regular.Album),
         Triple(Screen.Folder.route, "文件夹", MiuixIcons.Regular.Folder),
         Triple(Screen.Settings.route, "设置", MiuixIcons.Regular.Settings),

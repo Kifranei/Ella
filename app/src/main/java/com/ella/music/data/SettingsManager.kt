@@ -62,6 +62,7 @@ class SettingsManager(private val context: Context) {
         val KEY_LX_SELECTED_SOURCE_ID = stringPreferencesKey("lx_selected_source_id")
         val KEY_MUSICFREE_PLUGINS_JSON = stringPreferencesKey("musicfree_plugins_json")
         val KEY_MUSICFREE_SELECTED_PLUGIN_ID = stringPreferencesKey("musicfree_selected_plugin_id")
+        val KEY_ONLINE_AUTO_OPEN_PLAYER = booleanPreferencesKey("online_auto_open_player")
         val KEY_LYRIC_FONT_NAME = stringPreferencesKey("lyric_font_name")
         val KEY_LYRIC_FONT_PATH = stringPreferencesKey("lyric_font_path")
         val KEY_LYRIC_FONT_WEIGHT = intPreferencesKey("lyric_font_weight")
@@ -125,6 +126,7 @@ class SettingsManager(private val context: Context) {
         val selectedId = prefs[KEY_MUSICFREE_SELECTED_PLUGIN_ID].orEmpty()
         plugins.firstOrNull { it.id == selectedId } ?: plugins.firstOrNull()
     }
+    val onlineAutoOpenPlayer: Flow<Boolean> = context.dataStore.data.map { it[KEY_ONLINE_AUTO_OPEN_PLAYER] ?: true }
     val lyricFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_NAME] ?: "" }
     val lyricFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_PATH] ?: "" }
     val lyricFontWeight: Flow<Int> = context.dataStore.data.map { it[KEY_LYRIC_FONT_WEIGHT] ?: 800 }
@@ -350,6 +352,10 @@ class SettingsManager(private val context: Context) {
             it.remove(KEY_MUSICFREE_PLUGINS_JSON)
             it.remove(KEY_MUSICFREE_SELECTED_PLUGIN_ID)
         }
+    }
+
+    suspend fun setOnlineAutoOpenPlayer(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_ONLINE_AUTO_OPEN_PLAYER] = enabled }
     }
 
     suspend fun setLyricFont(name: String, path: String) {

@@ -98,6 +98,7 @@ fun SettingsScreen(
     val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
+    val onlineAutoOpenPlayer by settingsManager.onlineAutoOpenPlayer.collectAsState(initial = true)
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
@@ -441,6 +442,14 @@ fun SettingsScreen(
 
             SettingsCardGroup {
                 Column {
+                    SwitchPreference(
+                        title = "在线歌曲播放后打开播放页",
+                        summary = "开启后点 LX 或 MusicFree 歌曲会直接进入播放界面",
+                        checked = onlineAutoOpenPlayer,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setOnlineAutoOpenPlayer(it) }
+                        }
+                    )
                     ArrowPreference(
                         title = "歌曲库分析",
                         summary = "查看音质占比、听歌时长和播放次数排行",

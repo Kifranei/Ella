@@ -20,6 +20,7 @@ import com.ella.music.ui.folder.FolderDetailScreen
 import com.ella.music.ui.folder.FolderScreen
 import com.ella.music.ui.folder.WebDavScreen
 import com.ella.music.ui.home.HomeScreen
+import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
 import com.ella.music.ui.online.MusicFreeOnlineScreen
 import com.ella.music.ui.player.PlayerScreen
@@ -31,6 +32,7 @@ import com.ella.music.viewmodel.PlayerViewModel
 
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
+    data object Library : Screen("library")
     data object Album : Screen("album")
     data object AlbumDetail : Screen("album/{albumId}") {
         fun createRoute(albumId: Long) = "album/$albumId"
@@ -79,6 +81,21 @@ fun AppNavigation(
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onNavigateToLibrary = { navController.navigate(Screen.Library.route) },
+                onNavigateToAlbum = { navController.navigate(Screen.Album.route) },
+                onNavigateToFolder = { navController.navigate(Screen.Folder.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
+                onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
+                onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+            )
+        }
+
+        composable(Screen.Library.route) {
+            LibraryScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onNavigateToPlayer = { navController.navigate(Screen.Player.route) },

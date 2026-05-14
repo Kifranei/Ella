@@ -66,7 +66,7 @@ import kotlin.math.floor
 import java.util.Locale
 
 @Composable
-fun HomeScreen(
+fun LibraryScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onNavigateToPlayer: () -> Unit,

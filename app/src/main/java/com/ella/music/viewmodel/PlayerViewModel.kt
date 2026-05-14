@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.Player
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
@@ -80,6 +81,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var lastBluetoothLyricPayload: Pair<String, String?>? = null
     private var sleepTimerJob: Job? = null
     private var stopAfterCurrentSongId: Long? = null
+    private var lazyOnlineQueue: LazyOnlineQueue? = null
+    private var resolvingLazyQueue = false
 
     init {
         playerManager.connect()
@@ -94,6 +97,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initBluetoothLyric()
         initShuffleMode()
         initLyricSourceMode()
+        observeLazyOnlineQueue()
     }
 
     private fun initLyricon() {
@@ -398,7 +402,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+        lazyOnlineQueue = null
         playerManager.setPlaylist(songs, startIndex)
+    }
+
+    fun setLazyOnlinePlaylist(
+        songs: List<Song>,
+        startIndex: Int,
+        resolvedStartSong: Song,
+        resolver: suspend (Song) -> Song
+    ) {
+        if (songs.isEmpty()) return
+        lazyOnlineQueue = LazyOnlineQueue(
+            songs = songs,
+            index = startIndex.coerceIn(songs.indices),
+            resolver = resolver
+        )
+        playerManager.playResolvedFromVirtualQueue(songs, startIndex, resolvedStartSong)
     }
 
     fun playSong(song: Song) {
@@ -406,8 +426,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun togglePlayPause() = playerManager.togglePlayPause()
-    fun skipToNext() = playerManager.skipToNext()
-    fun skipToPrevious() = playerManager.skipToPrevious()
+    fun skipToNext() {
+        if (!playLazyOnlineOffset(1)) playerManager.skipToNext()
+    }
+
+    fun skipToPrevious() {
+        if (!playLazyOnlineOffset(-1)) playerManager.skipToPrevious()
+    }
 
     fun seekTo(positionMs: Long) {
         playerManager.seekTo(positionMs)
@@ -435,10 +460,49 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             playerManager.setShuffleMode(mode)
         }
     }
-    fun addToPlaylist(song: Song) = playerManager.addToPlaylist(song)
-    fun addToPlaylist(songs: List<Song>) = playerManager.addToPlaylist(songs)
-    fun playQueueIndex(index: Int) = playerManager.playQueueIndex(index)
-    fun clearPlaylist() = playerManager.clearPlaylist()
+    fun addToPlaylist(song: Song) {
+        lazyOnlineQueue = null
+        playerManager.addToPlaylist(song)
+    }
+    fun addToPlaylist(songs: List<Song>) {
+        lazyOnlineQueue = null
+        playerManager.addToPlaylist(songs)
+    }
+    fun playQueueIndex(index: Int) {
+        if (!playLazyOnlineIndex(index)) playerManager.playQueueIndex(index)
+    }
+    fun clearPlaylist() {
+        lazyOnlineQueue = null
+        playerManager.clearPlaylist()
+    }
+
+    private fun observeLazyOnlineQueue() {
+        viewModelScope.launch {
+            playerManager.playbackState.collect { state ->
+                if (state == Player.STATE_ENDED) playLazyOnlineOffset(1)
+            }
+        }
+    }
+
+    private fun playLazyOnlineOffset(offset: Int): Boolean {
+        val queue = lazyOnlineQueue ?: return false
+        return playLazyOnlineIndex(queue.index + offset)
+    }
+
+    private fun playLazyOnlineIndex(index: Int): Boolean {
+        val queue = lazyOnlineQueue ?: return false
+        if (index !in queue.songs.indices || resolvingLazyQueue) return false
+        resolvingLazyQueue = true
+        viewModelScope.launch {
+            runCatching {
+                val resolved = queue.resolver(queue.songs[index])
+                queue.index = index
+                playerManager.playResolvedFromVirtualQueue(queue.songs, index, resolved)
+            }
+            resolvingLazyQueue = false
+        }
+        return true
+    }
 
     fun requestLocateCurrentSong() {
         _locateCurrentSongRequest.value += 1
@@ -741,3 +805,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.disconnect()
     }
 }
+
+private data class LazyOnlineQueue(
+    val songs: List<Song>,
+    var index: Int,
+    val resolver: suspend (Song) -> Song
+)

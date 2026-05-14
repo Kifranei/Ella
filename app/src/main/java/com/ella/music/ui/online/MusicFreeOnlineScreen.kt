@@ -83,6 +83,7 @@ fun MusicFreeOnlineScreen(
     val selectedPlugin = remember(plugins, selectedPluginId) {
         plugins.firstOrNull { it.id == selectedPluginId } ?: plugins.firstOrNull()
     }
+    val onlineAutoOpenPlayer by settingsManager.onlineAutoOpenPlayer.collectAsState(initial = true)
 
     LaunchedEffect(plugins.isEmpty()) {
         if (plugins.isEmpty()) state.importExpanded = true
@@ -92,26 +93,21 @@ fun MusicFreeOnlineScreen(
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
-    suspend fun resolveVisibleResults(startItem: MusicFreeOnlineSong): Pair<List<com.ella.music.data.model.Song>, Int> {
+    suspend fun playLazyOnlineQueue(startItem: MusicFreeOnlineSong) {
         val visible = state.results.ifEmpty { listOf(startItem) }
-        val songs = mutableListOf<com.ella.music.data.model.Song>()
-        var startIndex = -1
-        var skippedCount = 0
-        for (item in visible) {
-            val isStartItem = item.song.id == startItem.song.id
-            val resolvedResult = runCatching { service.resolvePlayableSong(item, selectedPlugin) }
-            val resolved = resolvedResult.getOrNull()
-            if (resolved == null) {
-                if (isStartItem) throw resolvedResult.exceptionOrNull() ?: IllegalStateException("当前歌曲解析失败")
-                skippedCount += 1
-                continue
-            }
-            if (isStartItem) startIndex = songs.size
-            songs += resolved
+        val startIndex = visible.indexOfFirst { it.song.id == startItem.song.id }.coerceAtLeast(0)
+        val resolved = service.resolvePlayableSong(startItem, selectedPlugin)
+        val songs = visible.map { it.song }
+        val itemById = visible.associateBy { it.song.id }
+        playerViewModel.setLazyOnlinePlaylist(
+            songs = songs,
+            startIndex = startIndex,
+            resolvedStartSong = resolved
+        ) { song ->
+            val target = itemById[song.id] ?: error("队列歌曲已失效")
+            service.resolvePlayableSong(target, selectedPlugin)
         }
-        if (startIndex < 0) error("当前歌曲解析失败")
-        if (skippedCount > 0) state.message = "已跳过 $skippedCount 首暂时无法解析的队列歌曲"
-        return songs to startIndex
+        state.message = "已获取 ${songs.size} 首队列歌曲，将在播放到对应歌曲时解析"
     }
 
     val localPluginLauncher = rememberLauncherForActivityResult(
@@ -364,9 +360,8 @@ fun MusicFreeOnlineScreen(
                             scope.launch {
                                 state.isBusy = true
                                 runCatching {
-                                    val (playableSongs, startIndex) = resolveVisibleResults(item)
-                                    playerViewModel.setPlaylist(playableSongs, startIndex)
-                                    onNavigateToPlayer()
+                                    playLazyOnlineQueue(item)
+                                    if (onlineAutoOpenPlayer) onNavigateToPlayer()
                                 }.onFailure {
                                     state.message = it.localizedMessage ?: "播放失败"
                                     showToast(state.message)
@@ -378,9 +373,9 @@ fun MusicFreeOnlineScreen(
                             scope.launch {
                                 state.isBusy = true
                                 runCatching {
-                                    val (playableSongs, _) = resolveVisibleResults(item)
-                                    playerViewModel.addToPlaylist(playableSongs)
-                                    showToast("已加入 ${playableSongs.size} 首到播放队列")
+                                    val playable = service.resolvePlayableSong(item, selectedPlugin)
+                                    playerViewModel.addToPlaylist(playable)
+                                    showToast("已加入到播放队列")
                                 }.onFailure {
                                     state.message = it.localizedMessage ?: "加入队列失败"
                                     showToast(state.message)
@@ -450,6 +445,7 @@ private fun MusicFreePluginRow(
             Text(
                 text = if (selected) "${plugin.name}（当前）" else plugin.name,
                 fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
