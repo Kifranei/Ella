@@ -65,6 +65,7 @@ class MusicRepository(private val context: Context) {
     private val coverBitmapCache = object : LruCache<Long, Bitmap>(16 * 1024) {
         override fun sizeOf(key: Long, value: Bitmap): Int = value.byteCount / 1024
     }
+    private val coverArtLock = Any()
     private val missingCoverIds = ConcurrentHashMap.newKeySet<Long>()
     private val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
     private val remoteAudioCacheDir = File(context.cacheDir, "webdav_audio")
@@ -280,28 +281,41 @@ class MusicRepository(private val context: Context) {
 
     fun getCoverArt(song: Song): ByteArray? {
         if (missingCoverIds.contains(song.id)) return null
-        coverArtCache.get(song.id)?.let { return it }
-        val art = scanner.extractCoverArt(song.effectiveLocalPathForMetadata())
-        if (art != null) {
-            coverArtCache.put(song.id, art)
-        } else {
-            missingCoverIds += song.id
+        synchronized(coverArtLock) {
+            coverArtCache.get(song.id)?.let { return it }
+            val art = runCatching {
+                scanner.extractCoverArt(song.effectiveLocalPathForMetadata())
+            }.getOrElse { error ->
+                if (error is OutOfMemoryError) {
+                    coverArtCache.evictAll()
+                    coverBitmapCache.evictAll()
+                }
+                Log.w("MusicRepo", "Failed to extract cover art for ${song.path}", error)
+                null
+            }
+            if (art != null) {
+                coverArtCache.put(song.id, art)
+            } else {
+                missingCoverIds += song.id
+            }
+            return art
         }
-        return art
     }
 
     fun getCoverArtBitmap(song: Song, maxSize: Int = 512): Bitmap? {
-        val cacheKey = song.id * 10000 + maxSize.coerceIn(64, 3000)
+        val targetSize = maxSize.coerceIn(64, 3000)
+        val cacheKey = (song.id shl 16) xor targetSize.toLong()
         coverBitmapCache.get(cacheKey)?.let { return it }
-        val data = getCoverArt(song) ?: return null
-        return runCatching {
+        return synchronized(coverArtLock) {
+            coverBitmapCache.get(cacheKey)?.let { return it }
+            val data = getCoverArt(song) ?: return null
+            runCatching {
             val bounds = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
             }
             BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-            val targetSize = maxSize.coerceIn(64, 3000)
             var sampleSize = 1
             while ((bounds.outWidth / sampleSize) > targetSize || (bounds.outHeight / sampleSize) > targetSize) {
                 sampleSize *= 2
@@ -313,12 +327,14 @@ class MusicRepository(private val context: Context) {
             }
             BitmapFactory.decodeByteArray(data, 0, data.size, options)
                 ?.also { coverBitmapCache.put(cacheKey, it) }
-        }.getOrElse { error ->
+            }.getOrElse { error ->
             if (error is OutOfMemoryError) {
+                coverArtCache.evictAll()
                 coverBitmapCache.evictAll()
             }
             Log.w("MusicRepo", "Failed to decode cover bitmap for ${song.path}", error)
             null
+            }
         }
     }
 

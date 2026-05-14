@@ -53,14 +53,23 @@ fun SongItem(
     onDownload: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, loadCoverArt) {
-        value = if (song.coverUrl.isNotBlank()) null else withContext(Dispatchers.IO) { loadCoverArt?.invoke(song) }
+    val shouldLoadEmbeddedCover = song.coverUrl.isBlank() && albumArtUri == null && loadCoverArt != null
+    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, shouldLoadEmbeddedCover) {
+        value = if (!shouldLoadEmbeddedCover) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    CoverLoadLimiter.run { loadCoverArt.invoke(song) }
+                }.getOrNull()
+            }
+        }
     }
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
     }
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
-    val coverModel = embeddedCover ?: song.coverUrl.takeIf { it.isNotBlank() } ?: if (loadCoverArt == null) albumArtUri else null
+    val coverModel = song.coverUrl.takeIf { it.isNotBlank() } ?: albumArtUri ?: embeddedCover
 
     Row(
         modifier = modifier

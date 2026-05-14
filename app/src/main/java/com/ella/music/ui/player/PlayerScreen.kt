@@ -136,6 +136,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.player.PlaybackAudioSession
 import com.ella.music.ui.components.WordLyricView
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.CoverLoadLimiter
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -238,7 +239,11 @@ fun PlayerScreen(
         value = if (song?.coverUrl?.isNotBlank() == true) {
             null
         } else {
-            withContext(Dispatchers.IO) { song?.let(playerViewModel::getCoverArtBitmap) }
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    CoverLoadLimiter.run { song?.let(playerViewModel::getCoverArtBitmap) }
+                }.getOrNull()
+            }
         }
     }
     val palette by produceState(initialValue = PlayerPalette.Default, embeddedCover) {
