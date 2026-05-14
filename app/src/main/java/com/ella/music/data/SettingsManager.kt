@@ -311,6 +311,19 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setMusicFreePlugins(importedPlugins: List<MusicFreePluginConfig>) {
+        if (importedPlugins.isEmpty()) return
+        context.dataStore.edit { prefs ->
+            val existing = prefs.musicFreePlugins()
+            val merged = (existing + importedPlugins)
+                .asReversed()
+                .distinctBy { it.id }
+                .asReversed()
+            prefs[KEY_MUSICFREE_PLUGINS_JSON] = merged.toMusicFreeJson()
+            prefs[KEY_MUSICFREE_SELECTED_PLUGIN_ID] = importedPlugins.first().id
+        }
+    }
+
     suspend fun selectMusicFreePlugin(id: String) {
         context.dataStore.edit { prefs ->
             val plugin = prefs.musicFreePlugins().firstOrNull { it.id == id } ?: return@edit

@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 data class MusicFreeOnlineSong(
@@ -16,6 +17,11 @@ data class MusicFreeOnlineSong(
     val pluginName: String,
     val rawJson: String,
     val coverUrl: String = ""
+)
+
+data class MusicFreeImportResult(
+    val plugins: List<MusicFreePluginConfig>,
+    val skippedCount: Int = 0
 )
 
 class MusicFreePluginService(private val context: Context? = null) {
@@ -36,6 +42,41 @@ class MusicFreePluginService(private val context: Context? = null) {
         }
     }
 
+    suspend fun importPlugins(url: String): MusicFreeImportResult = withContext(Dispatchers.IO) {
+        val sourceUrl = url.trim()
+        val body = fetchText(sourceUrl)
+        parsePluginHub(body, sourceUrl)?.let { entries ->
+            val plugins = mutableListOf<MusicFreePluginConfig>()
+            var skipped = 0
+            entries.forEach { entry ->
+                runCatching {
+                    val script = fetchText(entry.url)
+                    val (detectedName, normalizedScript) = importPluginScript(script)
+                    MusicFreePluginConfig(
+                        id = "musicfree_${entry.url.hashCode()}",
+                        url = entry.url,
+                        name = entry.name.ifBlank { detectedName },
+                        script = normalizedScript
+                    )
+                }.onSuccess { plugins += it }
+                    .onFailure { skipped += 1 }
+            }
+            if (plugins.isEmpty()) error("插件仓库里没有可导入的 MusicFree 音乐插件")
+            return@withContext MusicFreeImportResult(plugins = plugins, skippedCount = skipped)
+        }
+        val (name, script) = importPluginScript(body)
+        MusicFreeImportResult(
+            plugins = listOf(
+                MusicFreePluginConfig(
+                    id = "musicfree_${sourceUrl.hashCode()}",
+                    url = sourceUrl,
+                    name = name,
+                    script = script
+                )
+            )
+        )
+    }
+
     fun importPluginScript(script: String): Pair<String, String> {
         if (script.length !in 50..9_000_000) error("插件脚本内容异常")
         val name = extractPlatform(script)
@@ -43,6 +84,38 @@ class MusicFreePluginService(private val context: Context? = null) {
         val supportsMusic = "search" in script || "getMediaSource" in script || "importMusicItem" in script
         if (!supportsMusic) error("插件未声明搜索或播放能力")
         return name to script
+    }
+
+    private fun fetchText(url: String): String {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Cache-Control", "no-cache")
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("导入失败: HTTP ${response.code}")
+            return response.body?.string().orEmpty()
+        }
+    }
+
+    private fun parsePluginHub(content: String, baseUrl: String): List<PluginHubEntry>? {
+        val trimmed = content.trimStart()
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return null
+        val array = runCatching {
+            if (trimmed.startsWith("[")) JSONArray(trimmed)
+            else JSONObject(trimmed).optJSONArray("plugins") ?: return null
+        }.getOrNull() ?: return null
+        val base = runCatching { URI(baseUrl) }.getOrNull()
+        return List(array.length()) { index ->
+            val item = array.optJSONObject(index) ?: return@List null
+            val rawUrl = item.optString("url").ifBlank { item.optString("srcUrl") }
+            if (rawUrl.isBlank()) return@List null
+            val resolvedUrl = runCatching { base?.resolve(rawUrl)?.toString() ?: rawUrl }.getOrDefault(rawUrl)
+            PluginHubEntry(
+                name = item.optString("name").ifBlank { item.optString("platform") },
+                url = resolvedUrl
+            )
+        }.filterNotNull()
     }
 
     suspend fun search(
@@ -149,6 +222,11 @@ class MusicFreePluginService(private val context: Context? = null) {
     private fun JSONArray.toJsonObjects(): List<JSONObject> {
         return List(length()) { index -> optJSONObject(index) }.filterNotNull()
     }
+
+    private data class PluginHubEntry(
+        val name: String,
+        val url: String
+    )
 
     companion object {
         private const val USER_AGENT = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 EllaMusic/1.0"

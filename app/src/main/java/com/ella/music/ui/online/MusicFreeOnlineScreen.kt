@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -69,6 +70,8 @@ fun MusicFreeOnlineScreen(
     onNavigateToPlayer: () -> Unit,
     state: MusicFreeOnlineViewModel = viewModel()
 ) {
+    BackHandler(onBack = onBack)
+
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val settingsManager = remember { SettingsManager(context) }
@@ -210,10 +213,14 @@ fun MusicFreeOnlineScreen(
                                         scope.launch {
                                             state.isBusy = true
                                             runCatching {
-                                                val (name, script) = service.importPlugin(state.importUrl)
-                                                settingsManager.setMusicFreePlugin(state.importUrl, name, script)
+                                                val result = service.importPlugins(state.importUrl)
+                                                settingsManager.setMusicFreePlugins(result.plugins)
                                                 state.importUrl = ""
-                                                state.message = "已导入 $name"
+                                                state.message = if (result.plugins.size == 1 && result.skippedCount == 0) {
+                                                    "已导入 ${result.plugins.first().name}"
+                                                } else {
+                                                    "已导入 ${result.plugins.size} 个插件，跳过 ${result.skippedCount} 个"
+                                                }
                                                 state.importExpanded = false
                                             }.onFailure {
                                                 state.message = it.localizedMessage ?: "导入失败"
