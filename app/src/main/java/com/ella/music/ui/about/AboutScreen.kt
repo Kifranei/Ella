@@ -164,11 +164,15 @@ private fun AboutContent(
     }
 
     BgEffectBackground(
-        dynamicBackground = shaderSupported && !isDark,
+        dynamicBackground = shaderSupported,
         modifier = Modifier.fillMaxSize(),
         bgModifier = Modifier.layerBackdrop(backdrop),
-        effectBackground = shaderSupported && !isDark,
-        alpha = { if (isDark) 0f else 1f - scrollProgress },
+        effectBackground = shaderSupported,
+        isDarkTheme = isDark,
+        alpha = {
+            val fade = 1f - scrollProgress
+            if (isDark) 0.82f * fade else fade
+        },
     ) {
         Column(
             modifier = Modifier

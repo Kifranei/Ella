@@ -171,6 +171,9 @@ fun PlayerScreen(
     val lyricFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
     val lyricFontWeightValue by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
+    val playerBackgroundMode by settingsManager.playerBackgroundMode.collectAsState(
+        initial = SettingsManager.PLAYER_BACKGROUND_BLUR_COVER
+    )
     val lyricFontFamily = remember(lyricFontPath) { lyricFontPath.toPlayerLyricFontFamily() }
     val lyricFontWeight = remember(lyricFontWeightValue) { FontWeight(lyricFontWeightValue.coerceIn(100, 900)) }
     val currentSong by playerViewModel.currentSong.collectAsState()
@@ -305,7 +308,15 @@ fun PlayerScreen(
                 )
             )
     ) {
-        ImmersiveCoverBackground(palette = palette, modifier = Modifier.fillMaxSize())
+        ImmersiveCoverBackground(
+            song = song,
+            embeddedCover = embeddedCover,
+            palette = palette,
+            mode = playerBackgroundMode,
+            positionMs = currentPosition,
+            isPlaying = isPlaying,
+            modifier = Modifier.fillMaxSize()
+        )
 
         AnimatedContent(
             targetState = showLyrics,
@@ -1672,19 +1683,80 @@ private fun PlaybackModeIcon(
 
 @Composable
 private fun ImmersiveCoverBackground(
+    song: Song?,
+    embeddedCover: Bitmap?,
     palette: PlayerPalette,
+    mode: Int,
+    positionMs: Long,
+    isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val motion = if (isPlaying) {
+        0.5f + 0.5f * kotlin.math.sin(positionMs / 1600.0).toFloat()
+    } else {
+        0.28f
+    }
+    when (mode) {
+        SettingsManager.PLAYER_BACKGROUND_GRADIENT_BLUR -> PlayerGradientBlurBackground(
+            song = song,
+            embeddedCover = embeddedCover,
+            palette = palette,
+            motion = motion,
+            modifier = modifier
+        )
+        SettingsManager.PLAYER_BACKGROUND_GLOW -> PlayerGlowBackground(
+            song = song,
+            embeddedCover = embeddedCover,
+            palette = palette,
+            motion = motion,
+            modifier = modifier
+        )
+        else -> PlayerBlurBackground(
+            song = song,
+            embeddedCover = embeddedCover,
+            palette = palette,
+            motion = motion,
+            isPlaying = isPlaying,
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
+private fun PlayerGradientBlurBackground(
+    song: Song?,
+    embeddedCover: Bitmap?,
+    palette: PlayerPalette,
+    motion: Float,
+    modifier: Modifier = Modifier
+) {
+    val coverModel = rememberCoverModel(song, embeddedCover)
     Box(modifier = modifier.background(palette.middle)) {
+        if (coverModel != null) {
+            SafeCoverImage(
+                model = coverModel,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = 2.45f + motion * 0.05f
+                        scaleY = 2.45f + motion * 0.05f
+                        alpha = 0.62f
+                    }
+                    .blur(58.dp),
+                contentScale = ContentScale.Crop,
+                sizePx = 960
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            palette.top,
-                            palette.middle,
-                            palette.bottom
+                        colorStops = arrayOf(
+                            0.0f to palette.top.copy(alpha = 0.82f),
+                            0.42f to palette.middle.copy(alpha = 0.56f),
+                            1.0f to palette.bottom.copy(alpha = 0.98f)
                         )
                     )
                 )
@@ -1695,12 +1767,95 @@ private fun ImmersiveCoverBackground(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            palette.accent.copy(alpha = 0.20f),
+                            palette.accent.copy(alpha = 0.24f),
                             Color.Transparent,
-                            Color.Black.copy(alpha = 0.18f)
+                            Color.Black.copy(alpha = 0.26f)
                         ),
-                        start = Offset.Zero,
+                        start = Offset(0f, 0f),
                         end = Offset.Infinite
+                    )
+                )
+        )
+    }
+}
+
+@Composable
+private fun PlayerGlowBackground(
+    song: Song?,
+    embeddedCover: Bitmap?,
+    palette: PlayerPalette,
+    motion: Float,
+    modifier: Modifier = Modifier
+) {
+    val coverModel = rememberCoverModel(song, embeddedCover)
+    Box(modifier = modifier.background(palette.middle)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        palette.top.copy(alpha = 0.96f),
+                        palette.middle,
+                        palette.bottom.copy(alpha = 0.98f)
+                    )
+                )
+            )
+            val w = size.width
+            val h = size.height
+            val pulse = 0.82f + motion * 0.22f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(palette.accent.copy(alpha = 0.46f), Color.Transparent),
+                    center = Offset(w * 0.36f, h * 0.26f),
+                    radius = minOf(w, h) * 0.72f * pulse
+                ),
+                radius = minOf(w, h) * 0.72f * pulse,
+                center = Offset(w * 0.36f, h * 0.26f)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.13f), Color.Transparent),
+                    center = Offset(w * 0.72f, h * 0.50f),
+                    radius = minOf(w, h) * 0.52f
+                ),
+                radius = minOf(w, h) * 0.52f,
+                center = Offset(w * 0.72f, h * 0.50f)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(palette.top.copy(alpha = 0.30f), Color.Transparent),
+                    center = Offset(w * 0.24f, h * 0.86f),
+                    radius = minOf(w, h) * 0.62f
+                ),
+                radius = minOf(w, h) * 0.62f,
+                center = Offset(w * 0.24f, h * 0.86f)
+            )
+        }
+        if (coverModel != null) {
+            SafeCoverImage(
+                model = coverModel,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = 1.68f
+                        scaleY = 1.68f
+                        alpha = 0.18f
+                    }
+                    .blur(88.dp),
+                contentScale = ContentScale.Crop,
+                sizePx = 720
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.08f),
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.30f)
+                        )
                     )
                 )
         )
@@ -1788,10 +1943,7 @@ private fun PlayerBlurBackground(
     isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val uri = if ((song?.albumId ?: 0L) > 0) {
-        Uri.parse("content://media/external/audio/albumart/${song?.albumId}")
-    } else null
-    val coverModel = embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
+    val coverModel = rememberCoverModel(song, embeddedCover)
     val rotationTransition = rememberInfiniteTransition(label = "cover_background_rotation")
     val rotation by rotationTransition.animateFloat(
         initialValue = 0f,
@@ -1853,6 +2005,15 @@ private fun PlayerBlurBackground(
                     )
                 )
         )
+    }
+}
+
+@Composable
+private fun rememberCoverModel(song: Song?, embeddedCover: Bitmap?): Any? {
+    val albumId = song?.albumId ?: 0L
+    return remember(song?.id, song?.coverUrl, albumId, embeddedCover) {
+        val uri = if (albumId > 0L) Uri.parse("content://media/external/audio/albumart/$albumId") else null
+        embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
     }
 }
 

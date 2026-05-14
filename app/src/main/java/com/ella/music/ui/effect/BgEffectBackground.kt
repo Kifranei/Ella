@@ -3,7 +3,6 @@ package com.ella.music.ui.effect
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
@@ -22,6 +22,7 @@ fun BgEffectBackground(
     modifier: Modifier = Modifier,
     bgModifier: Modifier = Modifier,
     effectBackground: Boolean = true,
+    isDarkTheme: Boolean? = null,
     alpha: () -> Float = { 1f },
     content: @Composable (BoxScope.() -> Unit),
 ) {
@@ -34,7 +35,7 @@ fun BgEffectBackground(
         val surface = MiuixTheme.colorScheme.surface
         val painter = remember { BgEffectPainter() }
         val animTime = rememberFrameTimeSeconds(dynamicBackground)
-        val isDark = isSystemInDarkTheme()
+        val isDark = isDarkTheme ?: (MiuixTheme.colorScheme.background.luminance() < 0.5f)
         val deviceType = DeviceType.PHONE
         val preset = remember(isDark, deviceType) { BgEffectConfig.get(deviceType, isDark) }
         val colorStage = remember { Animatable(0f) }

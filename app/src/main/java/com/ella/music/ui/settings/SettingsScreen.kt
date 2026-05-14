@@ -103,8 +103,13 @@ fun SettingsScreen(
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
+    val playerBackgroundMode by settingsManager.playerBackgroundMode.collectAsState(
+        initial = SettingsManager.PLAYER_BACKGROUND_BLUR_COVER
+    )
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
+    val playerBackgroundLabels = listOf("模糊封面", "渐变模糊", "辉光")
+    val selectedPlayerBackgroundMode = playerBackgroundMode.coerceIn(playerBackgroundLabels.indices)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
     val shuffleModeLabels = listOf("伪随机", "真随机")
@@ -112,6 +117,18 @@ fun SettingsScreen(
     val startupPlayLabels = listOf("关闭", "随机播放", "继续上一次")
     val selectedStartupPlayMode = startupPlayMode.coerceIn(startupPlayLabels.indices)
     val themeEntries = remember { themeLabels.map { SpinnerEntry(title = it) } }
+    val playerBackgroundEntries = remember {
+        playerBackgroundLabels.mapIndexed { index, label ->
+            SpinnerEntry(
+                title = label,
+                summary = when (index) {
+                    SettingsManager.PLAYER_BACKGROUND_GRADIENT_BLUR -> "封面模糊叠加纵向渐变，画面更柔和"
+                    SettingsManager.PLAYER_BACKGROUND_GLOW -> "封面取色辉光，突出中心氛围光"
+                    else -> "整屏封面模糊，接近 Oto Music 的默认背景"
+                }
+            )
+        }
+    }
     val startupPlayEntries = remember {
         startupPlayLabels.mapIndexed { index, label ->
             SpinnerEntry(
@@ -238,6 +255,15 @@ fun SettingsScreen(
                         title = "歌词字体",
                         summary = lyricFontName.ifBlank { "系统默认" },
                         onClick = onNavigateToLyricFont
+                    )
+                    WindowSpinnerPreference(
+                        title = "播放页背景",
+                        summary = "当前：${playerBackgroundLabels[selectedPlayerBackgroundMode]}",
+                        items = playerBackgroundEntries,
+                        selectedIndex = selectedPlayerBackgroundMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setPlayerBackgroundMode(index) }
+                        }
                     )
                 }
             }

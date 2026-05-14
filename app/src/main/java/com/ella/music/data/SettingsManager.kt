@@ -50,6 +50,7 @@ class SettingsManager(private val context: Context) {
         val KEY_LYRIC_SOURCE_MODE = intPreferencesKey("lyric_source_mode")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
+        val KEY_PLAYER_BACKGROUND_MODE = intPreferencesKey("player_background_mode")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
         val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
@@ -82,6 +83,10 @@ class SettingsManager(private val context: Context) {
         const val STARTUP_PLAY_RANDOM = 1
         const val STARTUP_PLAY_RESUME = 2
 
+        const val PLAYER_BACKGROUND_BLUR_COVER = 0
+        const val PLAYER_BACKGROUND_GRADIENT_BLUR = 1
+        const val PLAYER_BACKGROUND_GLOW = 2
+
         const val LYRIC_SOURCE_AUTO = 0
         const val LYRIC_SOURCE_EXTERNAL = 1
         const val LYRIC_SOURCE_EMBEDDED = 2
@@ -107,6 +112,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_LYRIC_SOURCE_MODE] ?: LYRIC_SOURCE_AUTO }
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
+    val playerBackgroundMode: Flow<Int> =
+        context.dataStore.data.map { it[KEY_PLAYER_BACKGROUND_MODE] ?: PLAYER_BACKGROUND_BLUR_COVER }
     val audioVisualizerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
     val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
@@ -223,6 +230,13 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setPlayerHdrGlow(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_HDR_GLOW] = enabled }
+    }
+
+    suspend fun setPlayerBackgroundMode(mode: Int) {
+        context.dataStore.edit {
+            it[KEY_PLAYER_BACKGROUND_MODE] =
+                mode.coerceIn(PLAYER_BACKGROUND_BLUR_COVER, PLAYER_BACKGROUND_GLOW)
+        }
     }
 
     suspend fun setAudioVisualizerEnabled(enabled: Boolean) {
@@ -452,6 +466,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_SHUFFLE_MODE)
             setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
+            setInt(KEY_PLAYER_BACKGROUND_MODE)
             setInt(KEY_DECODER_MODE)
             setInt(KEY_LYRIC_FONT_WEIGHT)
 
