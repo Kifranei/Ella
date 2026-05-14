@@ -100,7 +100,7 @@ internal object EllaLyricsParser {
                     timeMs = words.firstOrNull()?.startMs ?: start,
                     text = "",
                     backgroundText = text,
-                    backgroundWords = words,
+                    backgroundWords = words.toDisplayWords(text),
                     agent = agent,
                     endMs = words.lastOrNull()?.endMs
                 )
@@ -108,7 +108,7 @@ internal object EllaLyricsParser {
             LyricLine(
                 timeMs = start,
                 text = text,
-                words = words,
+                words = words.toDisplayWords(text),
                 agent = agent,
                 endMs = words.lastOrNull()?.endMs
             )
@@ -196,7 +196,7 @@ internal object EllaLyricsParser {
                         timeMs = words.first().startMs,
                         text = "",
                         backgroundText = text,
-                        backgroundWords = words,
+                        backgroundWords = words.toDisplayWords(text),
                         agent = agent,
                         isTtml = true,
                         endMs = words.last().endMs
@@ -205,7 +205,7 @@ internal object EllaLyricsParser {
                     LyricLine(
                         timeMs = words.first().startMs,
                         text = text,
-                        words = words,
+                        words = words.toDisplayWords(text),
                         agent = agent,
                         isTtml = true,
                         endMs = words.last().endMs

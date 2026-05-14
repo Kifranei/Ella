@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -68,6 +69,8 @@ fun LxOnlineScreen(
     onNavigateToPlayer: () -> Unit,
     state: LxOnlineViewModel = viewModel()
 ) {
+    BackHandler(onBack = onBack)
+
     val context = LocalContext.current
     val settingsManager = remember { SettingsManager(context) }
     val service = remember(context) { LxOnlineService(context) }
