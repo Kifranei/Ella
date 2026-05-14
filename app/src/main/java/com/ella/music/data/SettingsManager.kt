@@ -64,6 +64,7 @@ class SettingsManager(private val context: Context) {
         val KEY_MUSICFREE_SELECTED_PLUGIN_ID = stringPreferencesKey("musicfree_selected_plugin_id")
         val KEY_OPEN_PLAYER_ON_PLAY = booleanPreferencesKey("online_auto_open_player")
         val KEY_STARTUP_AUTO_PLAY = booleanPreferencesKey("startup_auto_play")
+        val KEY_STARTUP_PLAY_MODE = intPreferencesKey("startup_play_mode")
         val KEY_LYRIC_FONT_NAME = stringPreferencesKey("lyric_font_name")
         val KEY_LYRIC_FONT_PATH = stringPreferencesKey("lyric_font_path")
         val KEY_LYRIC_FONT_WEIGHT = intPreferencesKey("lyric_font_weight")
@@ -76,6 +77,10 @@ class SettingsManager(private val context: Context) {
 
         const val SHUFFLE_MODE_PSEUDO = 0
         const val SHUFFLE_MODE_TRUE_RANDOM = 1
+
+        const val STARTUP_PLAY_OFF = 0
+        const val STARTUP_PLAY_RANDOM = 1
+        const val STARTUP_PLAY_RESUME = 2
 
         const val LYRIC_SOURCE_AUTO = 0
         const val LYRIC_SOURCE_EXTERNAL = 1
@@ -129,6 +134,10 @@ class SettingsManager(private val context: Context) {
     }
     val openPlayerOnPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_OPEN_PLAYER_ON_PLAY] ?: true }
     val startupAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_STARTUP_AUTO_PLAY] ?: false }
+    val startupPlayMode: Flow<Int> = context.dataStore.data.map {
+        it[KEY_STARTUP_PLAY_MODE]
+            ?: if (it[KEY_STARTUP_AUTO_PLAY] == true) STARTUP_PLAY_RANDOM else STARTUP_PLAY_OFF
+    }
     val lyricFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_NAME] ?: "" }
     val lyricFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_PATH] ?: "" }
     val lyricFontWeight: Flow<Int> = context.dataStore.data.map { it[KEY_LYRIC_FONT_WEIGHT] ?: 800 }
@@ -361,7 +370,15 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setStartupAutoPlay(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_STARTUP_AUTO_PLAY] = enabled }
+        setStartupPlayMode(if (enabled) STARTUP_PLAY_RANDOM else STARTUP_PLAY_OFF)
+    }
+
+    suspend fun setStartupPlayMode(mode: Int) {
+        val safeMode = mode.coerceIn(STARTUP_PLAY_OFF, STARTUP_PLAY_RESUME)
+        context.dataStore.edit {
+            it[KEY_STARTUP_PLAY_MODE] = safeMode
+            it[KEY_STARTUP_AUTO_PLAY] = safeMode != STARTUP_PLAY_OFF
+        }
     }
 
     suspend fun setLyricFont(name: String, path: String) {
@@ -433,6 +450,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_THEME_MODE)
             setInt(KEY_MIN_DURATION)
             setInt(KEY_SHUFFLE_MODE)
+            setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
             setInt(KEY_DECODER_MODE)
             setInt(KEY_LYRIC_FONT_WEIGHT)

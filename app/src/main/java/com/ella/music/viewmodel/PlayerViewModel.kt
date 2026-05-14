@@ -425,6 +425,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playerManager.playSong(song)
     }
 
+    fun playRestoredQueue() {
+        playerManager.play()
+    }
+
     fun togglePlayPause() = playerManager.togglePlayPause()
     fun skipToNext() {
         if (!playLazyOnlineOffset(1)) playerManager.skipToNext()

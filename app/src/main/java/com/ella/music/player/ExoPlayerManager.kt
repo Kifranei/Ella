@@ -61,6 +61,8 @@ class ExoPlayerManager(private val context: Context) {
     private var lastQueueSaveMs = 0L
     private var shuffleMode = SettingsManager.SHUFFLE_MODE_PSEUDO
     private var virtualPlaylistCurrentIndex: Int? = null
+    private var playWhenConnected = false
+    private var pendingPlaylist: PendingPlaylist? = null
 
     private val directExecutor = Executor { it.run() }
 
@@ -123,20 +125,40 @@ class ExoPlayerManager(private val context: Context) {
         }
         mediaController?.addListener(playerListener!!)
 
-        restoreSavedQueueIfNeeded()
+        val pending = pendingPlaylist
+        if (pending != null) {
+            pendingPlaylist = null
+            setPlaylist(pending.songs, pending.startIndex)
+        } else {
+            restoreSavedQueueIfNeeded()
+        }
         refreshStateFromController()
+        if (playWhenConnected) {
+            playWhenConnected = false
+            play()
+        }
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
+        if (songs.isEmpty()) return
         virtualPlaylistCurrentIndex = null
         playlist.clear()
         playlist.addAll(songs)
         _playlist.value = playlist.toList()
 
+        val safeIndex = startIndex.coerceIn(songs.indices)
         val mediaItems = songs.map(::songToMediaItem)
+        val controller = mediaController
+        if (controller == null) {
+            pendingPlaylist = PendingPlaylist(songs.toList(), safeIndex)
+            _currentSong.value = songs.getOrNull(safeIndex)
+            _duration.value = songs.getOrNull(safeIndex)?.duration ?: 0L
+            savePlaybackQueue(force = true)
+            return
+        }
 
-        mediaController?.apply {
-            setMediaItems(mediaItems, startIndex, 0L)
+        controller.apply {
+            setMediaItems(mediaItems, safeIndex, 0L)
             prepare()
             play()
         }
@@ -223,6 +245,18 @@ class ExoPlayerManager(private val context: Context) {
     fun togglePlayPause() {
         mediaController?.let {
             if (it.isPlaying) it.pause() else it.play()
+        }
+    }
+
+    fun play() {
+        val controller = mediaController
+        if (controller == null) {
+            playWhenConnected = true
+            return
+        }
+        if (controller.mediaItemCount > 0) {
+            controller.play()
+            refreshStateFromController()
         }
     }
 
@@ -537,6 +571,11 @@ class ExoPlayerManager(private val context: Context) {
         val shuffle: Boolean,
         val speed: Float,
         val pitch: Float
+    )
+
+    private data class PendingPlaylist(
+        val songs: List<Song>,
+        val startIndex: Int
     )
 
     private fun MediaItem.toSong(): Song {

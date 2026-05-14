@@ -43,13 +43,13 @@ import com.ella.music.data.model.Song
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -246,8 +246,13 @@ private fun DailyMixCard(
                     modifier = Modifier.padding(top = 6.dp)
                 )
                 Spacer(modifier = Modifier.height(18.dp))
-                Button(onClick = onPlay) {
-                    Text(text = "播放", color = Color(0xFF101014))
+                IconButton(onClick = onPlay) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Play,
+                        contentDescription = "播放每日精选",
+                        tint = Color(0xFF101014),
+                        modifier = Modifier.size(32.dp)
+                    )
                 }
             }
         }

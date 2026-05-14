@@ -99,17 +99,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun getArtists(): List<Artist> {
         val currentSongs = songs.value
         val currentAlbums = albums.value
-        return currentSongs
-            .flatMap { splitArtistNames(it.artist) }
-            .distinctBy { it.lowercase() }
-            .map { artist ->
+        val counts = linkedMapOf<String, ArtistAccumulator>()
+        val albumIdsByArtist = mutableMapOf<String, MutableSet<Long>>()
+
+        currentSongs.forEach { song ->
+            splitArtistNames(song.artist).forEach { rawName ->
+                val key = rawName.lowercase()
+                val accumulator = counts.getOrPut(key) { ArtistAccumulator(rawName) }
+                accumulator.songCount += 1
+                if (song.albumId > 0L) {
+                    albumIdsByArtist.getOrPut(key) { mutableSetOf() } += song.albumId
+                }
+            }
+        }
+
+        currentAlbums.forEach { album ->
+            splitArtistNames(album.artist).forEach { rawName ->
+                val key = rawName.lowercase()
+                counts.getOrPut(key) { ArtistAccumulator(rawName) }
+                if (album.id > 0L) {
+                    albumIdsByArtist.getOrPut(key) { mutableSetOf() } += album.id
+                }
+            }
+        }
+
+        return counts
+            .map { (key, accumulator) ->
                 Artist(
-                    name = artist,
-                    songCount = currentSongs.count { it.artist.matchesArtistName(artist) },
-                    albumCount = currentAlbums.count { album ->
-                        album.artist.matchesArtistName(artist) ||
-                            currentSongs.any { it.albumId == album.id && it.artist.matchesArtistName(artist) }
-                    }
+                    name = accumulator.name,
+                    songCount = accumulator.songCount,
+                    albumCount = albumIdsByArtist[key]?.size ?: 0
                 )
             }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
@@ -152,3 +171,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             .filter { it.isNotBlank() }
     }
 }
+
+private data class ArtistAccumulator(
+    val name: String,
+    var songCount: Int = 0
+)

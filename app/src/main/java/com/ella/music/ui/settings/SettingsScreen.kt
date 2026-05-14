@@ -102,14 +102,28 @@ fun SettingsScreen(
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
-    val startupAutoPlay by settingsManager.startupAutoPlay.collectAsState(initial = false)
+    val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
     val shuffleModeLabels = listOf("伪随机", "真随机")
     val selectedShuffleMode = shuffleMode.coerceIn(shuffleModeLabels.indices)
+    val startupPlayLabels = listOf("关闭", "随机播放", "继续上一次")
+    val selectedStartupPlayMode = startupPlayMode.coerceIn(startupPlayLabels.indices)
     val themeEntries = remember { themeLabels.map { SpinnerEntry(title = it) } }
+    val startupPlayEntries = remember {
+        startupPlayLabels.mapIndexed { index, label ->
+            SpinnerEntry(
+                title = label,
+                summary = when (index) {
+                    SettingsManager.STARTUP_PLAY_RANDOM -> "启动并加载音乐库后随机播放一首，从开头开始"
+                    SettingsManager.STARTUP_PLAY_RESUME -> "启动后恢复上次队列，并从上次进度继续播放"
+                    else -> "启动后不自动播放"
+                }
+            )
+        }
+    }
     val decoderEntries = remember {
         decoderLabels.mapIndexed { index, label ->
             SpinnerEntry(
@@ -456,12 +470,13 @@ fun SettingsScreen(
 
             SettingsCardGroup {
                 Column {
-                    SwitchPreference(
+                    WindowSpinnerPreference(
                         title = "启动后自动播放",
-                        summary = "软件启动并加载到音乐库后自动播放第一首歌",
-                        checked = startupAutoPlay,
-                        onCheckedChange = {
-                            scope.launch { settingsManager.setStartupAutoPlay(it) }
+                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
+                        items = startupPlayEntries,
+                        selectedIndex = selectedStartupPlayMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setStartupPlayMode(index) }
                         }
                     )
                     SwitchPreference(

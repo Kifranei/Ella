@@ -143,10 +143,16 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 checkAndRequestPermissions()
                 mainVm.loadCachedLibrary()
-                if (settingsManager.startupAutoPlay.first()) {
-                    val songs = mainVm.songs.first { it.isNotEmpty() }
-                    if (playerVm.currentSong.value == null) {
-                        playerVm.setPlaylist(songs, 0)
+                when (settingsManager.startupPlayMode.first()) {
+                    SettingsManager.STARTUP_PLAY_RANDOM -> {
+                        val songs = mainVm.songs.first { it.isNotEmpty() }
+                        if (playerVm.currentSong.value == null) {
+                            val startIndex = songs.indices.random()
+                            playerVm.setPlaylist(songs, startIndex)
+                        }
+                    }
+                    SettingsManager.STARTUP_PLAY_RESUME -> {
+                        playerVm.playRestoredQueue()
                     }
                 }
                 mainVm.scanMusicIfAutoEnabled()
