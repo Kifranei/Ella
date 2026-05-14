@@ -71,7 +71,11 @@ fun HomeScreen(
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF5F6FA)
     val cardText = if (isDark) Color.White else Color(0xFF15151A)
     val featuredSongs = songs.take(5)
-    val recentSongs = history.take(3).mapNotNull { entry -> songs.firstOrNull { it.id == entry.songId } }
+    val artistCount = remember(songs, albums) { mainViewModel.getArtists().size }
+    val songsById = remember(songs) { songs.associateBy { it.id } }
+    val recentSongs = remember(history, songsById) {
+        history.take(3).mapNotNull { entry -> songsById[entry.songId] }
+    }
 
     Column(
         modifier = Modifier
@@ -168,7 +172,7 @@ fun HomeScreen(
             SectionTitle("音乐库")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 HomeTile("歌曲", "${songs.size} 首", Color(0xFF2EC4B6), onNavigateToLibrary, Modifier.weight(1f))
-                HomeTile("艺术家", "${mainViewModel.getArtists().size} 位", Color(0xFF118AB2), onNavigateToArtist, Modifier.weight(1f))
+                HomeTile("艺术家", "$artistCount 位", Color(0xFF118AB2), onNavigateToArtist, Modifier.weight(1f))
             }
             Spacer(modifier = Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
