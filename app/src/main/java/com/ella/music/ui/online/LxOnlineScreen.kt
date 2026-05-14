@@ -90,8 +90,28 @@ fun LxOnlineScreen(
 
     suspend fun resolveVisibleResults(startItem: LxOnlineSong): Pair<List<com.ella.music.data.model.Song>, Int> {
         val visible = state.results.ifEmpty { listOf(startItem) }
-        val songs = visible.map { service.resolvePlayableSong(it, selectedSource?.script.orEmpty()) }
-        val startIndex = visible.indexOfFirst { it.song.id == startItem.song.id }.coerceAtLeast(0)
+        val sourceScript = selectedSource?.script.orEmpty()
+        val songs = mutableListOf<com.ella.music.data.model.Song>()
+        var startIndex = -1
+        var skippedCount = 0
+
+        for (item in visible) {
+            val isStartItem = item.song.id == startItem.song.id
+            val resolvedResult = runCatching { service.resolvePlayableSong(item, sourceScript) }
+            val resolved = resolvedResult.getOrNull()
+            if (resolved == null) {
+                if (isStartItem) throw resolvedResult.exceptionOrNull() ?: IllegalStateException("当前歌曲解析失败")
+                skippedCount += 1
+                continue
+            }
+            if (isStartItem) startIndex = songs.size
+            songs += resolved
+        }
+
+        if (startIndex < 0) error("当前歌曲解析失败")
+        if (skippedCount > 0) {
+            state.message = "已跳过 $skippedCount 首暂时无法解析的队列歌曲"
+        }
         return songs to startIndex
     }
 
