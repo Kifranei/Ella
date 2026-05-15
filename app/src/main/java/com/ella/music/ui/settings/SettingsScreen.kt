@@ -169,7 +169,7 @@ fun AudioSettingsScreen(
     val replayGainEnabled by settingsManager.replayGainEnabled.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
     val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
-    val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
+    val decoderMode by settingsManager.decoderMode.collectAsState(initial = 2)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
@@ -289,7 +289,7 @@ fun AudioSettingsScreen(
                 Column {
                     SwitchPreference(
                         title = "关闭音频焦点",
-                        summary = "开启后播放时不再抢占其他应用音频焦点，重启播放器服务后生效",
+                        summary = "开启后播放时不再抢占其他应用音频焦点",
                         checked = audioFocusDisabled,
                         onCheckedChange = {
                             scope.launch { settingsManager.setAudioFocusDisabled(it) }
@@ -434,7 +434,7 @@ fun SettingsDetailScreen(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
 
-    val autoScan by settingsManager.autoScan.collectAsState(initial = true)
+    val autoScan by settingsManager.autoScan.collectAsState(initial = false)
     val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
     val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)

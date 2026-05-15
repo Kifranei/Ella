@@ -65,8 +65,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.extended.Album
-import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Settings
@@ -144,7 +142,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
-                checkAndRequestPermissions()
+                val canScanNow = checkAndRequestPermissions()
                 mainVm.loadCachedLibrary()
                 when (settingsManager.startupPlayMode.first()) {
                     SettingsManager.STARTUP_PLAY_RANDOM -> {
@@ -158,7 +156,7 @@ class MainActivity : ComponentActivity() {
                         playerVm.playRestoredQueue()
                     }
                 }
-                mainVm.scanMusicIfAutoEnabled()
+                if (canScanNow) mainVm.scanMusicIfAutoEnabled()
             }
 
             EllaTheme(themeMode = themeMode) {
@@ -185,17 +183,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun checkAndRequestPermissions() {
+    private fun checkAndRequestPermissions(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
 
-        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+        return if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
             requestPermissionLauncher.launch(permission)
+            false
         } else {
             requestVideoPermissionIfNeeded()
+            true
         }
     }
 
@@ -241,8 +241,6 @@ fun EllaApp(
     val bottomBarScreens = listOf(
         Screen.Home.route,
         Screen.Library.route,
-        Screen.Album.route,
-        Screen.Folder.route,
         Screen.Settings.route
     )
     val showBottomBar = currentRoute in bottomBarScreens
@@ -287,8 +285,6 @@ fun EllaApp(
     val tabs = listOf(
         Triple(Screen.Home.route, "首页", MiuixIcons.Regular.Music),
         Triple(Screen.Library.route, "音乐库", MiuixIcons.Regular.Playlist),
-        Triple(Screen.Album.route, "专辑", MiuixIcons.Regular.Album),
-        Triple(Screen.Folder.route, "文件夹", MiuixIcons.Regular.Folder),
         Triple(Screen.Settings.route, "设置", MiuixIcons.Regular.Settings),
     )
 

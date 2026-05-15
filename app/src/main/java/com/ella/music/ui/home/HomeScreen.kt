@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import android.icu.text.Transliterator
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +48,9 @@ import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
+import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.SongItem
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -56,8 +59,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -127,11 +128,12 @@ fun LibraryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "音乐库",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
             actions = {
                 if (selectionMode) {
                     IconButton(onClick = {
@@ -221,23 +223,15 @@ fun LibraryScreen(
         }
 
         if (searchExpanded) {
-            SearchBar(
-                inputField = {
-                    InputField(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        onSearch = { searchExpanded = false },
-                        expanded = searchExpanded,
-                        onExpandedChange = { searchExpanded = it },
-                        label = "搜索歌曲、艺术家或专辑"
-                    )
-                },
-                expanded = searchExpanded,
-                onExpandedChange = { searchExpanded = it },
+            EllaSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSearch = { searchExpanded = false },
+                placeholder = "搜索歌曲、艺术家或专辑",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {}
+            )
         }
 
         AnimatedVisibility(

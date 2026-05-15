@@ -36,7 +36,7 @@ class SuperLyricBridge {
         register()
     }
 
-    fun sendLyric(line: LyricLine?, positionMs: Long, showTranslation: Boolean) {
+    fun sendLyric(line: LyricLine?, positionMs: Long, showTranslation: Boolean, force: Boolean = false) {
         if (!enabled || line == null) return
         val song = lastSong
         val translationKey = if (showTranslation) {
@@ -45,7 +45,7 @@ class SuperLyricBridge {
             ""
         }
         val key = "${song?.id}:${line.timeMs}:${line.endMs}:$showTranslation:$translationKey"
-        if (key == lastKey) return
+        if (!force && key == lastKey) return
         lastKey = key
         runCatching {
             register()
@@ -79,6 +79,7 @@ class SuperLyricBridge {
         }.onFailure {
             Log.w(TAG, "Failed to send SuperLyric", it)
             registered = false
+            lastKey = null
         }
     }
 

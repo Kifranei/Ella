@@ -56,7 +56,11 @@ fun SongItem(
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
         value = withContext(Dispatchers.IO) { loadAudioInfo?.invoke(song) }
     }
-    val shouldLoadEmbeddedCover = song.coverUrl.isBlank() && albumArtUri == null && loadCoverArt != null
+    val preferEmbeddedCover = song.fileName.substringAfterLast('.', song.path.substringAfterLast('.'))
+        .lowercase() in setOf("wav", "wave", "aif", "aiff")
+    val shouldLoadEmbeddedCover = song.coverUrl.isBlank() &&
+        loadCoverArt != null &&
+        (albumArtUri == null || preferEmbeddedCover)
     val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, shouldLoadEmbeddedCover) {
         value = if (shouldLoadEmbeddedCover) {
             withContext(Dispatchers.IO) { loadCoverArt.invoke(song) }
@@ -65,7 +69,8 @@ fun SongItem(
         }
     }
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
-    val coverModel = song.coverUrl.takeIf { it.isNotBlank() } ?: albumArtUri ?: embeddedCover
+    val coverModel = song.coverUrl.takeIf { it.isNotBlank() }
+        ?: if (preferEmbeddedCover) embeddedCover ?: albumArtUri else albumArtUri ?: embeddedCover
 
     Row(
         modifier = modifier
@@ -216,7 +221,7 @@ private fun AudioQualityBadge(tag: String) {
 private fun audioQualityColor(tag: String): Color {
     return when (tag) {
         "Dolby" -> Color(0xFF6EE7FF)
-        "Master" -> Color(0xFFFF8F3D)
+        "MQ" -> Color(0xFFFF8F3D)
         "HR" -> Color(0xFFFFC23A)
         "SQ" -> Color(0xFF69B7FF)
         "HQ" -> Color(0xFF3D83FF)

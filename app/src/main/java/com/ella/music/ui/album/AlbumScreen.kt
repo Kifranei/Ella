@@ -3,6 +3,7 @@ package com.ella.music.ui.album
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -42,18 +43,19 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AlbumCard
+import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.floor
@@ -64,6 +66,7 @@ import java.util.Locale
 fun AlbumScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
+    onBack: () -> Unit,
     onAlbumClick: (Long) -> Unit
 ) {
     val albums by mainViewModel.albums.collectAsState()
@@ -95,11 +98,22 @@ fun AlbumScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "专辑",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
             actions = {
                 IconButton(onClick = { sortExpanded = !sortExpanded }) {
                     Icon(
@@ -153,23 +167,15 @@ fun AlbumScreen(
         }
 
         if (searchExpanded) {
-            SearchBar(
-                inputField = {
-                    InputField(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        onSearch = { searchExpanded = false },
-                        expanded = searchExpanded,
-                        onExpandedChange = { searchExpanded = it },
-                        label = "搜索专辑或艺术家"
-                    )
-                },
-                expanded = searchExpanded,
-                onExpandedChange = { searchExpanded = it },
+            EllaSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSearch = { searchExpanded = false },
+                placeholder = "搜索专辑或艺术家",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {}
+            )
         }
 
         if (albums.isEmpty()) {
@@ -213,7 +219,7 @@ fun AlbumScreen(
                         ) { album ->
                             AlbumCard(
                                 album = album,
-                                albumArtUri = mainViewModel.getAlbumArtUri(album.id),
+                                albumArtUri = mainViewModel.getAlbumArtUri(album.artAlbumId),
                                 onClick = { onAlbumClick(album.id) }
                             )
                         }

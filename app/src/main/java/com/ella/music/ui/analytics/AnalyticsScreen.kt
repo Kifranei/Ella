@@ -42,6 +42,7 @@ import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,6 +74,7 @@ fun AnalyticsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         Row(
@@ -685,7 +687,7 @@ private fun formatHistoryTime(timestampMs: Long): String {
     return SimpleDateFormat(pattern, Locale.getDefault()).format(then.time)
 }
 
-private val qualityOrder = listOf("Dolby", "Master", "Hi-Res", "无损", "HQ", "LQ", "未知", "其他")
+private val qualityOrder = listOf("Dolby", "MQ", "Hi-Res", "无损", "HQ", "LQ", "未知", "其他")
 
 private val formatPalette = listOf(
     Color(0xFF4C6F9F),

@@ -38,6 +38,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Card
@@ -59,6 +60,7 @@ fun HomeScreen(
     onNavigateToFolder: () -> Unit,
     onNavigateToLxOnline: () -> Unit,
     onNavigateToMusicFreeOnline: () -> Unit,
+    onNavigateToWebDav: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToPlayer: () -> Unit
 ) {
@@ -70,7 +72,7 @@ fun HomeScreen(
     val settingsManager = remember(context) { SettingsManager(context) }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
-    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF5F6FA)
+    val pageBackground = ellaPageBackground()
     val cardText = if (isDark) Color.White else Color(0xFF15151A)
     val featuredSongs = remember(songs) { songs.shuffled().take(3) }
     val artistCount = remember(songs) {
@@ -139,8 +141,13 @@ fun HomeScreen(
 
             SectionTitle("在线音乐")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                HomeTile("LX 在线音乐", "导入 API 源", Color(0xFF00A896), onNavigateToLxOnline, Modifier.weight(1f))
+                HomeTile("LX Music", "导入 API 源", Color(0xFF00A896), onNavigateToLxOnline, Modifier.weight(1f))
                 HomeTile("MusicFree", "导入插件源", Color(0xFFFF6B6B), onNavigateToMusicFreeOnline, Modifier.weight(1f))
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                HomeTile("WebDAV", "连接云端音乐", Color(0xFF5E60CE), onNavigateToWebDav, Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             SectionTitle("最近听过")

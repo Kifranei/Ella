@@ -9,7 +9,14 @@ android {
     defaultConfig {
         minSdk = 26
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+            val abiIncludes = providers.gradleProperty("ellaAbi")
+                .orNull
+                ?.split(",")
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?: listOf("arm64-v8a", "armeabi-v7a")
+
+            abiFilters += abiIncludes
         }
     }
 

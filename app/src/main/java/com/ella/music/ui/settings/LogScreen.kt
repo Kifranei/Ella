@@ -7,8 +7,8 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -53,11 +54,18 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.ListPopupColumn
+import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
+import top.yukonga.miuix.kmp.basic.SpinnerDefaults
+import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.SpinnerItemImpl
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowListPopup
 
 @Composable
 fun LogScreen(
@@ -71,6 +79,9 @@ fun LogScreen(
     var query by remember { mutableStateOf("") }
     var retentionMenuExpanded by remember { mutableStateOf(false) }
     var retentionDays by remember { mutableIntStateOf(AppLogStore.retentionDays(context)) }
+    val retentionOptions = remember { listOf(1, 3, 7, 14, 30) }
+    val retentionEntries = remember { retentionOptions.map { SpinnerEntry(title = "保留最近 $it 天") } }
+    val selectedRetentionIndex = retentionOptions.indexOf(retentionDays).takeIf { it >= 0 } ?: 2
     val entries by produceState(initialValue = emptyList<AppLogEntry>(), refreshKey) {
         value = withContext(Dispatchers.IO) { AppLogStore.read(context) }
     }
@@ -154,26 +165,15 @@ fun LogScreen(
                 }
             },
             actions = {
-                IconButton(onClick = { retentionMenuExpanded = !retentionMenuExpanded }) {
-                    Text(
-                        text = "${retentionDays}天",
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.primary
-                    )
-                }
+                RetentionDropdownAction(
+                    expanded = retentionMenuExpanded,
+                    selectedIndex = selectedRetentionIndex,
+                    entries = retentionEntries,
+                    onExpandedChange = { retentionMenuExpanded = it },
+                    onSelected = { index -> clearOlderLogs(retentionOptions[index]) }
+                )
             }
         )
-
-        if (retentionMenuExpanded) {
-            RetentionMenu(
-                isDark = isDark,
-                selectedDays = retentionDays,
-                onSelected = ::clearOlderLogs,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(horizontal = 16.dp)
-            )
-        }
 
         Column(
             modifier = Modifier
@@ -201,7 +201,7 @@ fun LogScreen(
                 Button(
                     onClick = ::shareLogs
                 ) {
-                    Text("导出分享")
+                    Text("发送")
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
@@ -225,6 +225,7 @@ fun LogScreen(
                 color = MiuixTheme.colorScheme.onSurface,
                 fontSize = 14.sp
             ),
+            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier
@@ -253,13 +254,6 @@ fun LogScreen(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                onClick = ::shareLogs
-            ) {
-                Text("导出详细日志")
-            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -283,39 +277,42 @@ fun LogScreen(
 }
 
 @Composable
-private fun RetentionMenu(
-    isDark: Boolean,
-    selectedDays: Int,
-    onSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+private fun RetentionDropdownAction(
+    expanded: Boolean,
+    selectedIndex: Int,
+    entries: List<SpinnerEntry>,
+    onExpandedChange: (Boolean) -> Unit,
+    onSelected: (Int) -> Unit
 ) {
-    val cardColor = if (isDark) Color(0xFF1D1D21) else Color.White
-    Card(
-        modifier = modifier
-            .width(180.dp)
-            .padding(bottom = 8.dp),
-        cornerRadius = 14.dp,
-        insideMargin = PaddingValues(vertical = 6.dp),
-        colors = CardDefaults.defaultColors(color = cardColor)
-    ) {
-        Column {
-            Text(
-                text = "自动清除",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-            )
-            listOf(1, 3, 7, 14, 30).forEach { days ->
-                Text(
-                    text = if (days == selectedDays) "保留最近 $days 天 · 当前" else "保留最近 $days 天",
-                    fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelected(days) }
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                )
+    IconButton(onClick = { onExpandedChange(!expanded) }) {
+        Text(
+            text = entries.getOrNull(selectedIndex)?.title?.removePrefix("保留最近 ") ?: "7 天",
+            fontSize = 13.sp,
+            color = MiuixTheme.colorScheme.primary
+        )
+        WindowListPopup(
+            show = expanded,
+            alignment = PopupPositionProvider.Align.End,
+            onDismissRequest = { onExpandedChange(false) },
+            onDismissFinished = {}
+        ) {
+            val dismiss = LocalDismissState.current
+            ListPopupColumn {
+                entries.forEachIndexed { index, entry ->
+                    key(index) {
+                        SpinnerItemImpl(
+                            entry = entry,
+                            entryCount = entries.size,
+                            isSelected = selectedIndex == index,
+                            index = index,
+                            spinnerColors = SpinnerDefaults.spinnerColors(),
+                            onSelectedIndexChange = { selected ->
+                                onSelected(selected)
+                                dismiss?.invoke()
+                            }
+                        )
+                    }
+                }
             }
         }
     }

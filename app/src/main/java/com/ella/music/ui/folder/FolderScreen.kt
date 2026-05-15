@@ -10,6 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Song
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavItem
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import com.ella.music.viewmodel.PlayerViewModel
@@ -59,6 +61,8 @@ import androidx.compose.ui.window.Dialog
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Add
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Refresh
@@ -69,8 +73,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun FolderScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
+    onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit,
-    onNavigateToWebDav: () -> Unit,
     onFolderClick: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -122,11 +126,22 @@ fun FolderScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "文件夹",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
             actions = {
                 IconButton(
                     onClick = {
@@ -149,10 +164,6 @@ fun FolderScreen(
                     )
                 }
             }
-        )
-
-        WebDavEntryCard(
-            onOpenWebDav = onNavigateToWebDav
         )
 
         if (isScanning) {
@@ -309,54 +320,6 @@ fun FolderScreen(
 }
 
 @Composable
-private fun WebDavEntryCard(
-    onOpenWebDav: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        onClick = onOpenWebDav
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = MiuixIcons.Regular.Folder,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
-            )
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "WebDAV 音乐库",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "配置和浏览 WebDAV 远程音乐目录",
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-
-            Icon(
-                imageVector = MiuixIcons.Basic.ArrowRight,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
 private fun ScanStatusCard(scanProgress: Int) {
     Card(
         modifier = Modifier
@@ -398,7 +361,14 @@ private fun SavedScanFoldersCard(
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
-                Button(onClick = onScan) { Text("全量") }
+                IconButton(onClick = onScan) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Refresh,
+                        contentDescription = "全量扫描",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
             folders.forEach { folder ->
                 Row(
@@ -425,7 +395,14 @@ private fun SavedScanFoldersCard(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
                     }
-                    Button(onClick = { onRemove(folder) }) { Text("移除") }
+                    IconButton(onClick = { onRemove(folder) }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Close,
+                            contentDescription = "移除",
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -740,6 +717,7 @@ internal fun WebDavTextField(
                 color = MiuixTheme.colorScheme.onBackground,
                 fontSize = 14.sp
             ),
+            cursorBrush = SolidColor(MiuixTheme.colorScheme.primary),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))

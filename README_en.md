@@ -30,6 +30,19 @@ The app follows a **MIUI / HyperOS-inspired** visual and interaction style, aimi
 
 ---
 
+## 🔥 v1.1.0 Highlights
+
+- Moved online music access to Home, grouping LX Music, MusicFree, and WebDAV in one place.
+- Improved MusicFree plugin import and search compatibility for common sources such as `qishui.js`, Kugou, and QQ.
+- Continued unifying Now Playing, Lyrics, Queue, Album detail, and Artist detail pages under the dark dynamic visual system.
+- Improved lyric parsing and external lyric delivery for word-level LRC, TTML, romanization / translation recognition, desktop lyrics, SuperLyric, and Lyricon.
+- Fixed startup / Settings ANRs caused by Media3 controller Future waiting and improved notification metadata refresh behavior.
+- Improved WAV / ALAC / M4A metadata reading, album grouping, track sorting, and quality-label detection.
+- Added detailed runtime logs with copy, Send/share, and automatic retention for 1 / 3 / 7 / 14 / 30 days.
+- Release builds now default to `arm64-v8a` only to reduce APK size.
+
+---
+
 ## 🚀 Features
 
 ### 🎵 Local music playback
@@ -37,6 +50,7 @@ The app follows a **MIUI / HyperOS-inspired** visual and interaction style, aimi
 - Local music scanning, search, playback, and folder browsing.
 - Search, sorting, fast indexing, and multi-select management for the dashboard home, album, folder, and artist pages.
 - Album pages, artist pages, song lists, current queue, mini player, and immersive now-playing screen.
+- Album grouping now considers both album title and artist to avoid merging same-name albums by different artists; album detail pages sort by track number by default.
 - CJK titles can participate in A-Z sorting through Latinized sort keys, with cached keys to reduce home-screen stalls.
 - Library analytics for play-count ranking, listen-time ranking, format distribution, and quality distribution.
 
@@ -76,6 +90,7 @@ The app follows a **MIUI / HyperOS-inspired** visual and interaction style, aimi
 
 - WebDAV configuration, connection testing, remote directory browsing, and remote audio playback.
 - WebDAV paths support Chinese characters, spaces, and other special characters, with folder-result caching.
+- WebDAV is available from the Home online-music area alongside LX Music and MusicFree.
 - Multi-source LX Music API import and centralized source management.
 - Import sources from URLs or local JS files.
 - Online search, playback, artwork display, Kuwo lyric fetching, and downloads to `Music/Ella/`.
@@ -91,6 +106,7 @@ The app follows a **MIUI / HyperOS-inspired** visual and interaction style, aimi
 - Sleep timer, stop-after-current, playback speed, pitch control, queue clearing, audio-focus control, and shuffle settings.
 - Audio output switcher and listening history.
 - Audio quality labels: Dolby Atmos, Dolby double-D, Master, Apple Lossless, Hi-Res, Lossless, HQ, and LQ.
+- Library lists classify 24-bit / 96 kHz-style material under the Hi-Res / MQ quality system, while the Now Playing page keeps the Master wording where appropriate.
 - Improved metadata fallback and quality recognition for WAV, ALAC / M4A, 24-bit / 96 kHz, and related files.
 
 ### 🎨 UI and settings
@@ -100,7 +116,7 @@ The app follows a **MIUI / HyperOS-inspired** visual and interaction style, aimi
 - MiniPlayer circular progress ring and song / lyric transition animation.
 - Album and artist detail pages with large headers, gradients, and unified information layout.
 - Theme switching and common playback, lyric, scanning, and decoder settings.
-- In-app log viewer, app backup support, and richer diagnostics.
+- In-app log viewer with detailed log copy / Send sharing, automatic retention, app backup support, and richer diagnostics.
 
 ---
 
@@ -168,8 +184,7 @@ The actual matching order follows the implementation: generally, Ella first chec
 ```bash
 git clone https://github.com/Kifranei/Ella.git
 cd Ella
-git clone https://github.com/compose-miuix-ui/miuix.git external/miuix
-MIUIX_INCLUDED_BUILD_PATH="$PWD/external/miuix" ./gradlew :app:assembleDebug -PellaAbi=arm64-v8a
+./gradlew :app:assembleDebug -PellaAbi=arm64-v8a
 ```
 
 Windows PowerShell:
@@ -177,8 +192,6 @@ Windows PowerShell:
 ```powershell
 git clone https://github.com/Kifranei/Ella.git
 cd Ella
-git clone https://github.com/compose-miuix-ui/miuix.git external/miuix
-$env:MIUIX_INCLUDED_BUILD_PATH="$PWD\external\miuix"
 .\gradlew.bat :app:assembleDebug -PellaAbi=arm64-v8a
 ```
 
@@ -245,6 +258,12 @@ The script builds FFmpeg through WSL with the Linux Android NDK.
 | [Coil](https://github.com/coil-kt/coil) | Image loading for Compose |
 | [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | Running LX Music API / MusicFree JavaScript sources |
 | [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree plugin protocol, import compatibility, and runtime adaptation reference |
+
+---
+
+## 📄 License
+
+Ella Music is released under **AGPL-3.0-or-later**. Because the project includes compatibility work for MusicFree plugin protocols and runtime behavior, redistributed modified versions should follow the AGPL source-availability requirements.
 
 ---
 

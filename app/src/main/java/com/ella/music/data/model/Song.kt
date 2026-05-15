@@ -28,3 +28,19 @@ data class Song(
             return "%02d:%02d".format(minutes, seconds)
         }
 }
+
+fun Song.albumIdentityId(): Long {
+    val key = "${album.normalizedAlbumIdentityPart()}|${artist.normalizedAlbumIdentityPart()}"
+    var hash = -0x340d631b7bdddcdbL
+    key.forEach { char ->
+        hash = hash xor char.code.toLong()
+        hash *= 0x100000001b3L
+    }
+    return hash and Long.MAX_VALUE
+}
+
+private fun String.normalizedAlbumIdentityPart(): String =
+    trim()
+        .ifBlank { "unknown" }
+        .lowercase()
+        .replace(Regex("\\s+"), " ")

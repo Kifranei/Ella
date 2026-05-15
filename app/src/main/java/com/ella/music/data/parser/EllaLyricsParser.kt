@@ -132,7 +132,7 @@ internal object EllaLyricsParser {
         var textStart = 0
 
         markers.forEach { marker ->
-            val text = content.substring(textStart, marker.startIndex).cleanTimedLyricText()
+            val text = content.substring(textStart, marker.startIndex).cleanTimedLyricSegment()
             if (text.isNotBlank()) {
                 words += LyricWord(
                     text = text,
@@ -144,7 +144,7 @@ internal object EllaLyricsParser {
             textStart = marker.endIndex
         }
 
-        content.substring(textStart).cleanTimedLyricText().takeIf { it.isNotBlank() }?.let { tail ->
+        content.substring(textStart).cleanTimedLyricSegment().takeIf { it.isNotBlank() }?.let { tail ->
             words += LyricWord(
                 text = tail,
                 startMs = activeStart,
@@ -399,11 +399,15 @@ internal object EllaLyricsParser {
                 val pronunciation = group
                     .takeIf { it.size >= 3 && primaryText.hasCjk() }
                     ?.firstOrNull { it !== primary && it.text.isPronunciationLine() }
-                val translation = group
+                val translationCandidates = group
                     .asSequence()
                     .filter { it !== primary && it !== pronunciation }
                     .map { it.text.cleanLyricText() }
-                    .firstOrNull { it.isUsefulMainText() && it != primaryText }
+                    .filter { it.isUsefulMainText() && it != primaryText }
+                    .toList()
+                val translation = translationCandidates
+                    .firstOrNull { primaryText.hasCjk() && it.hasCjk() }
+                    ?: translationCandidates.firstOrNull()
                 primary.copy(
                     translation = primary.translation ?: translation,
                     pronunciation = primary.pronunciation ?: pronunciation?.text?.cleanLyricText(),
@@ -563,6 +567,19 @@ internal object EllaLyricsParser {
             if (time.isTimestampLike()) "" else match.value
         }.cleanLyricText()
 
+    private fun String.cleanTimedLyricSegment(): String =
+        Html.fromHtml(
+            replace(timedWordMarkerPattern) { match ->
+                val time = match.groupValues.getOrNull(1).orEmpty()
+                    .ifBlank { match.groupValues.getOrNull(2).orEmpty() }
+                    .trim()
+                if (time.isTimestampLike()) "" else match.value
+            },
+            Html.FROM_HTML_MODE_LEGACY
+        )
+            .toString()
+            .replace(Regex("""[ \t\r\n]+"""), " ")
+
     private fun String.takeUsefulText(): String? =
         cleanLyricText().takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
 
@@ -674,7 +691,12 @@ internal object EllaLyricsParser {
         val text = cleanLyricText()
         if (text.isBlank() || text.hasCjk() || text.isMusicSymbolOnly()) return false
         val letters = text.count { it.isLetter() }
-        return letters >= 2 && text.all { it.isLetter() || it.isWhitespace() || it in "-'`." }
+        return letters >= 2 && text.all {
+            it.isLetter() ||
+                it.isWhitespace() ||
+                it in "-'`.:,;!?/()[]{}" ||
+                it in setOf('‘', '’', '“', '”', 'ʼ', '・', '·')
+        }
     }
 
     private fun Element.attr(name: String): String {

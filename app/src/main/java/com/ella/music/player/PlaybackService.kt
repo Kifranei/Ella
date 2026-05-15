@@ -1,8 +1,12 @@
 package com.ella.music.player
 
 import android.app.PendingIntent
+import android.app.NotificationManager
+import android.os.Build
 import android.content.Intent
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -13,11 +17,16 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.Player
+import androidx.media3.session.CommandButton
+import androidx.media3.session.MediaNotification
+import androidx.media3.session.MediaStyleNotificationHelper
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.ella.music.R
 import com.ella.music.MainActivity
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
+import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -40,6 +49,7 @@ class PlaybackService : MediaSessionService() {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        setMediaNotificationProvider(NoArtworkMediaNotificationProvider(this))
         val settingsManager = SettingsManager(this)
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setDefaultRequestProperties(currentWebDavHeaders(settingsManager))
@@ -73,6 +83,7 @@ class PlaybackService : MediaSessionService() {
                     else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 }
             )
+        AppLogStore.info(this, TAG, "Decoder mode=${decoderMode.decoderModeLabel()}")
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(
@@ -138,6 +149,102 @@ class PlaybackService : MediaSessionService() {
             } else {
                 emptyMap()
             }
+        }
+    }
+
+    private fun Int.decoderModeLabel(): String = when (this) {
+        0 -> "system"
+        1 -> "ffmpeg-prefer"
+        2 -> "auto-system-first"
+        else -> "unknown"
+    }
+
+    private class NoArtworkMediaNotificationProvider(
+        private val service: PlaybackService
+    ) : MediaNotification.Provider {
+        private companion object {
+            const val NOTIFICATION_ID = 1001
+            const val CHANNEL_ID = "ella_music_playback"
+            const val CHANNEL_NAME = "播放控制"
+        }
+
+        override fun createNotification(
+            mediaSession: MediaSession,
+            mediaButtonPreferences: ImmutableList<CommandButton>,
+            actionFactory: MediaNotification.ActionFactory,
+            onNotificationChangedCallback: MediaNotification.Provider.Callback
+        ): MediaNotification {
+            ensureChannel()
+            val player = mediaSession.player
+            val metadata = player.mediaMetadata
+            val builder = NotificationCompat.Builder(service, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_flyme_ticker)
+                .setContentTitle(metadata.title?.takeIf { it.isNotBlank() } ?: service.getString(R.string.app_name))
+                .setContentText(metadata.artist?.takeIf { it.isNotBlank() } ?: metadata.albumTitle ?: "")
+                .setContentIntent(mediaSession.sessionActivity)
+                .setDeleteIntent(actionFactory.createNotificationDismissalIntent(mediaSession))
+                .setOnlyAlertOnce(true)
+                .setOngoing(false)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+
+            val compactIndices = mutableListOf<Int>()
+            var actionCount = 0
+            fun addAction(command: Int, icon: Int, title: String, compact: Boolean = true) {
+                if (!player.isCommandAvailable(command)) return
+                val index = actionCount++
+                builder.addAction(
+                    actionFactory.createMediaAction(
+                        mediaSession,
+                        IconCompat.createWithResource(service, icon),
+                        title,
+                        command
+                    )
+                )
+                if (compact) compactIndices += index
+            }
+
+            addAction(
+                Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                androidx.media3.session.R.drawable.media3_icon_previous,
+                "上一首"
+            )
+            addAction(
+                Player.COMMAND_PLAY_PAUSE,
+                if (player.isPlaying) androidx.media3.session.R.drawable.media3_icon_pause else androidx.media3.session.R.drawable.media3_icon_play,
+                if (player.isPlaying) "暂停" else "播放"
+            )
+            addAction(
+                Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                androidx.media3.session.R.drawable.media3_icon_next,
+                "下一首"
+            )
+
+            val style = MediaStyleNotificationHelper.MediaStyle(mediaSession)
+                .setShowActionsInCompactView(*compactIndices.toIntArray())
+            builder.setStyle(style)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.foregroundServiceBehavior = NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
+            }
+            return MediaNotification(NOTIFICATION_ID, builder.build())
+        }
+
+        override fun handleCustomCommand(session: MediaSession, action: String, extras: android.os.Bundle): Boolean = false
+
+        override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo {
+            return MediaNotification.Provider.NotificationChannelInfo(CHANNEL_ID, CHANNEL_NAME)
+        }
+
+        private fun ensureChannel() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+            val manager = service.getSystemService(NotificationManager::class.java)
+            if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+            manager.createNotificationChannel(
+                android.app.NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_LOW
+                )
+            )
         }
     }
 }

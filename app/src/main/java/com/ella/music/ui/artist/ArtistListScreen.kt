@@ -46,19 +46,20 @@ import com.ella.music.data.model.Artist
 import com.ella.music.data.model.Song
 import com.ella.music.data.splitArtistNames
 import com.ella.music.ui.LibrarySortUiState
+import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import android.os.SystemClock
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.Search
+import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -67,6 +68,7 @@ import kotlin.math.floor
 @Composable
 fun ArtistListScreen(
     mainViewModel: MainViewModel,
+    onBack: () -> Unit,
     onArtistClick: (String) -> Unit
 ) {
     val songs by mainViewModel.songs.collectAsState()
@@ -103,11 +105,22 @@ fun ArtistListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "艺术家",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
             actions = {
                 IconButton(onClick = { sortExpanded = !sortExpanded }) {
                     Icon(
@@ -153,23 +166,15 @@ fun ArtistListScreen(
         }
 
         if (searchExpanded) {
-            SearchBar(
-                inputField = {
-                    InputField(
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
-                        onSearch = { searchExpanded = false },
-                        expanded = searchExpanded,
-                        onExpandedChange = { searchExpanded = it },
-                        label = "搜索艺术家"
-                    )
-                },
-                expanded = searchExpanded,
-                onExpandedChange = { searchExpanded = it },
+            EllaSearchBar(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSearch = { searchExpanded = false },
+                placeholder = "搜索艺术家",
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {}
+            )
         }
 
         if (filteredArtists.isEmpty()) {

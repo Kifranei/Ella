@@ -30,6 +30,19 @@
 
 ---
 
+## 🔥 v1.1.0 亮点
+
+- 在线音乐入口重整到首页，LX Music、MusicFree 和 WebDAV 入口更集中。
+- MusicFree 插件导入与搜索兼容性增强，适配 `qishui.js`、酷狗、QQ 等常见音源问题。
+- 播放页、歌词页、队列面板、专辑详情和艺术家详情继续统一为深色动态视觉体系。
+- 歌词解析与外部歌词推送进一步修复，改善逐词 LRC、TTML、罗马音 / 翻译识别、桌面歌词和 SuperLyric / Lyricon 传递。
+- 修复 Media3 Controller Future 导致的启动 / 进入设置 ANR，并改进通知栏元数据刷新路径。
+- 改进 WAV / ALAC / M4A 元数据读取、专辑归类、音轨排序和音质标签识别。
+- 日志页支持详细运行日志、复制、发送分享和自动保留最近 1 / 3 / 7 / 14 / 30 天。
+- 默认仅构建 `arm64-v8a`，缩小 release 包体积。
+
+---
+
 ## 🚀 功能特性
 
 ### 🎵 本地音乐播放
@@ -37,6 +50,7 @@
 - 支持本地音乐扫描、搜索、播放和文件夹浏览。
 - 首页仪表盘、专辑、文件夹、艺术家页面支持搜索、排序、快速索引和多选管理。
 - 支持专辑页、艺术家页、歌曲列表、当前播放队列、迷你播放器和沉浸式播放页。
+- 专辑识别会同时考虑专辑名与艺术家，避免不同歌手的同名专辑混在一起；专辑详情默认按音轨排序。
 - 中文、日文、韩文等 CJK 标题可通过拉丁化排序键参与 A-Z 排序，并缓存排序键以减少首页卡顿。
 - 支持音乐库统计分析，包括播放次数排行、听歌时长排行、格式分布和音质分布。
 
@@ -76,6 +90,7 @@
 
 - 支持 WebDAV 配置、连接测试、远程目录浏览和远程音频播放。
 - WebDAV 路径支持中文、空格和其它特殊字符，并对文件夹结果进行缓存。
+- WebDAV 入口位于首页在线音乐区域，便于和 LX Music / MusicFree 一起访问。
 - 支持多源 LX Music API 导入和集中管理。
 - 支持从 URL 或本地 JS 文件导入音源。
 - 支持在线搜索、在线播放、封面显示、酷我歌词获取，以及下载到 `Music/Ella/`。
@@ -91,6 +106,7 @@
 - 支持睡眠定时、播完当前停止、播放速度、音调控制、队列清空、音频焦点和随机播放设置。
 - 支持音频输出切换器和听歌历史。
 - 支持 Dolby Atmos、Dolby 双 D、Master、Apple Lossless、Hi-Res、Lossless、HQ、LQ 等音质标签。
+- 音乐库列表中 24-bit / 96 kHz 等规格统一归入 Hi-Res / MQ 体系，播放页保留 Master 展示语义。
 - 改进 WAV、ALAC / M4A、24-bit / 96 kHz 等元数据回退与音质识别。
 
 ### 🎨 界面与设置
@@ -100,7 +116,7 @@
 - MiniPlayer 支持环形进度条和歌曲 / 歌词切换动画。
 - 专辑与艺术家详情页提供大标题、渐变背景和统一信息布局。
 - 支持主题切换，以及常见播放、歌词、扫描和解码器设置。
-- 支持应用日志查看器、应用备份和更丰富的诊断信息。
+- 支持应用日志查看器、复制 / 发送详细日志、自动日志保留、应用备份和更丰富的诊断信息。
 
 ---
 
@@ -168,8 +184,7 @@ Movies/Ella/DynamicCovers/
 ```bash
 git clone https://github.com/Kifranei/Ella.git
 cd Ella
-git clone https://github.com/compose-miuix-ui/miuix.git external/miuix
-MIUIX_INCLUDED_BUILD_PATH="$PWD/external/miuix" ./gradlew :app:assembleDebug -PellaAbi=arm64-v8a
+./gradlew :app:assembleDebug -PellaAbi=arm64-v8a
 ```
 
 Windows PowerShell：
@@ -177,8 +192,6 @@ Windows PowerShell：
 ```powershell
 git clone https://github.com/Kifranei/Ella.git
 cd Ella
-git clone https://github.com/compose-miuix-ui/miuix.git external/miuix
-$env:MIUIX_INCLUDED_BUILD_PATH="$PWD\external\miuix"
 .\gradlew.bat :app:assembleDebug -PellaAbi=arm64-v8a
 ```
 
@@ -245,6 +258,12 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 | [Coil](https://github.com/coil-kt/coil) | Compose 图片加载 |
 | [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | 运行 LX Music API / MusicFree JavaScript 音源 |
 | [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree 插件协议、导入兼容与运行时适配参考 |
+
+---
+
+## 📄 许可证
+
+Ella Music 以 **AGPL-3.0-or-later** 协议开源。由于项目包含对 MusicFree 插件协议与运行时适配的兼容实现，分发修改版本时请遵循 AGPL 相关源码公开要求。
 
 ---
 

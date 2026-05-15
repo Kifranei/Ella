@@ -1,6 +1,7 @@
 package com.ella.music.ui.folder
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +28,7 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.data.webdav.WebDavTestResult
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -116,11 +118,12 @@ fun WebDavScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "WebDAV 音乐库",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(

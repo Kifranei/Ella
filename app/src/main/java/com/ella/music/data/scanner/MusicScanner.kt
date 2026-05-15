@@ -17,6 +17,9 @@ import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import java.io.File
+import java.io.RandomAccessFile
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 
 class MusicScanner(private val context: Context) {
 
@@ -122,6 +125,12 @@ class MusicScanner(private val context: Context) {
                     } catch (e: Exception) {
                         Log.w(TAG, "TagLib metadata extraction failed for $path", e)
                     }
+                }
+
+                file.readWavInfoTags()?.let { wavInfo ->
+                    if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
+                    if (isMissingTag(artist)) artist = wavInfo.artist.orEmpty()
+                    if (isMissingTag(album)) album = wavInfo.album.orEmpty()
                 }
 
                 if (isMissingTag(title, file.name) || isMissingTag(artist) || isMissingTag(album) || duration <= 0) {
@@ -382,6 +391,109 @@ class MusicScanner(private val context: Context) {
             }
         }
         return ""
+    }
+
+    private data class WavInfoTags(
+        val title: String? = null,
+        val artist: String? = null,
+        val album: String? = null
+    )
+
+    private fun File.readWavInfoTags(): WavInfoTags? {
+        val extension = extension.lowercase()
+        if (extension !in setOf("wav", "wave")) return null
+
+        return runCatching {
+            RandomAccessFile(this, "r").use { input ->
+                if (input.length() < 12L) return@use null
+                val riff = input.readFourCc()
+                input.readUnsignedIntLe()
+                val wave = input.readFourCc()
+                if (riff !in setOf("RIFF", "RF64") || wave != "WAVE") return@use null
+
+                val values = linkedMapOf<String, String>()
+                while (input.filePointer + 8L <= input.length()) {
+                    val chunkId = input.readFourCc()
+                    val chunkSize = input.readUnsignedIntLe()
+                    val chunkStart = input.filePointer
+                    val chunkEnd = (chunkStart + chunkSize).coerceAtMost(input.length())
+
+                    if (chunkId == "LIST" && chunkSize >= 4L) {
+                        val listType = input.readFourCc()
+                        if (listType == "INFO") {
+                            while (input.filePointer + 8L <= chunkEnd) {
+                                val key = input.readFourCc()
+                                val valueSize = input.readUnsignedIntLe()
+                                val valueEnd = (input.filePointer + valueSize).coerceAtMost(chunkEnd)
+                                val valueLength = (valueEnd - input.filePointer).toInt().coerceAtLeast(0)
+                                val bytes = ByteArray(valueLength)
+                                input.readFully(bytes)
+                                bytes.decodeInfoText().takeIf { it.isNotBlank() }?.let { values[key] = it }
+                                val paddedEnd = valueEnd + (valueSize and 1L)
+                                input.seek(paddedEnd.coerceAtMost(chunkEnd))
+                            }
+                            return@use WavInfoTags(
+                                title = values.firstInfoValue("INAM", "TITL", "TITLE", "NAME"),
+                                artist = values.firstInfoValue("IART", "ARTIST", "ALBUMARTIST", "ALBUM ARTIST", "PERFORMER"),
+                                album = values.firstInfoValue("IPRD", "IALB", "ALBUM", "PRODUCT")
+                            )
+                        }
+                    }
+
+                    input.seek((chunkEnd + (chunkSize and 1L)).coerceAtMost(input.length()))
+                }
+                null
+            }
+        }.onFailure {
+            Log.d(TAG, "WAV INFO metadata extraction failed for ${path}", it)
+        }.getOrNull()
+    }
+
+    private fun RandomAccessFile.readFourCc(): String {
+        val bytes = ByteArray(4)
+        readFully(bytes)
+        return String(bytes, StandardCharsets.US_ASCII)
+    }
+
+    private fun RandomAccessFile.readUnsignedIntLe(): Long {
+        val b0 = read()
+        val b1 = read()
+        val b2 = read()
+        val b3 = read()
+        if (b0 < 0 || b1 < 0 || b2 < 0 || b3 < 0) return 0L
+        return (b0.toLong() and 0xFF) or
+            ((b1.toLong() and 0xFF) shl 8) or
+            ((b2.toLong() and 0xFF) shl 16) or
+            ((b3.toLong() and 0xFF) shl 24)
+    }
+
+    private fun ByteArray.decodeInfoText(): String {
+        val trimmed = dropLastWhile { it == 0.toByte() || it == 0x20.toByte() }.toByteArray()
+        if (trimmed.isEmpty()) return ""
+        val text = when {
+            trimmed.size >= 2 && trimmed[0] == 0xFF.toByte() && trimmed[1] == 0xFE.toByte() ->
+                String(trimmed, StandardCharsets.UTF_16LE)
+            trimmed.size >= 2 && trimmed[0] == 0xFE.toByte() && trimmed[1] == 0xFF.toByte() ->
+                String(trimmed, StandardCharsets.UTF_16BE)
+            trimmed.size >= 4 && trimmed.count { it == 0.toByte() } > trimmed.size / 4 ->
+                String(trimmed, StandardCharsets.UTF_16LE)
+            else -> {
+                val utf8 = String(trimmed, StandardCharsets.UTF_8)
+                if ('\uFFFD' in utf8) String(trimmed, Charset.forName("GB18030")) else utf8
+            }
+        }
+        return text.trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')
+    }
+
+    private fun Map<String, String>.firstInfoValue(vararg keys: String): String? {
+        for (key in keys) {
+            get(key)?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        val normalizedKeys = keys.map { it.normalizedPropertyKey() }.toSet()
+        for ((key, value) in this) {
+            if (key.normalizedPropertyKey() in normalizedKeys && value.isNotBlank()) return value
+        }
+        return null
     }
 
     private fun firstMetadataValue(fd: ParcelFileDescriptor, vararg keys: String): String? {

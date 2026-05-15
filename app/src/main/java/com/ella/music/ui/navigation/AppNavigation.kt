@@ -99,6 +99,7 @@ fun AppNavigation(
                 onNavigateToFolder = { navController.navigate(Screen.Folder.route) },
                 onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
                 onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
+                onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
             )
@@ -117,6 +118,7 @@ fun AppNavigation(
             AlbumScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() },
                 onAlbumClick = { albumId ->
                     navController.navigate(Screen.AlbumDetail.createRoute(albumId))
                 }
@@ -126,6 +128,7 @@ fun AppNavigation(
         composable(Screen.Artist.route) {
             ArtistListScreen(
                 mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() },
                 onArtistClick = { artistName ->
                     navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                 }
@@ -150,8 +153,8 @@ fun AppNavigation(
             FolderScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
+                onBack = { navController.popBackStack() },
                 onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
-                onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onFolderClick = { folderPath ->
                     navController.navigate(Screen.FolderDetail.createRoute(folderPath))
                 }

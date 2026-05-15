@@ -42,7 +42,9 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
+import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -53,7 +55,6 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.MapAlbum
-import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.util.Locale
@@ -88,7 +89,9 @@ fun ArtistScreen(
         ?.let { mainViewModel.getAlbumArtUri(it) }
 
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ellaPageBackground())
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -148,7 +151,7 @@ fun ArtistScreen(
                 ) { album ->
                     ArtistAlbumRow(
                         album = album,
-                        albumArtUri = mainViewModel.getAlbumArtUri(album.id),
+                        albumArtUri = mainViewModel.getAlbumArtUri(album.artAlbumId),
                         onClick = { onAlbumClick(album.id) }
                     )
                 }
@@ -236,12 +239,11 @@ private fun ArtistHeader(
 ) {
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
-    val headerActionColor = Color.White
-
+    val pageBackground = ellaPageBackground()
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(440.dp)
+            .height(468.dp)
     ) {
         if (coverUri != null) {
             SafeCoverImage(
@@ -264,10 +266,11 @@ private fun ArtistHeader(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.05f),
-                            Color.Black.copy(alpha = 0.18f),
-                            MiuixTheme.colorScheme.background
+                        colorStops = arrayOf(
+                            0.00f to Color.Black.copy(alpha = 0.05f),
+                            0.42f to Color.Black.copy(alpha = 0.16f),
+                            0.74f to pageBackground.copy(alpha = 0.78f),
+                            1.00f to pageBackground
                         )
                     )
                 )
@@ -277,7 +280,7 @@ private fun ArtistHeader(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 34.dp),
+                .padding(horizontal = 24.dp, vertical = 46.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
@@ -294,25 +297,12 @@ private fun ArtistHeader(
                 color = headerSubTextColor
             )
 
-            Row(
+            AppleStylePlayButton(
+                text = "播放全部",
+                onClick = onPlayAll,
                 modifier = Modifier
                     .padding(top = 12.dp)
-                    .clickable(onClick = onPlayAll),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Play,
-                    contentDescription = null,
-                    tint = headerActionColor,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = "播放全部",
-                    color = headerActionColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            )
         }
     }
 }

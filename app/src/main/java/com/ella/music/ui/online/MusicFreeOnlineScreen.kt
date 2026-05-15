@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,6 +45,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.musicfree.MusicFreeOnlineSong
 import com.ella.music.data.musicfree.MusicFreePluginService
 import com.ella.music.ui.components.SongItem
+import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MusicFreeOnlineViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
@@ -54,8 +56,6 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.InputField
-import top.yukonga.miuix.kmp.basic.SearchBar
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -136,11 +136,12 @@ fun MusicFreeOnlineScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
             title = "MusicFree 在线音乐",
-            color = MiuixTheme.colorScheme.background,
+            color = ellaPageBackground(),
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(

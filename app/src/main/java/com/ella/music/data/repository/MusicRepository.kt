@@ -15,6 +15,7 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.scanner.MusicScanner
 import com.ella.music.data.webdav.WebDavClient
@@ -81,11 +82,7 @@ class MusicRepository(private val context: Context) {
             _songs.value = scanner.scanAllSongs(minDurationMs, includeFolders, excludeFolders) { count ->
                 _scanProgress.value = count
             }
-            _albums.value = if (includeFolders.isEmpty() && excludeFolders.isEmpty()) {
-                scanner.scanAlbums()
-            } else {
-                _songs.value.toAlbums()
-            }
+            _albums.value = _songs.value.toAlbums()
             saveLibraryCache(_songs.value, _albums.value)
         } finally {
             _isScanning.value = false
@@ -98,9 +95,8 @@ class MusicRepository(private val context: Context) {
         runCatching {
             val root = JSONObject(libraryCacheFile.readText())
             val songs = root.getJSONArray("songs").toSongList()
-            val albums = root.optJSONArray("albums")?.toAlbumList() ?: songs.toAlbums()
             _songs.value = songs
-            _albums.value = albums
+            _albums.value = songs.toAlbums()
         }.onFailure {
             Log.w("MusicRepo", "Failed to load music library cache", it)
         }
@@ -261,9 +257,12 @@ class MusicRepository(private val context: Context) {
                 }
 
                 val format = audioFormat
+                val formatLabel = song.audioFormatLabel(format?.getString(MediaFormat.KEY_MIME))
+                val extractedBitRate = format?.getIntOrZero(MediaFormat.KEY_BIT_RATE) ?: 0
+                val bitRate = extractedBitRate.takeIf { it > 0 } ?: song.estimatedBitRate()
                 AudioInfo(
-                    format = song.audioFormatLabel(format?.getString(MediaFormat.KEY_MIME)),
-                    bitRate = format?.getIntOrZero(MediaFormat.KEY_BIT_RATE) ?: 0,
+                    format = formatLabel,
+                    bitRate = bitRate,
                     sampleRate = format?.getIntOrZero(MediaFormat.KEY_SAMPLE_RATE) ?: 0,
                     bitDepth = format?.getIntOrZero("bits-per-sample") ?: 0,
                     channels = format?.getIntOrZero(MediaFormat.KEY_CHANNEL_COUNT) ?: 0
@@ -277,6 +276,11 @@ class MusicRepository(private val context: Context) {
         }
         audioInfoCache[song.id] = info
         return info
+    }
+
+    private fun Song.estimatedBitRate(): Int {
+        if (fileSize <= 0L || duration <= 0L) return 0
+        return ((fileSize * 8_000L) / duration).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
     }
 
     fun getCoverArt(song: Song): ByteArray? {
@@ -348,7 +352,7 @@ class MusicRepository(private val context: Context) {
 
     fun getSongsForAlbum(albumId: Long): List<Song> {
         return _songs.value
-            .filter { it.albumId == albumId }
+            .filter { it.albumIdentityId() == albumId }
             .sortedWith(
                 compareBy<Song> { it.trackNumber <= 0 }
                     .thenBy { it.trackNumber }
@@ -464,17 +468,22 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun List<Song>.toAlbums(): List<Album> {
-        return groupBy { it.albumId }
-            .map { (albumId, albumSongs) ->
+        return groupBy { it.albumIdentityId() }
+            .map { (albumIdentityId, albumSongs) ->
                 val first = albumSongs.first()
                 Album(
-                    id = albumId,
+                    id = albumIdentityId,
                     name = first.album,
                     artist = first.artist,
-                    songCount = albumSongs.size
+                    songCount = albumSongs.size,
+                    artAlbumId = first.albumId
                 )
             }
-            .sortedBy { it.name.lowercase() }
+            .sortedWith(
+                compareBy<Album> { it.name.lowercase() }
+                    .thenBy { it.artist.lowercase() }
+                    .thenBy { it.id }
+            )
     }
 
     private fun songsToJsonArray(songs: List<Song>): JSONArray {
@@ -515,6 +524,7 @@ class MusicRepository(private val context: Context) {
                     .put("artist", album.artist)
                     .put("songCount", album.songCount)
                     .put("year", album.year)
+                    .put("artAlbumId", album.artAlbumId)
             )
         }
         return array
@@ -554,7 +564,8 @@ class MusicRepository(private val context: Context) {
                 name = item.optString("name"),
                 artist = item.optString("artist"),
                 songCount = item.optInt("songCount"),
-                year = item.optInt("year")
+                year = item.optInt("year"),
+                artAlbumId = item.optLong("artAlbumId", item.optLong("id"))
             )
         }
     }

@@ -3,7 +3,6 @@ package com.ella.music.ui.player
 import android.content.ContentUris
 import android.content.Context
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.DownloadManager
 import android.Manifest
 import android.media.AudioDeviceInfo
@@ -141,6 +140,7 @@ import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.player.PlaybackAudioSession
 import com.ella.music.ui.components.WordLyricView
 import com.ella.music.ui.components.SafeCoverImage
@@ -166,6 +166,12 @@ import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.content.ClipData
 import android.content.ComponentName
+
+private data class TagEditorOption(
+    val label: String,
+    val summary: String,
+    val intents: List<Intent>
+)
 
 @Composable
 fun PlayerScreen(
@@ -415,7 +421,7 @@ fun PlayerScreen(
                     },
                     onAlbum = {
                         menuExpanded = false
-                        val albumId = song?.albumId ?: 0L
+                        val albumId = song?.albumIdentityId() ?: 0L
                         if (albumId > 0L) onNavigateToAlbum(albumId)
                         else Toast.makeText(context, "这首歌没有可跳转的专辑信息", Toast.LENGTH_SHORT).show()
                     },
@@ -427,11 +433,6 @@ fun PlayerScreen(
                         } else {
                             Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
                         }
-                    },
-                    onEditTags = {
-                        menuExpanded = false
-                        val current = song
-                        if (current != null) openExternalTagEditor(context, current)
                     },
                     onDownload = {
                         menuExpanded = false
@@ -555,7 +556,6 @@ private fun CoverPlayerPage(
     onClearQueue: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
-    onEditTags: () -> Unit,
     onDownload: () -> Unit,
     onLandscape: () -> Unit,
     onStopAfterCurrent: () -> Unit,
@@ -772,9 +772,9 @@ private fun CoverPlayerPage(
                     speed = playbackSpeed,
                     pitch = playbackPitch,
                     visualizerEnabled = visualizerEnabled,
+                    onClose = onDismissMenu,
                     onAlbum = onAlbum,
                     onArtist = onArtist,
-                    onEditTags = onEditTags,
                     onDownload = onDownload,
                     onLandscape = onLandscape,
                     onStopAfterCurrent = onStopAfterCurrent,
@@ -1074,12 +1074,12 @@ private fun LyricsPlayerPage(
                     currentPositionMs = currentPositionMs,
                     showTranslation = showTranslation,
                     showPronunciation = showPronunciation,
-                    fontScale = 0.78f,
+                    fontScale = 0.98f,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight,
-                    topSpacer = 116.dp,
-                    bottomSpacer = 220.dp,
-                    horizontalPadding = 6.dp,
+                    topSpacer = 110.dp,
+                    bottomSpacer = 260.dp,
+                    horizontalPadding = 24.dp,
                     onLineClick = onLineClick,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -1813,8 +1813,8 @@ private fun PlayerTransportControls(
             }
             if (queueExpanded) {
                 Popup(
-                    alignment = Alignment.BottomEnd,
-                    offset = with(density) { IntOffset(x = (-12).dp.roundToPx(), y = (-76).dp.roundToPx()) },
+                    alignment = Alignment.BottomCenter,
+                    offset = with(density) { IntOffset(x = 0, y = 0.dp.roundToPx()) },
                     onDismissRequest = onDismissQueue,
                     properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
                 ) {
@@ -1823,7 +1823,7 @@ private fun PlayerTransportControls(
                         currentSongId = currentSongId,
                         onSongClick = onQueueSongClick,
                         onClearQueue = onClearQueue,
-                        modifier = Modifier.width(280.dp)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -2289,20 +2289,30 @@ private fun PlayerQueueMenu(
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.Black.copy(alpha = 0.56f))
-            .padding(vertical = 8.dp)
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(Color.Black.copy(alpha = 0.74f))
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
+        Box(
+            modifier = Modifier
+                .width(42.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(Color.White.copy(alpha = 0.24f))
+                .align(Alignment.CenterHorizontally)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = "当前播放列表",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
                 color = Color.White.copy(alpha = 0.92f)
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -2338,19 +2348,24 @@ private fun PlayerQueueMenu(
                 text = "暂无歌曲",
                 fontSize = 13.sp,
                 color = Color.White.copy(alpha = 0.54f),
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 18.dp)
             )
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.heightIn(max = 320.dp)
+                modifier = Modifier.heightIn(max = 420.dp)
             ) {
                 itemsIndexed(playlist, key = { _, item -> item.id }) { index, item ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                if (item.id == currentSongId) Color.White.copy(alpha = 0.12f)
+                                else Color.Transparent
+                            )
                             .clickable { onSongClick(index) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
                         Text(
                             text = item.title,
@@ -2416,7 +2431,7 @@ private fun MiniLyricsPreview(
                     drawRect(fade, blendMode = BlendMode.DstIn)
                 }
             },
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = if (previewItems.size == 1) Arrangement.Center else Arrangement.spacedBy(8.dp)
     ) {
         previewItems.forEach { index ->
             val line = lyrics[index]
@@ -2493,6 +2508,7 @@ private fun MiniLyricBlock(
 
     Column(
         modifier = modifier,
+        verticalArrangement = Arrangement.Center,
         horizontalAlignment = line.previewHorizontalAlignment()
     ) {
         val main = line.text.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
@@ -2740,9 +2756,9 @@ private fun PlayerActionMenu(
     speed: Float,
     pitch: Float,
     visualizerEnabled: Boolean,
+    onClose: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
-    onEditTags: () -> Unit,
     onDownload: () -> Unit,
     onLandscape: () -> Unit,
     onStopAfterCurrent: () -> Unit,
@@ -2782,7 +2798,7 @@ private fun PlayerActionMenu(
                 PlayerActionMenuItem("横屏歌词", onLandscape)
                 PlayerActionMenuItem("查看专辑页", onAlbum)
                 PlayerActionMenuItem("查看歌手页", onArtist)
-                PlayerActionMenuItem("外部编辑标签", onEditTags)
+                PlayerActionMenuItem("外部编辑标签", { page = PlayerActionSheetPage.TagEditor })
                 if (song?.onlineSource == "kw" && song.path.startsWith("http")) {
                     PlayerActionMenuItem("下载 LX 歌曲", onDownload)
                 }
@@ -2814,6 +2830,13 @@ private fun PlayerActionMenu(
                     onEnabledChange = onVisualizerEnabled
                 )
             }
+            PlayerActionSheetPage.TagEditor -> {
+                TagEditorSheetContent(
+                    song = song,
+                    onBack = { page = PlayerActionSheetPage.Main },
+                    onClose = onClose
+                )
+            }
         }
     }
 }
@@ -2822,7 +2845,8 @@ private enum class PlayerActionSheetPage {
     Main,
     Timer,
     Speed,
-    Visualizer
+    Visualizer,
+    TagEditor
 }
 
 @Composable
@@ -2983,6 +3007,126 @@ private fun VisualizerSheetContent(
         color = Color.White.copy(alpha = 0.54f),
         modifier = Modifier.padding(horizontal = 4.dp)
     )
+}
+
+@Composable
+private fun TagEditorSheetContent(
+    song: Song?,
+    onBack: () -> Unit,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val options = remember(song?.id, song?.path, song?.mimeType) {
+        song?.let { buildTagEditorOptions(context, it) }.orEmpty()
+    }
+
+    HalfSheetTitle(title = "选择标签编辑器", onBack = onBack)
+    Spacer(modifier = Modifier.height(18.dp))
+
+    if (song == null) {
+        TagEditorEmptyState("当前没有正在播放的歌曲")
+        return
+    }
+
+    if (song.path.startsWith("http://") || song.path.startsWith("https://")) {
+        TagEditorEmptyState("在线 / WebDAV 歌曲暂不支持外部编辑标签")
+        return
+    }
+
+    if (song.id <= 0L) {
+        TagEditorEmptyState("无法获取歌曲媒体库 Uri")
+        return
+    }
+
+    if (options.isEmpty()) {
+        TagEditorEmptyState("未找到 Lyrico 或 LunaBeat，请先安装后再试")
+        return
+    }
+
+    options.forEach { option ->
+        TagEditorOptionRow(
+            option = option,
+            onClick = {
+                launchTagEditorOption(context, option)
+                onClose()
+            }
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+
+    Text(
+        text = "会把当前歌曲路径和媒体库 Uri 传给所选应用。",
+        fontSize = 13.sp,
+        color = Color.White.copy(alpha = 0.48f),
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun TagEditorOptionRow(
+    option: TagEditorOption,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = option.label.first().toString(),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White.copy(alpha = 0.92f)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = option.label,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color.White.copy(alpha = 0.94f)
+            )
+            Text(
+                text = option.summary,
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.54f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun TagEditorEmptyState(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.09f))
+            .padding(horizontal = 18.dp, vertical = 28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.72f),
+            textAlign = TextAlign.Center
+        )
+    }
 }
 
 @Composable
@@ -3570,6 +3714,7 @@ private fun formatTime(ms: Long): String {
 private fun com.ella.music.data.AudioQualitySummary.playerCompactText(): String {
     return when {
         compactLabel == "Dolby Atmos" -> "ᴰᴰ Dolby Atmos"
+        compactLabel == "MQ" -> "∞ Master"
         showMobius -> "∞ $compactLabel"
         else -> compactLabel
     }
@@ -3600,15 +3745,13 @@ private fun enqueuePlayerDownload(context: Context, song: Song) {
     manager.enqueue(request)
 }
 
-private fun openExternalTagEditor(context: Context, song: Song) {
+private fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
     if (song.path.startsWith("http://") || song.path.startsWith("https://")) {
-        Toast.makeText(context, "在线 / WebDAV 歌曲暂不支持外部编辑标签", Toast.LENGTH_SHORT).show()
-        return
+        return emptyList()
     }
 
     if (song.id <= 0L) {
-        Toast.makeText(context, "无法获取歌曲媒体库 Uri", Toast.LENGTH_SHORT).show()
-        return
+        return emptyList()
     }
 
     val mediaStoreUri = ContentUris.withAppendedId(
@@ -3657,11 +3800,6 @@ private fun openExternalTagEditor(context: Context, song: Song) {
         }
     }
 
-    data class TagEditorOption(
-        val label: String,
-        val intents: List<Intent>
-    )
-
     fun Intent.canOpen(): Boolean {
         return resolveActivity(context.packageManager) != null ||
             component?.packageName?.let { context.isPackageInstalled(it) } == true ||
@@ -3671,6 +3809,7 @@ private fun openExternalTagEditor(context: Context, song: Song) {
     val options = listOf(
         TagEditorOption(
             label = "Lyrico",
+            summary = "使用 Lyrico 打开当前歌曲标签编辑",
             intents = listOf(
                 tagEditorIntent(
                     label = "Lyrico",
@@ -3681,6 +3820,7 @@ private fun openExternalTagEditor(context: Context, song: Song) {
         ),
         TagEditorOption(
             label = "LunaBeat",
+            summary = "跳转到 LunaBeat 歌曲元数据编辑",
             intents = listOf(
                 tagEditorIntent(
                     label = "LunaBeat",
@@ -3697,50 +3837,40 @@ private fun openExternalTagEditor(context: Context, song: Song) {
             .takeIf { it.intents.isNotEmpty() }
     }
 
-    if (options.isEmpty()) {
-        Toast.makeText(context, "未找到支持编辑标签的应用，请先安装 Lyrico 或 LunaBeat", Toast.LENGTH_SHORT).show()
-        return
-    }
+    return options
+}
 
-    fun launchOption(option: TagEditorOption) {
-        val launched = option.intents.any { intent ->
-            runCatching {
-                val targetPackage = intent.component?.packageName ?: intent.`package`
-                targetPackage?.let { packageName ->
+private fun launchTagEditorOption(context: Context, option: TagEditorOption) {
+    val launched = option.intents.any { intent ->
+        runCatching {
+            val targetPackage = intent.component?.packageName ?: intent.`package`
+            targetPackage?.let { packageName ->
+                context.grantUriPermission(
+                    packageName,
+                    intent.data,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                }
+                streamUri?.let { uri ->
                     context.grantUriPermission(
                         packageName,
-                        intent.data ?: editUri,
+                        uri,
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                     )
-                    val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
-                    }
-                    streamUri?.let { uri ->
-                        context.grantUriPermission(
-                            packageName,
-                            uri,
-                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                        )
-                    }
                 }
-                context.startActivity(intent)
-                true
-            }.getOrDefault(false)
-        }
-        if (!launched) {
-            Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
-        }
+            }
+            context.startActivity(intent)
+            true
+        }.getOrDefault(false)
     }
-
-    AlertDialog.Builder(context)
-        .setTitle("选择标签编辑器")
-        .setItems(options.map { it.label }.toTypedArray()) { _, index ->
-            launchOption(options[index])
-        }
-        .show()
+    if (!launched) {
+        Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun Context.isPackageInstalled(packageName: String): Boolean {

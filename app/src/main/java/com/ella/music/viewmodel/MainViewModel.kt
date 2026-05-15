@@ -12,6 +12,7 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.splitArtistNames
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +45,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
     private var scanJob: Job? = null
+    private var autoScanRequested = false
 
     fun selectTab(index: Int) {
         _selectedTab.value = index
@@ -62,6 +64,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun scanMusicIfAutoEnabled() {
+        if (autoScanRequested) return
+        autoScanRequested = true
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
             if (!settingsManager.autoScan.first()) return@launch
@@ -95,9 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val key = rawName.lowercase()
                 val accumulator = counts.getOrPut(key) { ArtistAccumulator(rawName) }
                 accumulator.songCount += 1
-                if (song.albumId > 0L) {
-                    albumIdsByArtist.getOrPut(key) { mutableSetOf() } += song.albumId
-                }
+                albumIdsByArtist.getOrPut(key) { mutableSetOf() } += song.albumIdentityId()
             }
         }
 
@@ -128,7 +130,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAlbumsForArtist(artistName: String): List<Album> {
         val artistSongs = getSongsForArtist(artistName)
-        val artistAlbumIds = artistSongs.map { it.albumId }.toSet()
+        val artistAlbumIds = artistSongs.map { it.albumIdentityId() }.toSet()
         return albums.value
             .filter { it.id in artistAlbumIds || it.artist.matchesArtistName(artistName) }
             .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })

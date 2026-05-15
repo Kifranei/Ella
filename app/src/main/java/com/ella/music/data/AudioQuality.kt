@@ -14,7 +14,7 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     val normalizedFormat = normalizedAudioFormat(info.format)
     val bitDepth = normalizedBitDepth(info)
     val isDolby = info.channels >= 6
-    val isMaster = bitDepth >= 24 && info.sampleRate >= 96_000
+    val isMq = bitDepth >= 24 && info.sampleRate >= 192_000
     val isHiRes = bitDepth >= 24 && info.sampleRate >= 48_000
     val isAppleLossless = normalizedFormat.contains("ALAC") ||
         (normalizedFormat == "M4A" && (info.bitRate >= 700_000 || (bitDepth >= 16 && info.bitRate >= 500_000)))
@@ -23,7 +23,7 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     val isKnownLossy = normalizedFormat in setOf("MP3", "AAC", "M4A", "OGG", "OPUS")
     val compact = when {
         isDolby -> "Dolby Atmos"
-        isMaster -> "Master"
+        isMq -> "MQ"
         isAppleLossless -> "Apple Lossless"
         isHiRes -> "Hi-Res"
         isSq -> "Lossless"
@@ -33,7 +33,7 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     }
     val tag = when {
         isDolby -> "Dolby"
-        isMaster -> "Master"
+        isMq -> "MQ"
         isHiRes -> "HR"
         isSq -> "SQ"
         info.bitRate >= 319_000 -> "HQ"
@@ -42,7 +42,7 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
     }
     val analytics = when {
         isDolby -> "Dolby"
-        isMaster -> "Master"
+        isMq -> "MQ"
         isHiRes -> "Hi-Res"
         isSq -> "无损"
         info.bitRate >= 319_000 -> "HQ"
@@ -54,15 +54,20 @@ fun audioQualitySummary(info: AudioInfo): AudioQualitySummary {
         detailLabel = detailedAudioInfo(info, bitDepth),
         listTag = tag,
         analyticsLabel = analytics,
-        showMobius = isAppleLossless || isSq || isHiRes || isMaster
+        showMobius = isAppleLossless || isSq || isHiRes || isMq
     )
 }
 
 fun detailedAudioInfo(info: AudioInfo): String = detailedAudioInfo(info, normalizedBitDepth(info))
 
 fun normalizedBitDepth(info: AudioInfo): Int {
-    if (info.bitDepth > 0) return info.bitDepth
     val format = normalizedAudioFormat(info.format)
+    val likelyHiResAlac = format in setOf("ALAC/M4A", "M4A") &&
+        info.sampleRate >= 48_000 &&
+        info.bitRate >= 1_000_000
+    if (info.bitDepth > 0) {
+        return if (info.bitDepth < 24 && likelyHiResAlac) 24 else info.bitDepth
+    }
     if (format in setOf("FLAC", "ALAC/M4A", "WAV", "APE") ||
         (format == "M4A" && (info.sampleRate >= 88_200 || info.bitRate >= 700_000))
     ) {

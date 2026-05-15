@@ -17,16 +17,24 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
+import android.text.TextUtils
+import android.text.TextPaint
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.ella.music.data.SettingsManager
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.ella.music.R
+import com.google.common.util.concurrent.FutureCallback
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.math.sin
 
 class DesktopLyricService : Service() {
@@ -47,6 +55,7 @@ class DesktopLyricService : Service() {
     private var fontScale = 1f
     private var movedDuringTouch = false
     private var lastTapTimeMs = 0L
+    private val serviceScope = CoroutineScope(Dispatchers.IO)
     private val hideControlsRunnable = Runnable { hideControls() }
     private val panelBackground by lazy {
         GradientDrawable().apply {
@@ -64,7 +73,18 @@ class DesktopLyricService : Service() {
             this,
             SessionToken(this, ComponentName(this, PlaybackService::class.java))
         ).buildAsync().also { future ->
-            future.addListener({ controller = runCatching { future.get() }.getOrNull() }, { it.run() })
+            Futures.addCallback(
+                future,
+                object : FutureCallback<MediaController> {
+                    override fun onSuccess(result: MediaController?) {
+                        if (controllerFuture !== future) return
+                        controller = result
+                    }
+
+                    override fun onFailure(t: Throwable) = Unit
+                },
+                mainExecutor
+            )
         }
     }
 
@@ -133,7 +153,7 @@ class DesktopLyricService : Service() {
             gravity = Gravity.CENTER
             setPadding(dp(8), dp(4), dp(8), dp(0))
             addControl("⏮", "上一首") { controller?.seekToPrevious() }
-            addControl("⏯", "播放/暂停") { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
+            addControl("Ⅱ", "播放/暂停") { controller?.let { if (it.isPlaying) it.pause() else it.play() } }
             addControl("⏭", "下一首") { controller?.seekToNext() }
             addControl("A-", "缩小歌词") { updateFontScale(-0.08f) }
             addControl("A+", "放大歌词") { updateFontScale(0.08f) }
@@ -221,6 +241,7 @@ class DesktopLyricService : Service() {
 
     private fun closeByUser() {
         userHidden = true
+        serviceScope.launch { SettingsManager(this@DesktopLyricService).setDesktopLyricEnabled(false) }
         rootView?.let { runCatching { windowManager.removeView(it) } }
         rootView = null
         lyricView = null
@@ -517,7 +538,7 @@ class DesktopLyricService : Service() {
             if (lineWords.isEmpty()) {
                 drawFittedText(canvas, fallbackText, anchorX, baseline, maxWidth, align, if (primary) activePaint else pendingPaint)
             } else {
-                drawWords(canvas, anchorX, baseline, maxWidth, align, lineWords, primary)
+                drawWords(canvas, anchorX, baseline, maxWidth, align, fallbackText, lineWords, primary)
             }
             pendingPaint.textSize = oldPending
             activePaint.textSize = oldActive
@@ -537,7 +558,7 @@ class DesktopLyricService : Service() {
             if (lineWords.isEmpty()) {
                 drawFittedText(canvas, fallbackText, anchorX, baseline, maxWidth, align, pronunciationPaint)
             } else {
-                drawWords(canvas, anchorX, baseline, maxWidth, align, lineWords, false)
+                drawWords(canvas, anchorX, baseline, maxWidth, align, fallbackText, lineWords, false)
             }
             pendingPaint.textSize = oldPendingSize
             activePaint.textSize = oldActiveSize
@@ -545,18 +566,34 @@ class DesktopLyricService : Service() {
             pronunciationPaint.textSize = oldPronunciationSize
         }
 
-        private fun drawWords(canvas: Canvas, anchorX: Float, baseline: Float, maxWidth: Float, align: AnchorAlign, lineWords: List<DesktopWord>, primary: Boolean) {
+        private fun drawWords(
+            canvas: Canvas,
+            anchorX: Float,
+            baseline: Float,
+            maxWidth: Float,
+            align: AnchorAlign,
+            lineText: String,
+            lineWords: List<DesktopWord>,
+            primary: Boolean
+        ) {
             val originalPending = pendingPaint.textSize
             val originalActive = activePaint.textSize
             val originalGlow = glowPaint.textSize
             val originalPendingAlign = pendingPaint.textAlign
             val originalActiveAlign = activePaint.textAlign
             val originalGlowAlign = glowPaint.textAlign
-            val displayWords = lineWords.mapNotNull { word -> word.text.trim().takeIf { it.isNotBlank() }?.let { word.copy(text = it) } }
+            val hasNaturalSpacing = lineText.any { it.isWhitespace() }
+            val compactCjkLine = !hasNaturalSpacing && lineText.any { it.isCjkChar() }
+            val displayWords = lineWords.mapNotNull { word ->
+                val text = if (hasNaturalSpacing) word.text else word.text.trim()
+                text.takeIf { it.isNotBlank() }?.let { word.copy(text = it) }
+            }
+            if (displayWords.isEmpty()) return
             val widths = displayWords.map { pendingPaint.measureText(it.text) }
-            val gap = 6f * resources.displayMetrics.density
-            val totalWidth = widths.sum() + gap * (widths.size - 1).coerceAtLeast(0)
+            val rawGap = if (hasNaturalSpacing || compactCjkLine) 0f else 6f * resources.displayMetrics.density
+            val totalWidth = widths.sum() + rawGap * (widths.size - 1).coerceAtLeast(0)
             val scale = (maxWidth / totalWidth.coerceAtLeast(1f)).coerceAtMost(1f)
+            val gap = rawGap * scale
             pendingPaint.textSize *= scale
             activePaint.textSize *= scale
             glowPaint.textSize *= scale
@@ -596,12 +633,28 @@ class DesktopLyricService : Service() {
             val oldSize = paint.textSize
             val oldAlign = paint.textAlign
             val measured = paint.measureText(value)
-            if (measured > maxWidth) paint.textSize = oldSize * (maxWidth / measured).coerceIn(0.58f, 1f)
+            if (measured > maxWidth) paint.textSize = oldSize * (maxWidth / measured).coerceIn(0.34f, 1f)
             paint.textAlign = align.paintAlign
-            canvas.drawText(value, anchorX, baseline, paint)
+            val fitted = if (paint.measureText(value) > maxWidth) {
+                TextUtils.ellipsize(value, TextPaint(paint), maxWidth, TextUtils.TruncateAt.END).toString()
+            } else {
+                value
+            }
+            canvas.drawText(fitted, anchorX, baseline, paint)
             paint.textSize = oldSize
             paint.textAlign = oldAlign
         }
+
+        private fun Char.isCjkChar(): Boolean =
+            Character.UnicodeBlock.of(this) in setOf(
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+                Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS,
+                Character.UnicodeBlock.HIRAGANA,
+                Character.UnicodeBlock.KATAKANA,
+                Character.UnicodeBlock.HANGUL_SYLLABLES
+            )
 
         private fun ttmlAlignForPrimary(): AnchorAlign {
             if (!isTtml) return AnchorAlign.Center

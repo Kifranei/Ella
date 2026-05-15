@@ -282,15 +282,15 @@ fun WordLyricView(
             val targetAlpha = when {
                 userBrowsing -> 1f
                 isActive -> 1f
-                distance == 1 -> 0.58f
-                distance == 2 -> 0.36f
-                else -> 0.22f
+                distance == 1 -> 0.42f
+                distance == 2 -> 0.24f
+                else -> 0.14f
             }
             val targetScale = when {
                 userBrowsing -> 1f
-                isActive -> 1f
-                distance == 1 -> 0.94f
-                else -> 0.90f
+                isActive -> 1.01f
+                distance == 1 -> 0.96f
+                else -> 0.92f
             }
             val lineAlpha by animateFloatAsState(
                 targetValue = targetAlpha,
@@ -303,7 +303,7 @@ fun WordLyricView(
                 label = "lyric_line_scale"
             )
             val blur by animateFloatAsState(
-                targetValue = if (userBrowsing || isActive) 0f else distance.coerceAtMost(3) * 1.15f,
+                targetValue = if (userBrowsing || isActive) 0f else distance.coerceAtMost(2) * 0.18f,
                 animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing),
                 label = "lyric_line_blur"
             )
@@ -336,9 +336,9 @@ fun WordLyricView(
                             fontSizeSp = scaledLyricFontSp(12, fontScale, minSp = 9),
                             fontFamily = fontFamily,
                             fontWeight = fontWeight.softenedLyricWeight(),
-                            currentColor = Color.White.copy(alpha = 0.76f),
-                            sungColor = Color.White.copy(alpha = 0.54f),
-                            pendingColor = Color.White.copy(alpha = 0.38f),
+                            currentColor = Color.White.copy(alpha = 0.86f),
+                            sungColor = Color.White.copy(alpha = 0.62f),
+                            pendingColor = Color.White.copy(alpha = 0.32f),
                             modifier = Modifier.padding(bottom = 1.dp)
                         )
                     } else {
@@ -365,13 +365,16 @@ fun WordLyricView(
                         textAlign = lineTextAlign,
                         fontSizeSp = fittedLyricFontSp(line.text, scaledLyricFontSp(32, fontScale, minSp = 9), minSp = 9),
                         fontFamily = fontFamily,
-                        fontWeight = fontWeight
+                        fontWeight = fontWeight,
+                        currentColor = Color.White,
+                        sungColor = Color.White.copy(alpha = 0.92f),
+                        pendingColor = Color.White.copy(alpha = 0.38f)
                     )
                 } else {
                     val textColor = when {
                         isActive -> Color.White
-                        index < currentIndex -> Color.White.copy(alpha = 0.36f)
-                        else -> Color.White.copy(alpha = 0.56f)
+                        index < currentIndex -> Color.White.copy(alpha = 0.32f)
+                        else -> Color.White.copy(alpha = 0.42f)
                     }
                     Text(
                         text = line.text.ifBlank { "♪" }.lineBreakSafeText(),
@@ -423,9 +426,9 @@ fun WordLyricView(
                             fontSizeSp = fittedLyricFontSp(line.backgroundText.orEmpty(), scaledLyricFontSp(22, fontScale, minSp = 8), minSp = 8),
                             fontFamily = fontFamily,
                             fontWeight = fontWeight.softenedLyricWeight(),
-                            currentColor = Color.White.copy(alpha = 0.78f),
-                            sungColor = Color.White.copy(alpha = 0.56f),
-                            pendingColor = Color.White.copy(alpha = 0.42f),
+                            currentColor = Color.White.copy(alpha = 0.86f),
+                            sungColor = Color.White.copy(alpha = 0.62f),
+                            pendingColor = Color.White.copy(alpha = 0.32f),
                             modifier = Modifier.padding(top = 3.dp)
                         )
                     } else {
@@ -491,8 +494,8 @@ private fun WordLine(
     fontFamily: FontFamily? = null,
     fontWeight: FontWeight = FontWeight.ExtraBold,
     currentColor: Color = Color.White,
-    sungColor: Color = Color.White.copy(alpha = 0.82f),
-    pendingColor: Color = Color.White.copy(alpha = 0.56f)
+    sungColor: Color = Color.White.copy(alpha = 0.92f),
+    pendingColor: Color = Color.White.copy(alpha = 0.38f)
 ) {
     val text = remember(displayText, words) {
         displayText.ifBlank { words.joinToString("") { it.text } }.ifBlank { "♪" }.lineBreakSafeText()
@@ -563,6 +566,11 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
                     activeColor = currentColor,
                     pendingColor = pendingColor
                 ),
+                shadow = Shadow(
+                    color = currentColor.copy(alpha = 0.18f),
+                    offset = Offset.Zero,
+                    blurRadius = 12f
+                ),
                 baselineShift = BaselineShift(0.045f)
             )
         }
@@ -608,12 +616,14 @@ private fun lyricSweepBrush(
     pendingColor: Color
 ): Brush {
     val edge = progress.coerceIn(0.002f, 0.998f)
-    val beforeEdge = (edge - 0.001f).coerceAtLeast(0f)
+    val beforeEdge = (edge - 0.04f).coerceAtLeast(0f)
+    val afterEdge = (edge + 0.015f).coerceAtMost(1f)
     return Brush.horizontalGradient(
         colorStops = arrayOf(
             0f to activeColor,
             beforeEdge to activeColor,
-            edge to pendingColor,
+            edge to activeColor.copy(alpha = 0.72f),
+            afterEdge to pendingColor,
             1f to pendingColor
         )
     )
@@ -716,7 +726,8 @@ private fun fittedLyricFontSp(text: String, baseSp: Int, minSp: Int): Int {
 }
 
 private fun scaledLyricFontSp(baseSp: Int, fontScale: Float, minSp: Int): Int {
-    return (baseSp * fontScale).toInt().coerceIn(minSp, baseSp)
+    val maxSp = (baseSp * 1.12f).toInt().coerceAtLeast(baseSp)
+    return (baseSp * fontScale).toInt().coerceIn(minSp, maxSp)
 }
 
 private fun FontWeight.softenedLyricWeight(): FontWeight {

@@ -3,6 +3,7 @@ package com.ella.music.player
 import android.content.ComponentName
 import android.content.ContentUris
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.net.Uri
 import android.provider.MediaStore
@@ -19,10 +20,13 @@ import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.scanner.MusicScanner
+import com.google.common.util.concurrent.FutureCallback
+import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +35,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
-import java.util.concurrent.Executor
 import kotlin.random.Random
 
 class ExoPlayerManager(private val context: Context) {
@@ -77,7 +80,6 @@ class ExoPlayerManager(private val context: Context) {
     private var playWhenConnected = false
     private var pendingPlaylist: PendingPlaylist? = null
 
-    private val directExecutor = Executor { it.run() }
     private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val artworkScanner = MusicScanner(context)
     private val notificationArtworkCache = object : LruCache<Long, ByteArray>(4 * 1024) {
@@ -85,23 +87,52 @@ class ExoPlayerManager(private val context: Context) {
     }
     private val missingNotificationArtworkIds = mutableSetOf<Long>()
     private var artworkAppliedSongId: Long? = null
+    private var sessionMetadataSongId: Long? = null
 
     fun connect() {
         val sessionToken = SessionToken(
             context,
             ComponentName(context, PlaybackService::class.java)
         )
-        controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
-        controllerFuture?.addListener({
-            mediaController = controllerFuture?.get()
-            setupListener()
-        }, directExecutor)
+        val future = MediaController.Builder(context, sessionToken).buildAsync()
+        controllerFuture = future
+        Futures.addCallback(
+            future,
+            object : FutureCallback<MediaController> {
+                override fun onSuccess(result: MediaController?) {
+                    if (controllerFuture !== future || result == null) return
+                    mediaController = result
+                    setupListener()
+                }
+
+                override fun onFailure(t: Throwable) {
+                    if (controllerFuture !== future) return
+                    AppLogStore.error(context, "PlayerController", "Failed to connect media controller", t)
+                }
+            },
+            context.mainExecutor
+        )
     }
 
     fun disconnect() {
         playerListener?.let { mediaController?.removeListener(it) }
         controllerFuture?.let { MediaController.releaseFuture(it) }
+        controllerFuture = null
+        playerListener = null
         mediaController = null
+    }
+
+    suspend fun recreatePlaybackService() {
+        val resumePlayback = _isPlaying.value
+        savePlaybackQueue(force = true)
+        savePlaybackState(force = true)
+        playWhenConnected = resumePlayback
+        AppLogStore.info(context, "PlayerDecoder", "Recreate playback service for decoder change")
+
+        disconnect()
+        context.stopService(Intent(context, PlaybackService::class.java))
+        delay(300)
+        connect()
     }
 
     private fun setupListener() {
@@ -171,6 +202,7 @@ class ExoPlayerManager(private val context: Context) {
         if (songs.isEmpty()) return
         AppLogStore.debug(context, "PlayerQueue", "setPlaylist size=${songs.size} start=$startIndex")
         virtualPlaylistCurrentIndex = null
+        sessionMetadataSongId = null
         playlist.clear()
         playlist.addAll(songs)
         _playlist.value = playlist.toList()
@@ -200,6 +232,7 @@ class ExoPlayerManager(private val context: Context) {
         AppLogStore.debug(context, "PlayerQueue", "playResolvedVirtual size=${songs.size} index=$currentIndex title=${resolvedSong.title}")
         val safeIndex = currentIndex.coerceIn(songs.indices)
         virtualPlaylistCurrentIndex = safeIndex
+        sessionMetadataSongId = null
         playlist.clear()
         playlist.addAll(songs.mapIndexed { index, song -> if (index == safeIndex) resolvedSong else song })
         _playlist.value = playlist.toList()
@@ -253,6 +286,7 @@ class ExoPlayerManager(private val context: Context) {
         playlist.clear()
         _playlist.value = emptyList()
         _currentSong.value = null
+        sessionMetadataSongId = null
         _currentPosition.value = 0L
         _duration.value = 0L
         mediaController?.run {
@@ -299,12 +333,14 @@ class ExoPlayerManager(private val context: Context) {
     fun skipToNext() {
         if (!playTrueRandomItem()) {
             mediaController?.seekToNext()
+            updateCurrentSong()
         }
         savePlaybackQueue(force = true)
     }
 
     fun skipToPrevious() {
         mediaController?.seekToPrevious()
+        updateCurrentSong()
         savePlaybackQueue(force = true)
     }
 
@@ -427,15 +463,6 @@ class ExoPlayerManager(private val context: Context) {
         return builder.build()
     }
 
-    private fun Song.artworkUri(): Uri? {
-        coverUrl.takeIf { it.isNotBlank() }?.let { return it.toUri() }
-        if (albumId <= 0L) return null
-        return ContentUris.withAppendedId(
-            Uri.parse("content://media/external/audio/albumart"),
-            albumId
-        )
-    }
-
     private fun Song.playbackUri(): Uri {
         if (path.startsWith("content://", ignoreCase = true) ||
             path.startsWith("http://", ignoreCase = true) ||
@@ -459,7 +486,6 @@ class ExoPlayerManager(private val context: Context) {
             .setTitle(titleOverride ?: title)
             .setArtist(artistOverride ?: artist)
             .setAlbumTitle(album)
-            .setArtworkUri(artworkUri())
             .apply {
                 if (artworkData != null) {
                     setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
@@ -483,10 +509,30 @@ class ExoPlayerManager(private val context: Context) {
         } else {
             controller.currentMediaItem?.toSong()
         }
+        val previousSongId = _currentSong.value?.id
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
+        if (restoredSong != null && previousSongId != restoredSong.id) {
+            refreshCurrentSessionMetadata(controller, restoredSong)
+        }
         savePlaybackState(force = true)
         refreshCurrentNotificationArtwork(restoredSong)
+    }
+
+    private fun refreshCurrentSessionMetadata(controller: MediaController, song: Song) {
+        val index = controller.currentMediaItemIndex
+        val currentItem = controller.currentMediaItem ?: return
+        if (index < 0 || sessionMetadataSongId == song.id) return
+
+        runCatching {
+            sessionMetadataSongId = song.id
+            controller.replaceMediaItem(
+                index,
+                currentItem.buildUpon()
+                    .setMediaMetadata(song.mediaMetadata(artworkData = notificationArtworkCache.get(song.id)))
+                    .build()
+            )
+        }
     }
 
     private fun refreshCurrentNotificationArtwork(song: Song?) {
