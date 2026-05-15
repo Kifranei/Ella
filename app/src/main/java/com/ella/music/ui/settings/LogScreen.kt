@@ -1,6 +1,13 @@
 package com.ella.music.ui.settings
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +69,8 @@ fun LogScreen(
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
     var refreshKey by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
+    var retentionMenuExpanded by remember { mutableStateOf(false) }
+    var retentionDays by remember { mutableIntStateOf(AppLogStore.retentionDays(context)) }
     val entries by produceState(initialValue = emptyList<AppLogEntry>(), refreshKey) {
         value = withContext(Dispatchers.IO) { AppLogStore.read(context) }
     }
@@ -77,6 +86,52 @@ fun LogScreen(
                     entry.throwable.orEmpty().contains(keyword, ignoreCase = true) ||
                     AppLogStore.formatTime(entry.time).contains(keyword, ignoreCase = true)
             }
+        }
+    }
+    val reportText by produceState(initialValue = "正在生成详细运行日志...", entries) {
+        value = withContext(Dispatchers.IO) { AppLogStore.buildDetailedReport(context, entries) }
+    }
+
+    fun showToast(text: String) {
+        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    }
+
+    fun copyLogs() {
+        scope.launch {
+            val text = withContext(Dispatchers.IO) { AppLogStore.buildDetailedReport(context, entries) }
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Ella Music 运行日志", text))
+            showToast("详细日志已复制")
+        }
+    }
+
+    fun shareLogs() {
+        scope.launch {
+            val file = withContext(Dispatchers.IO) { AppLogStore.exportDetailedReport(context, entries) }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, "Ella Music 运行日志")
+                putExtra(Intent.EXTRA_TEXT, "Ella Music 运行日志，生成时间：${AppLogStore.formatTime(System.currentTimeMillis())}")
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                clipData = ClipData.newUri(context.contentResolver, "Ella Music 运行日志", uri)
+            }
+            runCatching {
+                context.startActivity(Intent.createChooser(intent, "分享运行日志"))
+            }.onFailure {
+                showToast("没有可用的分享应用")
+            }
+        }
+    }
+
+    fun clearOlderLogs(days: Int) {
+        retentionMenuExpanded = false
+        scope.launch {
+            val removed = withContext(Dispatchers.IO) { AppLogStore.setRetentionDays(context, days) }
+            retentionDays = days
+            refreshKey++
+            showToast(if (removed > 0) "已设为保留 $days 天，并清理 $removed 条旧日志" else "已设为保留 $days 天")
         }
     }
 
@@ -97,36 +152,68 @@ fun LogScreen(
                         tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
+            },
+            actions = {
+                IconButton(onClick = { retentionMenuExpanded = !retentionMenuExpanded }) {
+                    Text(
+                        text = "${retentionDays}天",
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.primary
+                    )
+                }
             }
         )
 
-        Row(
+        if (retentionMenuExpanded) {
+            RetentionMenu(
+                isDark = isDark,
+                selectedDays = retentionDays,
+                onSelected = ::clearOlderLogs,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(horizontal = 16.dp)
+            )
+        }
+
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "记录详细日志、警告和闪退",
-                    fontSize = 14.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-                Text(
-                    text = "最多保留最近 800 条",
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.72f)
-                )
-            }
-            Button(
-                onClick = {
-                    scope.launch {
-                        withContext(Dispatchers.IO) { AppLogStore.clear(context) }
-                        refreshKey++
-                    }
+            Text(
+                text = "记录详细日志、警告和闪退",
+                fontSize = 14.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            Text(
+                text = "自动保留最近 $retentionDays 天，最多 800 条；导出时会附带当前 logcat 尾部",
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.72f)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Button(
+                    onClick = ::copyLogs
+                ) {
+                    Text("复制")
                 }
-            ) {
-                Text("清空")
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = ::shareLogs
+                ) {
+                    Text("导出分享")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) { AppLogStore.clear(context) }
+                            refreshKey++
+                        }
+                    }
+                ) {
+                    Text("清空")
+                }
             }
         }
 
@@ -166,16 +253,113 @@ fun LogScreen(
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                onClick = ::shareLogs
+            ) {
+                Text("导出详细日志")
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
             ) {
+                item {
+                    RuntimeSummaryCard(
+                        entries = entries,
+                        filteredCount = filteredEntries.size,
+                        reportText = reportText,
+                        isDark = isDark
+                    )
+                }
                 items(filteredEntries) { entry ->
                     LogEntryCard(entry = entry, isDark = isDark)
                 }
                 item { Spacer(modifier = Modifier.height(120.dp)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun RetentionMenu(
+    isDark: Boolean,
+    selectedDays: Int,
+    onSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cardColor = if (isDark) Color(0xFF1D1D21) else Color.White
+    Card(
+        modifier = modifier
+            .width(180.dp)
+            .padding(bottom = 8.dp),
+        cornerRadius = 14.dp,
+        insideMargin = PaddingValues(vertical = 6.dp),
+        colors = CardDefaults.defaultColors(color = cardColor)
+    ) {
+        Column {
+            Text(
+                text = "自动清除",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            )
+            listOf(1, 3, 7, 14, 30).forEach { days ->
+                Text(
+                    text = if (days == selectedDays) "保留最近 $days 天 · 当前" else "保留最近 $days 天",
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelected(days) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RuntimeSummaryCard(
+    entries: List<AppLogEntry>,
+    filteredCount: Int,
+    reportText: String,
+    isDark: Boolean
+) {
+    val cardColor = if (isDark) Color(0xFF1D1D21) else Color.White
+    val crashCount = entries.count { it.level == "CRASH" }
+    val errorCount = entries.count { it.level == "ERROR" }
+    val warnCount = entries.count { it.level == "WARN" }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp),
+        cornerRadius = 14.dp,
+        insideMargin = PaddingValues(14.dp),
+        colors = CardDefaults.defaultColors(color = cardColor)
+    ) {
+        Column {
+            Text(
+                text = "详细运行日志",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "持久化 ${entries.size} 条，当前显示 $filteredCount 条，WARN $warnCount / ERROR $errorCount / CRASH $crashCount",
+                fontSize = 12.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = reportText.lineSequence().take(9).joinToString("\n"),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
         }
     }
 }

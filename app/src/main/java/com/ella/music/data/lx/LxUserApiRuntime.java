@@ -243,7 +243,7 @@ public final class LxUserApiRuntime implements AutoCloseable {
                 if (!value.isEmpty()) builder.header(header, value);
             }
         }
-        if (headers == null || !headers.has("User-Agent")) {
+        if (headerValue(headers, "User-Agent").isEmpty()) {
             builder.header("User-Agent", USER_AGENT);
         }
 
@@ -296,12 +296,28 @@ public final class LxUserApiRuntime implements AutoCloseable {
         if (options.has("body")) {
             Object body = options.opt("body");
             if (body == null || body == JSONObject.NULL) return null;
-            String contentType = options.optJSONObject("headers") == null
-                    ? "application/json"
-                    : options.optJSONObject("headers").optString("Content-Type", "application/json");
+            String contentType = headerValue(options.optJSONObject("headers"), "Content-Type");
+            if (contentType.isEmpty()) contentType = "application/json";
+            return RequestBody.create(String.valueOf(body), MediaType.parse(contentType));
+        }
+        if (options.has("formData")) {
+            Object body = options.opt("formData");
+            if (body == null || body == JSONObject.NULL) return null;
+            String contentType = headerValue(options.optJSONObject("headers"), "Content-Type");
+            if (contentType.isEmpty()) contentType = "multipart/form-data";
             return RequestBody.create(String.valueOf(body), MediaType.parse(contentType));
         }
         return null;
+    }
+
+    private String headerValue(JSONObject headers, String name) {
+        if (headers == null) return "";
+        Iterator<String> keys = headers.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if (name.equalsIgnoreCase(key)) return headers.optString(key);
+        }
+        return "";
     }
 
     private Object callJs(String action, String data) {
@@ -311,7 +327,9 @@ public final class LxUserApiRuntime implements AutoCloseable {
     private void waitFor(BooleanSupplier condition, long timeoutMs) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
-            if (!runNextDueTimeout(deadline)) break;
+            if (!runNextDueTimeout(deadline)) {
+                Thread.sleep(Math.min(8L, Math.max(1L, deadline - System.currentTimeMillis())));
+            }
         }
     }
 

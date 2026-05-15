@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Song
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -76,7 +77,7 @@ fun FolderDetailScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(FolderSongSortMode.Title) }
+    val sortMode = FolderSongSortMode.entries.getOrElse(LibrarySortUiState.folderDetailSongSortIndex) { FolderSongSortMode.Title }
 
     val folderSongs = remember(songs, folderPath) {
         songs.filter { it.path.startsWith(folderPath, ignoreCase = true) }
@@ -177,7 +178,7 @@ fun FolderDetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                sortMode = mode
+                                LibrarySortUiState.folderDetailSongSortIndex = mode.ordinal
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),

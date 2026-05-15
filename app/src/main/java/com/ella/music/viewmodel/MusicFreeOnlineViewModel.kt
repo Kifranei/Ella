@@ -9,7 +9,7 @@ import com.ella.music.data.musicfree.MusicFreeOnlineSong
 class MusicFreeOnlineViewModel : ViewModel() {
     var importUrl by mutableStateOf("")
     var searchQuery by mutableStateOf("")
-    var importExpanded by mutableStateOf(true)
+    var importExpanded by mutableStateOf(false)
     var isBusy by mutableStateOf(false)
     var results by mutableStateOf<List<MusicFreeOnlineSong>>(emptyList())
     var message by mutableStateOf("导入 MusicFree 插件后可搜索在线歌曲")

@@ -47,7 +47,6 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Play
-import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -58,7 +57,8 @@ fun HomeScreen(
     onNavigateToArtist: () -> Unit,
     onNavigateToAlbum: () -> Unit,
     onNavigateToFolder: () -> Unit,
-    onNavigateToSettings: () -> Unit,
+    onNavigateToLxOnline: () -> Unit,
+    onNavigateToMusicFreeOnline: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToPlayer: () -> Unit
 ) {
@@ -92,17 +92,7 @@ fun HomeScreen(
     ) {
         SmallTopAppBar(
             title = "听音乐",
-            color = pageBackground,
-            actions = {
-                IconButton(onClick = onNavigateToSettings) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Settings,
-                        contentDescription = "设置",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            color = pageBackground
         )
 
         Column(
@@ -142,6 +132,12 @@ fun HomeScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 HomeTile("听歌统计", "历史和热力图", Color(0xFFE71D36), onNavigateToAnalytics, Modifier.weight(1f))
                 Spacer(modifier = Modifier.weight(1f))
+            }
+
+            SectionTitle("在线音乐")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                HomeTile("LX 在线音乐", "导入 API 源", Color(0xFF00A896), onNavigateToLxOnline, Modifier.weight(1f))
+                HomeTile("MusicFree", "导入插件源", Color(0xFFFF6B6B), onNavigateToMusicFreeOnline, Modifier.weight(1f))
             }
 
             SectionTitle("最近听过")

@@ -9,7 +9,7 @@ import com.ella.music.data.lx.LxOnlineSong
 class LxOnlineViewModel : ViewModel() {
     var importUrl by mutableStateOf("")
     var searchQuery by mutableStateOf("")
-    var importExpanded by mutableStateOf(true)
+    var importExpanded by mutableStateOf(false)
     var isBusy by mutableStateOf(false)
     var results by mutableStateOf<List<LxOnlineSong>>(emptyList())
     var message by mutableStateOf("导入 LX 源后可搜索在线歌曲")

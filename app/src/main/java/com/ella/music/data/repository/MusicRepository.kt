@@ -92,33 +92,6 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    suspend fun incrementalScanMusic(
-        minDurationMs: Long = 0,
-        includeFolders: List<String> = emptyList(),
-        excludeFolders: List<String> = emptyList()
-    ) {
-        _isScanning.value = true
-        _scanProgress.value = 0
-        try {
-            val scannedSongs = scanner.scanAllSongs(minDurationMs, includeFolders, excludeFolders) { count ->
-                _scanProgress.value = count
-            }
-            val mergedSongs = (_songs.value + scannedSongs)
-                .associateBy { it.id }
-                .values
-                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-            _songs.value = mergedSongs
-            _albums.value = if (includeFolders.isEmpty() && excludeFolders.isEmpty()) {
-                scanner.scanAlbums()
-            } else {
-                mergedSongs.toAlbums()
-            }
-            saveLibraryCache(_songs.value, _albums.value)
-        } finally {
-            _isScanning.value = false
-        }
-    }
-
     suspend fun loadCachedLibrary() = withContext(Dispatchers.IO) {
         if (!libraryCacheFile.exists()) return@withContext
 
@@ -211,6 +184,10 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun fetchOnlineLyrics(song: Song): List<LyricLine>? {
+        if (song.onlineSource.startsWith("musicfree:")) {
+            parseMusicFreeOnlineLyrics(song)?.let { return it }
+            return null
+        }
         if (song.onlineSource != "kw" || song.onlineId.isBlank()) return null
         val request = Request.Builder()
             .url("https://www.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${song.onlineId}")
@@ -235,6 +212,29 @@ class MusicRepository(private val context: Context) {
             Log.w("MusicRepo", "Failed to fetch online lyrics for ${song.title}", it)
             null
         }
+    }
+
+    private fun parseMusicFreeOnlineLyrics(song: Song): List<LyricLine>? {
+        val rawLyrics = song.onlineLyrics.trim()
+        val rawTranslation = song.onlineLyricTranslation.trim()
+        if (rawLyrics.isBlank() && rawTranslation.isBlank()) return null
+
+        val content = listOf(rawLyrics, rawTranslation)
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+        val parsed = LrcParser.parse(content).lyrics
+        if (parsed.isNotEmpty()) {
+            Log.d("MusicRepo", "MusicFree online lyrics parsed: ${parsed.size} lines for ${song.title}")
+            return parsed
+        }
+
+        val plainLines = content.lines()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .mapIndexed { index, line ->
+                LyricLine(timeMs = index * 3000L, text = line)
+            }
+        return plainLines.takeIf { it.isNotEmpty() }
     }
 
     fun getReplayGain(song: Song): Float? {
@@ -402,7 +402,7 @@ class MusicRepository(private val context: Context) {
                 remoteAudioCacheDir.deleteRecursively()
             }
         }.onFailure {
-            Log.w("MusicRepo", "Failed to clear remote metadata cache", it)
+            Log.w("MusicRepo", "Failed to clear online metadata cache", it)
         }
     }
 
@@ -498,6 +498,8 @@ class MusicRepository(private val context: Context) {
                     .put("coverUrl", song.coverUrl)
                     .put("onlineSource", song.onlineSource)
                     .put("onlineId", song.onlineId)
+                    .put("onlineLyrics", song.onlineLyrics)
+                    .put("onlineLyricTranslation", song.onlineLyricTranslation)
             )
         }
         return array
@@ -537,7 +539,9 @@ class MusicRepository(private val context: Context) {
                 trackNumber = item.optInt("trackNumber"),
                 coverUrl = item.optString("coverUrl"),
                 onlineSource = item.optString("onlineSource"),
-                onlineId = item.optString("onlineId")
+                onlineId = item.optString("onlineId"),
+                onlineLyrics = item.optString("onlineLyrics"),
+                onlineLyricTranslation = item.optString("onlineLyricTranslation")
             )
         }
     }

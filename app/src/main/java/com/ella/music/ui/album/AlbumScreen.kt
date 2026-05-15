@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AlbumCard
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -69,7 +70,7 @@ fun AlbumScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(AlbumSortMode.Name) }
+    val sortMode = AlbumSortMode.entries.getOrElse(LibrarySortUiState.albumListSortIndex) { AlbumSortMode.Name }
     val scope = rememberCoroutineScope()
 
     val filteredAlbums = remember(albums, searchQuery) {
@@ -134,7 +135,7 @@ fun AlbumScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                sortMode = mode
+                                LibrarySortUiState.albumListSortIndex = mode.ordinal
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),

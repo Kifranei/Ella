@@ -61,18 +61,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun incrementalScanMusic() {
-        if (scanJob?.isActive == true || isScanning.value) return
-        scanJob = viewModelScope.launch {
-            val minDuration = settingsManager.minDurationSec.first() * 1000L
-            repository.incrementalScanMusic(
-                minDuration,
-                settingsManager.scanIncludeFolders.first().toFolderFilterList(),
-                settingsManager.scanExcludeFolders.first().toFolderFilterList()
-            )
-        }
-    }
-
     fun scanMusicIfAutoEnabled() {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
@@ -156,6 +144,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAudioInfo(song: Song): AudioInfo {
         return repository.getAudioInfo(song)
+    }
+
+    fun clearOnlineMetadataCache() {
+        repository.clearRemoteMetadataCache()
     }
 
     fun deleteSongs(songs: Collection<Song>) {

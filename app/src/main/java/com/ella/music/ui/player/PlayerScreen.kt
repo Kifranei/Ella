@@ -24,6 +24,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.core.content.FileProvider
 import android.os.Environment
 import android.provider.Settings
 import android.provider.MediaStore
@@ -55,6 +56,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -145,6 +147,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -158,6 +161,7 @@ import top.yukonga.miuix.kmp.icon.extended.Pause
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.content.ClipData
+import android.content.ComponentName
 
 @Composable
 fun PlayerScreen(
@@ -471,6 +475,9 @@ fun PlayerScreen(
                 lyrics = lyrics,
                 currentLyricIndex = currentLyricIndex,
                 currentPosition = currentPosition,
+                duration = duration,
+                shuffleEnabled = shuffleEnabled,
+                repeatMode = repeatMode,
                 showTranslation = showLyricTranslation,
                 showPronunciation = showLyricPronunciation,
                 fontFamily = lyricFontFamily,
@@ -481,6 +488,13 @@ fun PlayerScreen(
                 audioSessionId = audioSessionId,
                 visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
                 onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
+                onSeek = { progress ->
+                    if (duration > 0L) playerViewModel.seekTo((duration * progress).toLong())
+                },
+                onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+                onPrevious = { playerViewModel.skipToPrevious() },
+                onPlayPause = { playerViewModel.togglePlayPause() },
+                onNext = { playerViewModel.skipToNext() },
                 onDismiss = { landscapeExpanded = false },
                 modifier = Modifier.fillMaxSize()
             )
@@ -1113,6 +1127,9 @@ private fun LandscapeLyricsOverlay(
     lyrics: List<com.ella.music.data.model.LyricLine>,
     currentLyricIndex: Int,
     currentPosition: Long,
+    duration: Long,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
     showTranslation: Boolean,
     showPronunciation: Boolean,
     fontFamily: FontFamily?,
@@ -1123,6 +1140,11 @@ private fun LandscapeLyricsOverlay(
     audioSessionId: Int,
     visualizerEnabled: Boolean,
     onLineClick: (com.ella.music.data.model.LyricLine) -> Unit,
+    onSeek: (Float) -> Unit,
+    onCyclePlaybackMode: () -> Unit,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1150,80 +1172,83 @@ private fun LandscapeLyricsOverlay(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 30.dp, vertical = 20.dp),
+                .padding(start = 34.dp, end = 78.dp, top = 22.dp, bottom = 28.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .weight(0.48f)
-                    .widthIn(max = 292.dp),
+                    .weight(0.56f)
+                    .widthIn(max = 360.dp),
                 contentAlignment = Alignment.Center
             ) {
                 AlbumArtView(
                     song = song,
                     embeddedCover = embeddedCover,
                     modifier = Modifier
-                        .fillMaxHeight(0.68f)
+                        .fillMaxHeight(0.72f)
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(16.dp))
                 )
             }
-            Spacer(modifier = Modifier.width(24.dp))
+            Spacer(modifier = Modifier.width(34.dp))
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .weight(1.52f)
+                    .weight(1.44f)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Text(
-                        text = song?.title ?: "Ella Music",
-                        fontSize = adaptiveTitleFontSize(song?.title ?: "Ella Music", 22.sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White.copy(alpha = 0.96f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    LandscapeSongTitle(
+                        song = song,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Text(
-                        text = song?.artist.orEmpty(),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.48f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    WordLyricView(
+                    LandscapeLyricShowcase(
                         lyrics = lyrics,
                         currentIndex = currentLyricIndex,
                         currentPositionMs = currentPosition,
                         showTranslation = showTranslation,
                         showPronunciation = showPronunciation,
-                        fontScale = 0.82f,
                         fontFamily = fontFamily,
                         fontWeight = fontWeight,
-                        topSpacer = 36.dp,
-                        bottomSpacer = 96.dp,
-                        horizontalPadding = 4.dp,
                         onLineClick = onLineClick,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
                     )
-                }
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.12f))
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CloseIcon(
-                        color = Color.White.copy(alpha = 0.92f),
-                        modifier = Modifier.size(20.dp)
+                    LandscapeProgressRow(
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        palette = palette,
+                        onSeek = onSeek
+                    )
+                    LandscapeTransportControls(
+                        isPlaying = isPlaying,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        palette = palette,
+                        onCyclePlaybackMode = onCyclePlaybackMode,
+                        onPrevious = onPrevious,
+                        onPlayPause = onPlayPause,
+                        onNext = onNext
                     )
                 }
             }
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 26.dp, end = 28.dp)
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.14f))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            CloseIcon(
+                color = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.size(26.dp)
+            )
         }
         AudioVisualizer(
             enabled = visualizerEnabled,
@@ -1239,6 +1264,265 @@ private fun LandscapeLyricsOverlay(
         )
     }
 
+}
+
+@Composable
+private fun LandscapeSongTitle(
+    song: Song?,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.padding(end = 16.dp)) {
+        Text(
+            text = song?.title ?: "Ella Music",
+            fontSize = adaptiveTitleFontSize(song?.title ?: "Ella Music", 28.sp),
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White.copy(alpha = 0.96f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = song?.artist.orEmpty(),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.50f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun LandscapeLyricShowcase(
+    lyrics: List<com.ella.music.data.model.LyricLine>,
+    currentIndex: Int,
+    currentPositionMs: Long,
+    showTranslation: Boolean,
+    showPronunciation: Boolean,
+    fontFamily: FontFamily?,
+    fontWeight: FontWeight,
+    onLineClick: (com.ella.music.data.model.LyricLine) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (lyrics.isEmpty()) {
+        Box(
+            modifier = modifier.padding(top = 14.dp, bottom = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            LandscapeLyricLine(
+                line = null,
+                currentPositionMs = currentPositionMs,
+                showTranslation = showTranslation,
+                showPronunciation = showPronunciation,
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                primary = true,
+                alpha = 0.9f,
+                scale = 1f,
+                onLineClick = onLineClick
+            )
+        }
+        return
+    }
+
+    val safeIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
+    val listState = rememberLazyListState()
+    LaunchedEffect(safeIndex, lyrics.size) {
+        listState.animateScrollToItem((safeIndex - 1).coerceAtLeast(0))
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier.padding(top = 8.dp, bottom = 4.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        itemsIndexed(
+            items = lyrics,
+            key = { index, line -> "${line.timeMs}_$index" }
+        ) { index, line ->
+            val distance = abs(index - safeIndex)
+            LandscapeLyricLine(
+                line = line,
+                currentPositionMs = currentPositionMs,
+                showTranslation = showTranslation,
+                showPronunciation = showPronunciation,
+                fontFamily = fontFamily,
+                fontWeight = fontWeight,
+                primary = index == safeIndex,
+                alpha = when (distance) {
+                    0 -> 0.98f
+                    1 -> 0.42f
+                    2 -> 0.24f
+                    else -> 0.14f
+                },
+                scale = when (distance) {
+                    0 -> 1f
+                    1 -> 0.86f
+                    2 -> 0.78f
+                    else -> 0.72f
+                },
+                onLineClick = onLineClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun LandscapeLyricLine(
+    line: com.ella.music.data.model.LyricLine?,
+    currentPositionMs: Long,
+    showTranslation: Boolean,
+    showPronunciation: Boolean,
+    fontFamily: FontFamily?,
+    fontWeight: FontWeight,
+    primary: Boolean,
+    alpha: Float,
+    scale: Float,
+    onLineClick: (com.ella.music.data.model.LyricLine) -> Unit
+) {
+    if (line == null) {
+        Text(
+            text = "暂无歌词",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = alpha),
+            fontFamily = fontFamily
+        )
+        return
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onLineClick(line) },
+        horizontalAlignment = Alignment.Start
+    ) {
+        val pronunciation = line.pronunciation.orEmpty()
+        val translation = line.translation.orEmpty()
+        if (showPronunciation && pronunciation.isNotBlank()) {
+            Text(
+                text = pronunciation,
+                fontSize = (14 * scale).sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = alpha * 0.58f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = fontFamily
+            )
+        }
+        Text(
+            text = line.text.ifBlank { "♪" },
+            fontSize = (if (primary) 26 else 22).sp * scale,
+            lineHeight = (if (primary) 31 else 27).sp * scale,
+            fontWeight = if (primary) FontWeight.ExtraBold else FontWeight.Bold,
+            color = Color.White.copy(alpha = alpha),
+            maxLines = if (primary) 3 else 2,
+            overflow = TextOverflow.Ellipsis,
+            fontFamily = fontFamily
+        )
+        if (showTranslation && translation.isNotBlank()) {
+            Text(
+                text = translation,
+                fontSize = (if (primary) 17 else 14).sp * scale,
+                lineHeight = (if (primary) 22 else 19).sp * scale,
+                fontWeight = if (primary) FontWeight.Bold else FontWeight.SemiBold,
+                color = Color.White.copy(alpha = if (primary) 0.74f else alpha * 0.72f),
+                maxLines = if (primary) 2 else 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = fontFamily
+            )
+        }
+    }
+}
+
+@Composable
+private fun LandscapeProgressRow(
+    currentPosition: Long,
+    duration: Long,
+    palette: PlayerPalette,
+    onSeek: (Float) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = formatTime(currentPosition),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.72f)
+        )
+        GlowSeekBar(
+            value = if (duration > 0) currentPosition.toFloat() / duration.toFloat() else 0f,
+            onSeek = onSeek,
+            accent = palette.accent,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+        )
+        Text(
+            text = "-${formatTime((duration - currentPosition).coerceAtLeast(0L))}",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White.copy(alpha = 0.72f)
+        )
+    }
+}
+
+@Composable
+private fun LandscapeTransportControls(
+    isPlaying: Boolean,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
+    palette: PlayerPalette,
+    onCyclePlaybackMode: () -> Unit,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onCyclePlaybackMode) {
+            PlaybackModeIcon(shuffleEnabled = shuffleEnabled, repeatMode = repeatMode, accent = palette.accent)
+        }
+        IconButton(onClick = onPrevious) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_skip_previous),
+                contentDescription = "上一首",
+                tint = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.15f))
+                .clickable(onClick = onPlayPause),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaying) MiuixIcons.Regular.Pause else MiuixIcons.Regular.Play,
+                contentDescription = if (isPlaying) "暂停" else "播放",
+                tint = Color.White.copy(alpha = 0.96f),
+                modifier = Modifier.size(34.dp)
+            )
+        }
+        IconButton(onClick = onNext) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_skip_next),
+                contentDescription = "下一首",
+                tint = Color.White.copy(alpha = 0.92f),
+                modifier = Modifier.size(28.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -1697,7 +1981,6 @@ private fun ImmersiveCoverBackground(
     flowEffectMode: Int,
     modifier: Modifier = Modifier
 ) {
-    val lightMode = flowEffectMode == SettingsManager.PLAYER_FLOW_EFFECT_LIGHT
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
@@ -1705,9 +1988,9 @@ private fun ImmersiveCoverBackground(
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            palette.top.copy(alpha = if (lightMode) 0.24f else 0.64f),
-                            palette.middle.copy(alpha = if (lightMode) 0.18f else 0.58f),
-                            palette.bottom.copy(alpha = if (lightMode) 0.16f else 0.72f)
+                            palette.top.copy(alpha = 0.64f),
+                            palette.middle.copy(alpha = 0.58f),
+                            palette.bottom.copy(alpha = 0.72f)
                         )
                     )
                 )
@@ -1718,9 +2001,9 @@ private fun ImmersiveCoverBackground(
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            palette.accent.copy(alpha = if (lightMode) 0.12f else 0.20f),
+                            palette.accent.copy(alpha = 0.20f),
                             Color.Transparent,
-                            Color.Black.copy(alpha = if (lightMode) 0.12f else 0.18f)
+                            Color.Black.copy(alpha = 0.18f)
                         ),
                         start = Offset.Zero,
                         end = Offset.Infinite
@@ -1736,25 +2019,24 @@ private fun PlayerFlowBackground(
     flowEffectMode: Int,
     modifier: Modifier = Modifier
 ) {
-    val lightMode = flowEffectMode == SettingsManager.PLAYER_FLOW_EFFECT_LIGHT
     val transition = rememberInfiniteTransition(label = "player_flow_background")
     val drift by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = if (lightMode) 15_000 else 18_000, easing = LinearEasing),
+            animation = tween(durationMillis = 18_000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "player_flow_background_drift"
     )
 
-    Canvas(modifier = modifier.background(if (lightMode) palette.accent.lighten(0.72f) else palette.middle)) {
+    Canvas(modifier = modifier.background(palette.middle)) {
         val w = size.width
         val h = size.height
         val angle = drift * kotlin.math.PI.toFloat() * 2f
-        val baseTop = if (lightMode) palette.accent.lighten(0.78f) else palette.top
-        val baseMid = if (lightMode) palette.accent.lighten(0.54f) else palette.middle
-        val baseBottom = if (lightMode) palette.accent.lighten(0.34f) else palette.bottom
+        val baseTop = palette.top
+        val baseMid = palette.middle
+        val baseBottom = palette.bottom
 
         drawRect(
             brush = Brush.verticalGradient(
@@ -1767,19 +2049,11 @@ private fun PlayerFlowBackground(
             Offset((0.86f + 0.08f * kotlin.math.cos(angle * 0.9f)) * w, (0.18f + 0.10f * kotlin.math.sin(angle)) * h),
             Offset((0.46f + 0.16f * kotlin.math.sin(angle * 0.42f)) * w, (0.64f + 0.08f * kotlin.math.cos(angle * 0.8f)) * h)
         )
-        val glows = if (lightMode) {
-            listOf(
-                Color.White.copy(alpha = 0.44f),
-                palette.accent.lighten(0.48f).copy(alpha = 0.46f),
-                Color(0xFFFFF2C8).copy(alpha = 0.30f)
-            )
-        } else {
-            listOf(
-                palette.accent.copy(alpha = 0.30f),
-                palette.top.lighten(0.22f).copy(alpha = 0.22f),
-                Color.White.copy(alpha = 0.10f)
-            )
-        }
+        val glows = listOf(
+            palette.accent.copy(alpha = 0.30f),
+            palette.top.lighten(0.22f).copy(alpha = 0.22f),
+            Color.White.copy(alpha = 0.10f)
+        )
         centers.forEachIndexed { index, center ->
             val radius = max(w, h) * (0.34f + index * 0.08f)
             drawCircle(
@@ -1800,7 +2074,7 @@ private fun PlayerFlowBackground(
                 colorStops = arrayOf(
                     0.0f to Color.Transparent,
                     0.46f to Color.Transparent,
-                    0.50f to Color.White.copy(alpha = if (lightMode) 0.28f else 0.12f),
+                    0.50f to Color.White.copy(alpha = 0.12f),
                     0.56f to Color.Transparent,
                     1.0f to Color.Transparent
                 ),
@@ -1812,7 +2086,7 @@ private fun PlayerFlowBackground(
             brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.Transparent,
-                    Color.Black.copy(alpha = if (lightMode) 0.18f else 0.30f)
+                    Color.Black.copy(alpha = 0.30f)
                 )
             )
         )
@@ -1823,25 +2097,13 @@ private fun playerContentSurfaceBrush(
     palette: PlayerPalette,
     flowEffectMode: Int
 ): Brush {
-    val lightMode = flowEffectMode == SettingsManager.PLAYER_FLOW_EFFECT_LIGHT
-    return if (lightMode) {
-        Brush.verticalGradient(
-            colorStops = arrayOf(
-                0.0f to Color.White.copy(alpha = 0.34f),
-                0.28f to palette.accent.lighten(0.38f).copy(alpha = 0.20f),
-                0.70f to Color.Black.copy(alpha = 0.22f),
-                1.0f to Color.Black.copy(alpha = 0.36f)
-            )
+    return Brush.verticalGradient(
+        colorStops = arrayOf(
+            0.0f to palette.middle.copy(alpha = 0.70f),
+            0.16f to palette.middle.copy(alpha = 0.82f),
+            1.0f to palette.middle.copy(alpha = 0.90f)
         )
-    } else {
-        Brush.verticalGradient(
-            colorStops = arrayOf(
-                0.0f to palette.middle.copy(alpha = 0.70f),
-                0.16f to palette.middle.copy(alpha = 0.82f),
-                1.0f to palette.middle.copy(alpha = 0.90f)
-            )
-        )
-    }
+    )
 }
 
 @Composable
@@ -1852,7 +2114,6 @@ private fun FluidLyricBackground(
     flowEffectMode: Int = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
     modifier: Modifier = Modifier
 ) {
-    val lightMode = flowEffectMode == SettingsManager.PLAYER_FLOW_EFFECT_LIGHT
     val transition = rememberInfiniteTransition(label = "fluid_lyric_background")
     val drift by transition.animateFloat(
         initialValue = 0f,
@@ -1869,13 +2130,13 @@ private fun FluidLyricBackground(
         0.28f
     }
 
-    Canvas(modifier = modifier.background(if (lightMode) palette.accent.lighten(0.68f) else palette.middle)) {
+    Canvas(modifier = modifier.background(palette.middle)) {
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    (if (lightMode) palette.accent.lighten(0.76f) else palette.top).copy(alpha = 0.98f),
-                    (if (lightMode) palette.accent.lighten(0.48f) else palette.middle).copy(alpha = 0.98f),
-                    (if (lightMode) palette.accent.lighten(0.24f) else palette.bottom).copy(alpha = 1f)
+                    palette.top.copy(alpha = 0.98f),
+                    palette.middle.copy(alpha = 0.98f),
+                    palette.bottom.copy(alpha = 1f)
                 )
             )
         )
@@ -1889,10 +2150,10 @@ private fun FluidLyricBackground(
             Offset((0.72f + 0.06f * kotlin.math.sin(t * 0.95f)) * w, (0.86f + 0.04f * kotlin.math.cos(t * 0.6f)) * h)
         )
         val colors = listOf(
-            palette.accent.copy(alpha = if (lightMode) 0.26f + pulse * 0.04f else 0.22f + pulse * 0.05f),
-            Color.White.copy(alpha = if (lightMode) 0.24f else 0.10f),
-            (if (lightMode) palette.accent.lighten(0.48f) else palette.top).copy(alpha = if (lightMode) 0.24f else 0.20f),
-            Color.Black.copy(alpha = if (lightMode) 0.12f else 0.20f)
+            palette.accent.copy(alpha = 0.22f + pulse * 0.05f),
+            Color.White.copy(alpha = 0.10f),
+            palette.top.copy(alpha = 0.20f),
+            Color.Black.copy(alpha = 0.20f)
         )
         centers.forEachIndexed { index, center ->
             val radius = minOf(w, h) * (0.34f + index * 0.055f)
@@ -1909,9 +2170,9 @@ private fun FluidLyricBackground(
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color.Black.copy(alpha = if (lightMode) 0.04f else 0.10f),
+                    Color.Black.copy(alpha = 0.10f),
                     Color.Transparent,
-                    Color.Black.copy(alpha = if (lightMode) 0.34f else 0.42f)
+                    Color.Black.copy(alpha = 0.42f)
                 )
             )
         )
@@ -2378,8 +2639,6 @@ private fun MiniWordText(
     )
 }
 
-private const val MINI_LONG_WORD_GLOW_MS = 650L
-
 private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMiniTimedWord(
     text: String,
     startMs: Long,
@@ -2398,15 +2657,6 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMiniTimedWord
     when {
         isCurrent -> {
             val progress = ((currentPositionMs - startMs).toFloat() / durationMs).coerceIn(0f, 1f)
-            val glow = if (durationMs >= MINI_LONG_WORD_GLOW_MS) {
-                Shadow(
-                    color = currentColor.copy(alpha = 0.5f),
-                    offset = Offset.Zero,
-                    blurRadius = 14f
-                )
-            } else {
-                null
-            }
             appendMiniStyledText(
                 value = text,
                 color = currentColor,
@@ -2416,7 +2666,6 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMiniTimedWord
                     activeColor = currentColor,
                     pendingColor = pendingColor
                 ),
-                shadow = glow,
                 baselineShift = BaselineShift(0.04f)
             )
         }
@@ -2461,15 +2710,13 @@ private fun miniLyricSweepBrush(
     activeColor: Color,
     pendingColor: Color
 ): Brush {
-    val head = (progress - 0.045f).coerceIn(0f, 0.96f)
-    val edge = progress.coerceIn(head + 0.002f, 0.985f)
-    val tail = (progress + 0.090f).coerceIn(edge + 0.008f, 1f)
+    val edge = progress.coerceIn(0.002f, 0.998f)
+    val beforeEdge = (edge - 0.001f).coerceAtLeast(0f)
     return Brush.horizontalGradient(
         colorStops = arrayOf(
             0f to activeColor,
-            head to activeColor,
-            edge to Color.White.copy(alpha = activeColor.alpha),
-            tail to pendingColor,
+            beforeEdge to activeColor,
+            edge to pendingColor,
             1f to pendingColor
         )
     )
@@ -3339,28 +3586,116 @@ private fun openExternalTagEditor(context: Context, song: Song) {
         return
     }
 
-    val uri = ContentUris.withAppendedId(
+    val mediaStoreUri = ContentUris.withAppendedId(
         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
         song.id
     )
+    val songFile = File(song.path)
+    val fileUri = songFile.takeIf { it.exists() && it.isFile }?.let { file ->
+        runCatching {
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        }.getOrNull()
+    }
+    val editUri = fileUri ?: mediaStoreUri
 
     val mimeType = song.mimeType
         .takeIf { it.startsWith("audio/") }
         ?: "audio/*"
 
-    val intent = Intent("com.lonx.lyrico.action.EDIT_TAG").apply {
-        setDataAndType(uri, mimeType)
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        clipData = ClipData.newUri(context.contentResolver, "audio", uri)
+    fun tagEditorIntent(
+        label: String,
+        action: String? = null,
+        component: ComponentName? = null,
+        packageName: String? = null
+    ): Intent {
+        return Intent(action ?: Intent.ACTION_EDIT).apply {
+            component?.let { setComponent(it) }
+            packageName?.let { setPackage(it) }
+            setDataAndType(editUri, mimeType)
+            putExtra(Intent.EXTRA_STREAM, editUri)
+            putExtra(Intent.EXTRA_TITLE, "${song.title} - ${song.artist}")
+            putExtra("title", song.title)
+            putExtra("artist", song.artist)
+            putExtra("album", song.album)
+            putExtra("path", song.path)
+            putExtra("filePath", song.path)
+            putExtra("uri", editUri.toString())
+            putExtra("mediaStoreUri", mediaStoreUri.toString())
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            clipData = ClipData.newUri(context.contentResolver, label, editUri)
+        }
     }
 
-    runCatching {
-        context.startActivity(intent)
-    }.onFailure {
-        Toast.makeText(context, "未找到支持编辑标签的应用，请先安装 Lyrico", Toast.LENGTH_SHORT).show()
+    val candidates = listOf(
+        tagEditorIntent(
+            label = "Lyrico",
+            action = "com.lonx.lyrico.action.EDIT_TAG"
+        ),
+        tagEditorIntent(
+            label = "Lyrico",
+            action = Intent.ACTION_EDIT,
+            packageName = "com.lonx.lyrico"
+        ),
+        tagEditorIntent(
+            label = "LunaBeat",
+            component = ComponentName("com.example.LyricBox", "com.example.LyricBox.SongMetadataEditActivity")
+        ),
+        tagEditorIntent(
+            label = "LunaBeat",
+            component = ComponentName("com.example.lyricbox", "com.example.LyricBox.SongMetadataEditActivity")
+        ),
+        tagEditorIntent(
+            label = "音乐标签",
+            component = ComponentName("com.xjcheng.musictageditor", "com.xjcheng.musictageditor.SongDetailActivity")
+        )
+    ).distinctBy { intent ->
+        "${intent.action}|${intent.component?.flattenToShortString()}|${intent.`package`}"
+    }.filter { intent ->
+        intent.resolveActivity(context.packageManager) != null ||
+            intent.component?.packageName?.let { context.isPackageInstalled(it) } == true ||
+            intent.`package`?.let { context.isPackageInstalled(it) } == true
     }
+
+    if (candidates.isEmpty()) {
+        Toast.makeText(context, "未找到支持编辑标签的应用，请先安装 Lyrico、LunaBeat 或音乐标签", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val launchIntent = if (candidates.size == 1) {
+        candidates.first()
+    } else {
+        Intent.createChooser(candidates.first(), "选择标签编辑器").apply {
+            putExtra(Intent.EXTRA_INITIAL_INTENTS, candidates.drop(1).toTypedArray())
+            setDataAndType(editUri, mimeType)
+            putExtra(Intent.EXTRA_STREAM, editUri)
+            clipData = ClipData.newUri(context.contentResolver, "歌曲文件", editUri)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+    }
+
+    val launched = runCatching {
+        context.startActivity(launchIntent)
+        true
+    }.getOrDefault(false)
+    if (!launched) {
+        val fallbackLaunched = candidates.any { intent ->
+            runCatching {
+                context.startActivity(intent)
+                true
+            }.getOrDefault(false)
+        }
+        if (!fallbackLaunched) {
+            Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
+        }
+    }
+}
+
+private fun Context.isPackageInstalled(packageName: String): Boolean {
+    return runCatching {
+        packageManager.getPackageInfo(packageName, 0)
+        true
+    }.getOrDefault(false)
 }
 
 private fun Song.dynamicCoverVideoFile(context: Context): File? {

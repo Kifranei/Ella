@@ -35,7 +35,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,20 +72,20 @@ fun MusicFreeOnlineScreen(
     BackHandler(onBack = onBack)
 
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val settingsManager = remember { SettingsManager(context) }
     val service = remember(context) { MusicFreePluginService(context) }
     val scope = rememberCoroutineScope()
 
-    val plugins by settingsManager.musicFreePlugins.collectAsState(initial = emptyList())
+    val loadedPlugins by settingsManager.musicFreePlugins.collectAsState(initial = null)
+    val plugins = loadedPlugins.orEmpty()
     val selectedPluginId by settingsManager.selectedMusicFreePluginId.collectAsState(initial = "")
     val selectedPlugin = remember(plugins, selectedPluginId) {
         plugins.firstOrNull { it.id == selectedPluginId } ?: plugins.firstOrNull()
     }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
 
-    LaunchedEffect(plugins.isEmpty()) {
-        if (plugins.isEmpty()) state.importExpanded = true
+    LaunchedEffect(loadedPlugins) {
+        if (loadedPlugins != null && plugins.isEmpty()) state.importExpanded = true
     }
 
     fun showToast(text: String) {
@@ -226,13 +225,6 @@ fun MusicFreeOnlineScreen(
                                     }
                                 ) {
                                     Text(text = if (state.isBusy) "导入中" else "URL 导入")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    enabled = !state.isBusy,
-                                    onClick = { uriHandler.openUri("https://musicfree.catcat.work/plugin/introduction.html") }
-                                ) {
-                                    Text(text = "文档")
                                 }
                             }
                             if (plugins.isNotEmpty()) {

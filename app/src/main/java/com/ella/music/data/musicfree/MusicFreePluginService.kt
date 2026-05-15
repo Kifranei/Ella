@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
@@ -51,7 +52,7 @@ class MusicFreePluginService(private val context: Context? = null) {
             entries.forEach { entry ->
                 runCatching {
                     val script = fetchText(entry.url)
-                    val (detectedName, normalizedScript) = importPluginScript(script)
+                    val (detectedName, normalizedScript) = importPluginScript(script, entry.name)
                     MusicFreePluginConfig(
                         id = "musicfree_${entry.url.hashCode()}",
                         url = entry.url,
@@ -77,21 +78,51 @@ class MusicFreePluginService(private val context: Context? = null) {
         )
     }
 
-    fun importPluginScript(script: String): Pair<String, String> {
+    fun importPluginScript(script: String, fallbackName: String = ""): Pair<String, String> {
         if (script.length !in 50..9_000_000) error("插件脚本内容异常")
         val normalizedScript = normalizeModuleScript(script)
+        val runtimeInfo = inspectPluginIfNeeded(normalizedScript)
         val name = extractPlatform(normalizedScript)
-        if (name.isBlank()) error("没有识别到 MusicFree 插件 platform")
-        val supportsMusic = "search" in normalizedScript || "getMediaSource" in normalizedScript || "importMusicItem" in normalizedScript
+            .ifBlank { extractPluginMetadataName(script) }
+            .ifBlank { fallbackName.trim() }
+            .ifBlank { runtimeInfo?.optString("platform").orEmpty() }
+            .ifBlank { runtimeInfo?.optString("name").orEmpty() }
+        if (name.isBlank()) error("没有识别到 MusicFree 插件 platform、@name 或仓库名称")
+        val supportsMusic = "search" in normalizedScript ||
+            "getMediaSource" in normalizedScript ||
+            "importMusicItem" in normalizedScript ||
+            runtimeInfo?.optBoolean("hasSearch") == true ||
+            runtimeInfo?.optBoolean("hasMediaSource") == true ||
+            runtimeInfo?.optBoolean("hasImportMusicItem") == true
         if (!supportsMusic) error("插件未声明搜索或播放能力")
         return name to normalizedScript
+    }
+
+    private fun inspectPluginIfNeeded(script: String): JSONObject? {
+        val appContext = context ?: return null
+        if (extractPlatform(script).isNotBlank()) return null
+        return runCatching {
+            MusicFreePluginRuntime(appContext, client).use { runtime ->
+                runtime.inspectPlugin(script)
+            }
+        }.getOrNull()
     }
 
     private fun normalizeModuleScript(script: String): String {
         return script
             .replace(Regex("""^\s*export\s+default\s+""", RegexOption.MULTILINE), "module.exports = ")
             .replace(Regex("""^\s*export\s+const\s+(\w+)\s*=""", RegexOption.MULTILINE), "const $1 =")
-            .replace(Regex("""^\s*export\s+\{[^}]+}\s*;?""", RegexOption.MULTILINE), "")
+            .replace(Regex("""^\s*export\s+\{[^}]+\}\s*;?""", RegexOption.MULTILINE), "")
+            .removeParcelDemoInvocations()
+    }
+
+    private fun String.removeParcelDemoInvocations(): String {
+        return replace(
+            Regex(
+                pattern = """(?s)\n\s*\(0,\s*${'$'}[A-Za-z0-9]+${'$'}export${'$'}[A-Za-z0-9]+\)\([^;]*?\)\.then\(\(res\)\s*=>\s*\{.*?\n\s*\}\);\s*""",
+            ),
+            "\n"
+        )
     }
 
     private fun fetchText(url: String): String {
@@ -133,10 +164,26 @@ class MusicFreePluginService(private val context: Context? = null) {
     ): List<MusicFreeOnlineSong> = withContext(Dispatchers.IO) {
         if (plugin == null) error("请先选择一个 MusicFree 插件")
         if (context == null) error("MusicFree 运行环境未初始化")
-        val rawItems = MusicFreePluginRuntime(context, client).use { runtime ->
-            runtime.search(plugin.script, keyword.trim(), page.coerceAtLeast(1))
+        val normalizedKeyword = keyword.trim()
+        val safePage = page.coerceAtLeast(1)
+        val rawItems = runCatching {
+            MusicFreePluginRuntime(context, client).use { runtime ->
+                runtime.search(plugin.script, normalizedKeyword, safePage)
+            }
+        }.getOrElse { error ->
+            if (error.message?.contains("lists", ignoreCase = true) == true && plugin.looksLikeKugouPlugin()) {
+                searchKugouFallback(normalizedKeyword, safePage)
+            } else {
+                throw error
+            }
         }
-        rawItems.toJsonObjects().mapNotNull { item -> item.toOnlineSong(plugin.name) }
+        val items = rawItems.toJsonObjects()
+        val durationBySongMid = fetchQqDurationsIfNeeded(plugin.name, items)
+        items.mapNotNull { item ->
+            item.toOnlineSong(plugin.name)?.let { onlineSong ->
+                enrichMissingDuration(item, onlineSong, durationBySongMid)
+            }
+        }
     }
 
     suspend fun resolvePlayableSong(item: MusicFreeOnlineSong, plugin: MusicFreePluginConfig?): Song = withContext(Dispatchers.IO) {
@@ -146,6 +193,11 @@ class MusicFreePluginService(private val context: Context? = null) {
         val mediaSource = MusicFreePluginRuntime(context, client).use { runtime ->
             runtime.getMediaSource(plugin.script, item.rawJson, bestQuality(item.rawJson))
         }
+        val lyricPayload = runCatching {
+            MusicFreePluginRuntime(context, client).use { runtime ->
+                runtime.getLyric(plugin.script, item.rawJson)
+            }
+        }.getOrNull()
         val url = mediaSource.optString("url").takeIf { it.startsWith("http://") || it.startsWith("https://") }
             ?: error("插件没有返回播放地址")
         val ext = url.substringBefore('?')
@@ -155,7 +207,9 @@ class MusicFreePluginService(private val context: Context? = null) {
         item.song.copy(
             path = url,
             fileName = "${item.song.title}.$ext",
-            mimeType = mimeTypeFromExtension(ext)
+            mimeType = mimeTypeFromExtension(ext),
+            onlineLyrics = lyricPayload?.extractLyrics().orEmpty().ifBlank { item.song.onlineLyrics },
+            onlineLyricTranslation = lyricPayload?.extractLyricTranslation().orEmpty().ifBlank { item.song.onlineLyricTranslation }
         )
     }
 
@@ -170,19 +224,35 @@ class MusicFreePluginService(private val context: Context? = null) {
         }.orEmpty().trim()
     }
 
+    private fun extractPluginMetadataName(script: String): String {
+        val commentName = Regex("""(?m)^\s*\*\s*@name\s+(.+?)\s*$""")
+            .find(script)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+        if (!commentName.isNullOrBlank()) return commentName
+
+        val objectName = Regex("""(?m)\bname\s*:\s*['"]([^'"]+)['"]""")
+            .find(script)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+        return objectName.orEmpty()
+    }
+
     private fun JSONObject.toOnlineSong(pluginName: String): MusicFreeOnlineSong? {
-        val title = optString("title").ifBlank { optString("name") }.trim()
+        val title = optFirstString("title", "name", "songname", "songName").trim()
         if (title.isBlank()) return null
-        val artist = optString("artist").ifBlank { optString("singer") }.ifBlank { "未知歌手" }.trim()
-        val album = optString("album").ifBlank { "在线音乐" }.trim()
+        val artist = optArtist().ifBlank { "未知歌手" }.trim()
+        val album = optFirstString("album", "albumName", "albumname").ifBlank { "在线音乐" }.trim()
         val platform = optString("platform").ifBlank { pluginName }
-        val onlineId = optString("id").ifBlank { "$platform:$title:$artist" }
-        val artwork = optString("artwork").ifBlank { optString("cover") }
-        val url = optString("url")
-        val durationMs = when {
-            optLong("duration", 0L) in 1L..86_400L -> optLong("duration") * 1000L
-            else -> optLong("duration", 0L)
-        }
+        val onlineId = optFirstString("id", "songmid", "mid", "hash", "rid", "album_audio_id")
+            .ifBlank { "$platform:$title:$artist" }
+        val artwork = optFirstString("artwork", "cover", "coverImg", "coverUrl", "pic", "picUrl", "albumArt")
+        val url = optFirstString("url", "playUrl", "musicUrl")
+        val lyrics = extractLyrics()
+        val lyricTranslation = extractLyricTranslation()
+        val durationMs = parseDurationMs()
         val id = "musicfree_${platform}_$onlineId".hashCode().toLong()
         return MusicFreeOnlineSong(
             song = Song(
@@ -197,7 +267,9 @@ class MusicFreePluginService(private val context: Context? = null) {
                 mimeType = "audio/mpeg",
                 coverUrl = artwork,
                 onlineSource = "musicfree:$platform",
-                onlineId = onlineId
+                onlineId = onlineId,
+                onlineLyrics = lyrics,
+                onlineLyricTranslation = lyricTranslation
             ),
             pluginName = platform,
             rawJson = toString(),
@@ -205,16 +277,150 @@ class MusicFreePluginService(private val context: Context? = null) {
         )
     }
 
+    private fun JSONObject.optFirstString(vararg keys: String): String {
+        return keys.firstNotNullOfOrNull { key ->
+            opt(key)?.takeUnless { it == JSONObject.NULL }?.let { value ->
+                when (value) {
+                    is String -> value
+                    is Number -> value.toString()
+                    else -> null
+                }?.takeIf { it.isNotBlank() }
+            }
+        }.orEmpty()
+    }
+
+    private fun JSONObject.optArtist(): String {
+        optFirstString("artist", "singer", "author", "creator").takeIf { it.isNotBlank() }?.let { return it }
+        val artistArray = optJSONArray("artists") ?: optJSONArray("singers") ?: optJSONArray("ar")
+        if (artistArray != null) {
+            val names = List(artistArray.length()) { index ->
+                val value = artistArray.opt(index)
+                when (value) {
+                    is JSONObject -> value.optFirstString("name", "title", "singerName")
+                    is String -> value
+                    else -> ""
+                }
+            }.filter { it.isNotBlank() }
+            if (names.isNotEmpty()) return names.joinToString(", ")
+        }
+        optJSONObject("artist")?.optFirstString("name", "title")?.takeIf { it.isNotBlank() }?.let { return it }
+        return ""
+    }
+
+    private fun JSONObject.parseDurationMs(): Long {
+        val raw = optFirstString("duration", "durationMs", "interval", "time", "dt", "playTime")
+        if (raw.isBlank()) return 0L
+        if (":" in raw) {
+            val parts = raw.split(":").mapNotNull { it.toLongOrNull() }
+            if (parts.isNotEmpty()) {
+                val seconds = parts.fold(0L) { acc, part -> acc * 60L + part }
+                return seconds * 1000L
+            }
+        }
+        val number = raw.toDoubleOrNull() ?: return 0L
+        return when {
+            number <= 0.0 -> 0L
+            raw.contains(".") && number < 86_400.0 -> (number * 1000L).toLong()
+            number in 1.0..86_400.0 -> number.toLong() * 1000L
+            else -> number.toLong()
+        }
+    }
+
+    private fun enrichMissingDuration(
+        item: JSONObject,
+        onlineSong: MusicFreeOnlineSong,
+        durationBySongMid: Map<String, Long>
+    ): MusicFreeOnlineSong {
+        if (onlineSong.song.duration > 0L) return onlineSong
+        val songMid = item.optFirstString("songmid", "mid")
+        val durationMs = durationBySongMid[songMid].orZero()
+        if (durationMs <= 0L) return onlineSong
+        return onlineSong.copy(
+            song = onlineSong.song.copy(duration = durationMs)
+        )
+    }
+
+    private fun fetchQqDurationsIfNeeded(pluginName: String, items: List<JSONObject>): Map<String, Long> {
+        if (!pluginName.contains("QQ", ignoreCase = true)) return emptyMap()
+        val songMids = items.mapNotNull { item ->
+            item.optFirstString("songmid", "mid").takeIf { it.isNotBlank() }
+        }.distinct()
+        if (songMids.isEmpty()) return emptyMap()
+        val request = Request.Builder()
+            .url("https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg?songmid=${songMids.joinToString(",")}&format=json")
+            .header("User-Agent", USER_AGENT)
+            .header("Referer", "https://y.qq.com/")
+            .build()
+        return runCatching {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use emptyMap()
+                val json = JSONObject(response.body?.string().orEmpty())
+                val data = json.optJSONArray("data") ?: return@use emptyMap()
+                List(data.length()) { index -> data.optJSONObject(index) }
+                    .filterNotNull()
+                    .mapNotNull { song ->
+                        val mid = song.optString("mid").ifBlank { song.optString("songmid") }
+                        val seconds = song.optLong("interval", 0L)
+                        if (mid.isBlank() || seconds <= 0L) null else mid to seconds * 1000L
+                    }
+                    .toMap()
+            }
+        }.getOrDefault(emptyMap())
+    }
+
+    private fun Long?.orZero(): Long = this ?: 0L
+
+    private fun JSONObject.extractLyrics(): String {
+        return optString("rawLrc")
+            .ifBlank { optString("rawLrcTxt") }
+            .ifBlank { optString("lrc") }
+            .ifBlank { optString("lyric") }
+            .ifBlank { optString("lyrics") }
+            .ifBlank { optString("plainLyric") }
+            .ifBlank {
+                optJSONObject("lyric")?.extractLyrics().orEmpty()
+            }
+            .trim()
+    }
+
+    private fun JSONObject.extractLyricTranslation(): String {
+        return optString("translation")
+            .ifBlank { optString("transLyric") }
+            .ifBlank { optString("translatedLyric") }
+            .ifBlank { optString("translate") }
+            .ifBlank { optString("rawTranslation") }
+            .ifBlank {
+                optJSONObject("lyric")?.extractLyricTranslation().orEmpty()
+            }
+            .trim()
+    }
+
     private fun bestQuality(rawJson: String): String {
         val item = runCatching { JSONObject(rawJson) }.getOrNull() ?: return "standard"
-        val qualities = item.optJSONObject("qualities") ?: return "standard"
-        return when {
-            qualities.has("super") -> "super"
-            qualities.has("high") -> "high"
-            qualities.has("standard") -> "standard"
-            qualities.has("low") -> "low"
-            else -> "standard"
+        val qualities = item.optJSONObject("qualities")
+        if (qualities != null) {
+            return when {
+                qualities.has("super") -> "super"
+                qualities.has("high") -> "high"
+                qualities.has("standard") -> "standard"
+                qualities.has("low") -> "low"
+                else -> "standard"
+            }
         }
+        val qualityArray = item.optJSONArray("qualities") ?: item.optJSONArray("qualitys") ?: item.optJSONArray("types")
+        if (qualityArray != null) {
+            val values = List(qualityArray.length()) { index ->
+                val value = qualityArray.opt(index)
+                when (value) {
+                    is JSONObject -> value.optFirstString("type", "quality", "name")
+                    else -> value?.toString().orEmpty()
+                }
+            }
+            val preference = listOf("super", "lossless", "flac", "high", "320k", "standard", "128k", "low")
+            preference.firstOrNull { preferred -> values.any { it.equals(preferred, ignoreCase = true) } }?.let { return it }
+        }
+        item.optFirstString("quality", "type").takeIf { it.isNotBlank() }?.let { return it }
+        return "standard"
     }
 
     private fun mimeTypeFromExtension(ext: String): String {
@@ -229,6 +435,56 @@ class MusicFreePluginService(private val context: Context? = null) {
 
     private fun JSONArray.toJsonObjects(): List<JSONObject> {
         return List(length()) { index -> optJSONObject(index) }.filterNotNull()
+    }
+
+    private fun MusicFreePluginConfig.looksLikeKugouPlugin(): Boolean {
+        return name.contains("酷狗", ignoreCase = true) ||
+            name.contains("kugou", ignoreCase = true) ||
+            url.contains("kg", ignoreCase = true) ||
+            script.contains("kugou", ignoreCase = true) ||
+            script.contains("mobilecdn.kugou.com", ignoreCase = true)
+    }
+
+    private fun searchKugouFallback(keyword: String, page: Int): JSONArray {
+        if (keyword.isBlank()) return JSONArray()
+        val encoded = URLEncoder.encode(keyword, Charsets.UTF_8.name())
+        val request = Request.Builder()
+            .url("http://mobilecdn.kugou.com/api/v3/search/song?format=json&keyword=$encoded&page=$page&pagesize=20")
+            .header("User-Agent", USER_AGENT)
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) error("酷狗搜索失败: HTTP ${response.code}")
+            val info = JSONObject(response.body?.string().orEmpty())
+                .optJSONObject("data")
+                ?.optJSONArray("info")
+                ?: JSONArray()
+            return JSONArray().apply {
+                for (index in 0 until info.length()) {
+                    val item = info.optJSONObject(index) ?: continue
+                    val hash = item.optFirstString("hash", "320hash", "sqhash")
+                    val cover = item.optJSONObject("trans_param")
+                        ?.optFirstString("union_cover")
+                        ?.replace("{size}", "400")
+                        .orEmpty()
+                    put(
+                        JSONObject()
+                            .put("id", hash)
+                            .put("hash", hash)
+                            .put("title", item.optFirstString("songname", "songname_original", "filename"))
+                            .put("artist", item.optFirstString("singername", "author_name"))
+                            .put("album", item.optFirstString("album_name"))
+                            .put("album_id", item.optFirstString("album_id"))
+                            .put("album_audio_id", item.optFirstString("album_audio_id", "audio_id"))
+                            .put("duration", item.optLong("duration", 0L))
+                            .put("artwork", cover)
+                            .put("coverImg", cover)
+                            .put("320hash", item.optFirstString("320hash"))
+                            .put("sqhash", item.optFirstString("sqhash"))
+                            .put("origin_hash", hash)
+                    )
+                }
+            }
+        }
     }
 
     private data class PluginHubEntry(

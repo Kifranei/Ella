@@ -140,21 +140,12 @@ fun FolderScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                IconButton(
-                    onClick = {
-                        if (!isScanning) mainViewModel.incrementalScanMusic()
-                    }
-                ) {
-                    Text(
-                        text = if (isScanning) "扫描中" else "增量",
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.primary
-                    )
-                }
                 IconButton(onClick = { folderPicker.launch(null) }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Add,
-                        contentDescription = "添加文件夹"
+                        contentDescription = "添加文件夹",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -176,14 +167,11 @@ fun FolderScreen(
                         mainViewModel.settingsManager.setScanIncludeFolders(
                             savedFolders.filterNot { it == folderPath }.joinToString("；")
                         )
-                        mainViewModel.incrementalScanMusic()
+                        mainViewModel.scanMusic()
                     }
                 },
                 onScan = {
                     if (!isScanning) mainViewModel.scanMusic()
-                },
-                onIncrementalScan = {
-                    if (!isScanning) mainViewModel.incrementalScanMusic()
                 }
             )
         }
@@ -388,8 +376,7 @@ private fun ScanStatusCard(scanProgress: Int) {
 private fun SavedScanFoldersCard(
     folders: List<String>,
     onRemove: (String) -> Unit,
-    onScan: () -> Unit,
-    onIncrementalScan: () -> Unit
+    onScan: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -411,8 +398,6 @@ private fun SavedScanFoldersCard(
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
-                Button(onClick = onIncrementalScan) { Text("增量") }
-                Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onScan) { Text("全量") }
             }
             folders.forEach { folder ->
@@ -485,7 +470,8 @@ internal fun WebDavBrowserCard(
                 IconButton(onClick = onRefresh) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "刷新"
+                        contentDescription = "刷新",
+                        tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -556,7 +542,8 @@ internal fun WebDavItemRow(
             IconButton(onClick = onClick) {
                 Icon(
                     imageVector = if (item.isDirectory) MiuixIcons.Basic.ArrowRight else MiuixIcons.Regular.Play,
-                    contentDescription = if (item.isDirectory) "打开" else "播放"
+                    contentDescription = if (item.isDirectory) "打开" else "播放",
+                    tint = MiuixTheme.colorScheme.onSurface
                 )
             }
         }
@@ -564,7 +551,8 @@ internal fun WebDavItemRow(
             IconButton(onClick = onAddToQueue) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Add,
-                    contentDescription = "加入播放列表"
+                    contentDescription = "加入播放列表",
+                    tint = MiuixTheme.colorScheme.onSurface
                 )
             }
         }

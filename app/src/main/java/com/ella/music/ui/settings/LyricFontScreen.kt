@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +68,8 @@ fun LyricFontScreen(
     val selectedFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
     val lyricFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     var fonts by remember { mutableStateOf(collectFontChoices(context)) }
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -83,6 +88,7 @@ fun LyricFontScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(pageBackground)
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
@@ -118,7 +124,7 @@ fun LyricFontScreen(
                     )
                 }
             },
-            color = MiuixTheme.colorScheme.background
+            color = pageBackground
         )
 
         LazyColumn(

@@ -16,7 +16,9 @@ data class Song(
     val trackNumber: Int = 0,
     val coverUrl: String = "",
     val onlineSource: String = "",
-    val onlineId: String = ""
+    val onlineId: String = "",
+    val onlineLyrics: String = "",
+    val onlineLyricTranslation: String = ""
 ) {
     val durationText: String
         get() {

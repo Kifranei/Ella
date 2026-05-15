@@ -244,6 +244,7 @@ The script builds FFmpeg through WSL with the Linux Android NDK.
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Liquid glass and backdrop blur effects |
 | [Coil](https://github.com/coil-kt/coil) | Image loading for Compose |
 | [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | Running LX Music API / MusicFree JavaScript sources |
+| [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree plugin protocol, import compatibility, and runtime adaptation reference |
 
 ---
 
@@ -282,4 +283,4 @@ The script builds FFmpeg through WSL with the Linux Android NDK.
 
 ## 📄 License
 
-Ella Music is licensed under **GPL-3.0-or-later**. See [LICENSE](LICENSE).
+Ella Music includes MusicFree-related compatibility code, so the project license has been changed to **AGPL-3.0-or-later**. See [LICENSE](LICENSE).

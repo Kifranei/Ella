@@ -563,6 +563,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun clearOnlineMetadataCache() {
+        repository.clearRemoteMetadataCache()
+    }
+
     private suspend fun reloadLyrics(song: Song, force: Boolean = false) {
         lastTickerPayload = null
         lastBluetoothLyricPayload = null

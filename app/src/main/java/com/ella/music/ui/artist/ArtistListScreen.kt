@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.Song
 import com.ella.music.data.splitArtistNames
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Job
@@ -73,7 +74,7 @@ fun ArtistListScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(ArtistSortMode.Name) }
+    val sortMode = ArtistSortMode.entries.getOrElse(LibrarySortUiState.artistListSortIndex) { ArtistSortMode.Name }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val artists = remember(songs, albums) { mainViewModel.getArtists() }
@@ -142,7 +143,7 @@ fun ArtistListScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                sortMode = mode
+                                LibrarySortUiState.artistListSortIndex = mode.ordinal
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp)

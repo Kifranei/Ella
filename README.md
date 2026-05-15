@@ -244,6 +244,7 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | 液态玻璃与背景模糊效果 |
 | [Coil](https://github.com/coil-kt/coil) | Compose 图片加载 |
 | [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | 运行 LX Music API / MusicFree JavaScript 音源 |
+| [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree 插件协议、导入兼容与运行时适配参考 |
 
 ---
 
@@ -282,4 +283,4 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 
 ## 📄 许可证
 
-Ella Music 使用 **GPL-3.0-or-later** 许可证。详见 [LICENSE](LICENSE)。
+Ella Music 使用了 MusicFree 相关兼容代码，因此许可证已调整为 **AGPL-3.0-or-later**。详见 [LICENSE](LICENSE)。

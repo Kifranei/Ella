@@ -537,8 +537,6 @@ private fun WordLine(
     )
 }
 
-private const val LONG_WORD_GLOW_MS = 650L
-
 private fun AnnotatedString.Builder.appendTimedLyricWord(
     text: String,
     startMs: Long,
@@ -556,15 +554,6 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
     when {
         isCurrent -> {
             val progress = ((currentPositionMs - startMs).toFloat() / durationMs).coerceIn(0f, 1f)
-            val glow = if (durationMs >= LONG_WORD_GLOW_MS) {
-                Shadow(
-                    color = currentColor.copy(alpha = 0.56f),
-                    offset = Offset.Zero,
-                    blurRadius = 18f
-                )
-            } else {
-                null
-            }
             appendStyledLyricText(
                 value = text,
                 color = currentColor,
@@ -574,7 +563,6 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
                     activeColor = currentColor,
                     pendingColor = pendingColor
                 ),
-                shadow = glow,
                 baselineShift = BaselineShift(0.045f)
             )
         }
@@ -619,15 +607,13 @@ private fun lyricSweepBrush(
     activeColor: Color,
     pendingColor: Color
 ): Brush {
-    val head = (progress - 0.045f).coerceIn(0f, 0.96f)
-    val edge = progress.coerceIn(head + 0.002f, 0.985f)
-    val tail = (progress + 0.090f).coerceIn(edge + 0.008f, 1f)
+    val edge = progress.coerceIn(0.002f, 0.998f)
+    val beforeEdge = (edge - 0.001f).coerceAtLeast(0f)
     return Brush.horizontalGradient(
         colorStops = arrayOf(
             0f to activeColor,
-            head to activeColor,
-            edge to Color.White.copy(alpha = activeColor.alpha),
-            tail to pendingColor,
+            beforeEdge to activeColor,
+            edge to pendingColor,
             1f to pendingColor
         )
     )

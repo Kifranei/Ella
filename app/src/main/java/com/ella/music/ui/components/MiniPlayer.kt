@@ -107,7 +107,7 @@ fun MiniPlayer(
     val useGlassLayout = liquidGlass
     val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
-    val glassSurface = if (isLight) Color(0xFFF8F8FA).copy(alpha = 0.48f) else Color(0xFF111114).copy(alpha = 0.58f)
+    val glassSurface = if (isLight) Color(0xFFF8F8FA).copy(alpha = 0.44f) else Color(0xFF111114).copy(alpha = 0.50f)
     val hasTranslation = !lyricTranslation.isNullOrBlank()
     val primaryText = lyricText ?: song.title
     val secondaryText = when {
@@ -165,7 +165,7 @@ fun MiniPlayer(
                             backdrop = glassBackdrop,
                             shape = { shape },
                             effects = {
-                                blur(30f.dp.toPx())
+                                blur(42f.dp.toPx())
                             },
                             highlight = { Highlight.Default.copy(alpha = if (isLight) 0.26f else 0.16f) },
                             shadow = { Shadow.Default.copy(color = Color.Black.copy(alpha = if (isLight) 0.12f else 0.30f)) },

@@ -36,17 +36,13 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.BuildConfig
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
-import com.ella.music.data.repository.MusicRepository
-import com.ella.music.ui.theme.THEME_DARK
-import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
-import com.ella.music.ui.theme.THEME_LIGHT
+import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.widget.Toast
 import org.json.JSONObject
-import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -65,52 +61,32 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToAnalytics: () -> Unit,
-    onNavigateToLxOnline: () -> Unit,
-    onNavigateToMusicFreeOnline: () -> Unit,
-    onNavigateToLyricFont: () -> Unit,
+    onNavigateToSettingsDetail: () -> Unit,
+    onNavigateToLyricSettings: () -> Unit,
     onNavigateToLogs: () -> Unit,
+    mainViewModel: MainViewModel? = null,
     playerViewModel: PlayerViewModel? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager(context) }
     val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
-    val cacheRepository = remember { MusicRepository(context) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
 
-    val autoScan by settingsManager.autoScan.collectAsState(initial = true)
     val gaplessPlayback by settingsManager.gaplessPlayback.collectAsState(initial = true)
-    val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
-    val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
-    val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
-    val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
-    val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
-    val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectAsState(initial = false)
-    val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
-    val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
-    val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsState(initial = false)
-    val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsState(initial = false)
-    val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val replayGainEnabled by settingsManager.replayGainEnabled.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
     val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
-    val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 1)
-    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
-    val themeLabels = listOf("跟随系统", "浅色", "深色")
-    val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
     val shuffleModeLabels = listOf("伪随机", "真随机")
     val selectedShuffleMode = shuffleMode.coerceIn(shuffleModeLabels.indices)
     val startupPlayLabels = listOf("关闭", "随机播放", "继续上一次")
     val selectedStartupPlayMode = startupPlayMode.coerceIn(startupPlayLabels.indices)
-    val themeEntries = remember { themeLabels.map { SpinnerEntry(title = it) } }
     val startupPlayEntries = remember {
         startupPlayLabels.mapIndexed { index, label ->
             SpinnerEntry(
@@ -199,17 +175,7 @@ fun SettingsScreen(
     ) {
         SmallTopAppBar(
             title = "设置",
-            color = pageBackground,
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            color = pageBackground
         )
 
         Column(
@@ -220,67 +186,20 @@ fun SettingsScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            SmallTitle(text = "外观")
+            SmallTitle(text = "应用")
 
             SettingsCardGroup {
                 Column {
-                    WindowSpinnerPreference(
-                        title = "主题模式",
-                        summary = "选择应用明暗外观",
-                        items = themeEntries,
-                        selectedIndex = selectedThemeMode,
-                        onSelectedIndexChange = { index ->
-                            scope.launch { settingsManager.setThemeMode(index) }
-                        }
+                    ArrowPreference(
+                        title = "应用偏好",
+                        summary = "外观和扫描相关设置",
+                        onClick = onNavigateToSettingsDetail
                     )
                     ArrowPreference(
-                        title = "歌词字体",
-                        summary = lyricFontName.ifBlank { "系统默认" },
-                        onClick = onNavigateToLyricFont
+                        title = "歌词",
+                        summary = "词幕、桌面歌词、状态栏歌词和车载歌词",
+                        onClick = onNavigateToLyricSettings
                     )
-                }
-            }
-
-            SmallTitle(text = "通用")
-
-            SettingsCardGroup {
-                Column {
-                SwitchPreference(
-                    title = "自动扫描",
-                    summary = "启动时自动扫描音乐文件",
-                    checked = autoScan,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setAutoScan(it) }
-                    }
-                )
-
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    Text(
-                        text = "最短时长过滤",
-                        fontSize = 15.sp,
-                        color = MiuixTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "过滤短于 ${minDurationSec} 秒的音频文件",
-                        fontSize = 13.sp,
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Slider(
-                        value = minDurationSec.toFloat() / 60f,
-                        onValueChange = { fraction ->
-                            val sec = (fraction * 60f).toInt().coerceIn(0, 60)
-                            scope.launch { settingsManager.setMinDurationSec(sec) }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Text(text = "0秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text(text = "60秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
-                    }
-                }
-
                 }
             }
 
@@ -337,6 +256,16 @@ fun SettingsScreen(
                 )
 
                     WindowSpinnerPreference(
+                        title = "启动后自动播放",
+                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
+                        items = startupPlayEntries,
+                        selectedIndex = selectedStartupPlayMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setStartupPlayMode(index) }
+                        }
+                    )
+
+                    WindowSpinnerPreference(
                         title = "随机播放模式",
                         summary = "当前：${shuffleModeLabels[selectedShuffleMode]}",
                         items = shuffleModeEntries,
@@ -359,159 +288,18 @@ fun SettingsScreen(
                 }
             }
 
-            SmallTitle(text = "歌词")
-
-            SettingsCardGroup {
-                Column {
-                SwitchPreference(
-                    title = "启用词幕",
-                    summary = "将歌词推送到词幕（Lyricon）",
-                    checked = lyriconEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setLyriconEnabled(enabled) }
-                        playerViewModel?.setLyriconEnabled(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "传递翻译",
-                    summary = "在词幕中显示歌词翻译",
-                    enabled = lyriconEnabled,
-                    checked = lyriconTranslation,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setLyriconTranslation(enabled) }
-                        playerViewModel?.setLyriconTranslation(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "启用桌面歌词",
-                    summary = "通过悬浮窗在其他应用上方显示当前歌词",
-                    checked = desktopLyricEnabled,
-                    onCheckedChange = { enabled ->
-                        if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
-                            Toast.makeText(context, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
-                            context.startActivity(
-                                Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${context.packageName}")
-                                )
-                            )
-                        } else {
-                            scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
-                            playerViewModel?.setDesktopLyricEnabled(enabled)
-                        }
-                    }
-                )
-
-                SwitchPreference(
-                    title = "启用 SuperLyric",
-                    summary = "向 SuperLyric 模块发布逐字歌词",
-                    checked = superLyricEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setSuperLyricEnabled(enabled) }
-                        playerViewModel?.setSuperLyricEnabled(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "SuperLyric 传递翻译",
-                    summary = "关闭后只传原文，不再把翻译行交给 SuperLyric",
-                    enabled = superLyricEnabled,
-                    checked = superLyricTranslation,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setSuperLyricTranslation(enabled) }
-                        playerViewModel?.setSuperLyricTranslation(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "启用 FLYme 状态栏歌词",
-                    summary = "在魅族设备上通过 Ticker 通知显示歌词",
-                    checked = tickerEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setTickerEnabled(enabled) }
-                        playerViewModel?.setTickerEnabled(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "Samsung 浮动歌词翻译",
-                    summary = "开启后把翻译写入通知正文，三星浮动通知可尝试双行显示。",
-                    enabled = tickerEnabled,
-                    checked = samsungFloatingLyricTranslation,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setSamsungFloatingLyricTranslation(enabled) }
-                        playerViewModel?.setSamsungFloatingLyricTranslation(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "启用蓝牙车载歌词",
-                    summary = "将当前歌词写入媒体标题，供蓝牙设备或车机显示。",
-                    checked = bluetoothLyricEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setBluetoothLyricEnabled(enabled) }
-                        playerViewModel?.setBluetoothLyricEnabled(enabled)
-                    }
-                )
-
-                SwitchPreference(
-                    title = "车载歌词传递翻译",
-                    summary = "开启后用当前歌词翻译替换媒体歌手行。",
-                    enabled = bluetoothLyricEnabled,
-                    checked = bluetoothLyricTranslation,
-                    onCheckedChange = { enabled ->
-                        scope.launch { settingsManager.setBluetoothLyricTranslation(enabled) }
-                        playerViewModel?.setBluetoothLyricTranslation(enabled)
-                    }
-                )
-                }
-            }
-
             SmallTitle(text = "其他")
 
             SettingsCardGroup {
                 Column {
-                    WindowSpinnerPreference(
-                        title = "启动后自动播放",
-                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
-                        items = startupPlayEntries,
-                        selectedIndex = selectedStartupPlayMode,
-                        onSelectedIndexChange = { index ->
-                            scope.launch { settingsManager.setStartupPlayMode(index) }
-                        }
-                    )
-                    SwitchPreference(
-                        title = "播放后进入播放页",
-                        summary = "本地、WebDAV 和在线歌曲点播放后自动打开播放界面",
-                        checked = openPlayerOnPlay,
-                        onCheckedChange = {
-                            scope.launch { settingsManager.setOpenPlayerOnPlay(it) }
-                        }
-                    )
-                    ArrowPreference(
-                        title = "歌曲库分析",
-                        summary = "查看音质占比、听歌时长和播放次数排行",
-                        onClick = onNavigateToAnalytics
-                    )
-                    ArrowPreference(
-                        title = "LX 在线音乐",
-                        summary = "导入 LX API 源并搜索在线播放",
-                        onClick = onNavigateToLxOnline
-                    )
-                    ArrowPreference(
-                        title = "MusicFree 在线音乐",
-                        summary = "导入 MusicFree 插件源并搜索在线播放",
-                        onClick = onNavigateToMusicFreeOnline
-                    )
                     ArrowPreference(
                         title = "清除封面歌词缓存",
-                        summary = "清除 WebDAV 首次播放时缓存的封面和内嵌歌词文件",
+                        summary = "清除 WebDAV、LX 和 MusicFree 的封面、歌词与远程元数据缓存",
                         onClick = {
                             scope.launch {
-                                cacheRepository.clearRemoteMetadataCache()
-                                Toast.makeText(context, "封面歌词缓存已清除", Toast.LENGTH_SHORT).show()
+                                mainViewModel?.clearOnlineMetadataCache()
+                                playerViewModel?.clearOnlineMetadataCache()
+                                Toast.makeText(context, "在线封面歌词缓存已清除", Toast.LENGTH_SHORT).show()
                             }
                         }
                     )
@@ -525,6 +313,256 @@ fun SettingsScreen(
                         summary = "Ella Music v${BuildConfig.VERSION_NAME}",
                         onClick = onNavigateToAbout
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+    }
+}
+
+@Composable
+fun SettingsDetailScreen(
+    onBack: () -> Unit,
+    onNavigateToLyricFont: () -> Unit,
+    playerViewModel: PlayerViewModel? = null,
+    showOnlyLyrics: Boolean = false
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager(context) }
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+
+    val autoScan by settingsManager.autoScan.collectAsState(initial = true)
+    val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
+    val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
+    val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
+    val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
+    val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
+    val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectAsState(initial = false)
+    val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
+    val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
+    val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsState(initial = false)
+    val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsState(initial = false)
+    val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
+    val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
+    val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
+    val themeLabels = listOf("跟随系统", "浅色", "深色")
+    val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
+    val themeEntries = remember { themeLabels.map { SpinnerEntry(title = it) } }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        SmallTopAppBar(
+            title = if (showOnlyLyrics) "歌词" else "应用偏好",
+            color = pageBackground,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (!showOnlyLyrics) {
+                SmallTitle(text = "外观")
+
+                SettingsCardGroup {
+                    Column {
+                        WindowSpinnerPreference(
+                            title = "主题模式",
+                            summary = "选择应用明暗外观",
+                            items = themeEntries,
+                            selectedIndex = selectedThemeMode,
+                            onSelectedIndexChange = { index ->
+                                scope.launch { settingsManager.setThemeMode(index) }
+                            }
+                        )
+                        SwitchPreference(
+                            title = "播放后进入播放页",
+                            summary = "本地、WebDAV 和在线歌曲点播放后自动打开播放界面",
+                            checked = openPlayerOnPlay,
+                            onCheckedChange = {
+                                scope.launch { settingsManager.setOpenPlayerOnPlay(it) }
+                            }
+                        )
+                        ArrowPreference(
+                            title = "歌词字体",
+                            summary = lyricFontName.ifBlank { "系统默认" },
+                            onClick = onNavigateToLyricFont
+                        )
+                    }
+                }
+
+                SmallTitle(text = "扫描")
+
+                SettingsCardGroup {
+                    Column {
+                        SwitchPreference(
+                            title = "自动扫描",
+                            summary = "启动时自动扫描音乐文件",
+                            checked = autoScan,
+                            onCheckedChange = {
+                                scope.launch { settingsManager.setAutoScan(it) }
+                            }
+                        )
+
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Text(
+                                text = "最短时长过滤",
+                                fontSize = 15.sp,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "过滤短于 ${minDurationSec} 秒的音频文件",
+                                fontSize = 13.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Slider(
+                                value = minDurationSec.toFloat() / 60f,
+                                onValueChange = { fraction ->
+                                    val sec = (fraction * 60f).toInt().coerceIn(0, 60)
+                                    scope.launch { settingsManager.setMinDurationSec(sec) }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Text(text = "0秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Text(text = "60秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showOnlyLyrics) {
+                SmallTitle(text = "歌词")
+
+                SettingsCardGroup {
+                    Column {
+                    SwitchPreference(
+                        title = "启用词幕",
+                        summary = "将歌词推送到词幕（Lyricon）",
+                        checked = lyriconEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setLyriconEnabled(enabled) }
+                            playerViewModel?.setLyriconEnabled(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "传递翻译",
+                        summary = "在词幕中显示歌词翻译",
+                        enabled = lyriconEnabled,
+                        checked = lyriconTranslation,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setLyriconTranslation(enabled) }
+                            playerViewModel?.setLyriconTranslation(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "启用桌面歌词",
+                        summary = "通过悬浮窗在其他应用上方显示当前歌词",
+                        checked = desktopLyricEnabled,
+                        onCheckedChange = { enabled ->
+                            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                                Toast.makeText(context, "请先授予悬浮窗权限", Toast.LENGTH_SHORT).show()
+                                context.startActivity(
+                                    Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    )
+                                )
+                            } else {
+                                scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
+                                playerViewModel?.setDesktopLyricEnabled(enabled)
+                            }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "启用 SuperLyric",
+                        summary = "向 SuperLyric 模块发布逐字歌词",
+                        checked = superLyricEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setSuperLyricEnabled(enabled) }
+                            playerViewModel?.setSuperLyricEnabled(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "SuperLyric 传递翻译",
+                        summary = "关闭后只传原文，不再把翻译行交给 SuperLyric",
+                        enabled = superLyricEnabled,
+                        checked = superLyricTranslation,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setSuperLyricTranslation(enabled) }
+                            playerViewModel?.setSuperLyricTranslation(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "启用 FLYme 状态栏歌词",
+                        summary = "在魅族设备上通过 Ticker 通知显示歌词",
+                        checked = tickerEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setTickerEnabled(enabled) }
+                            playerViewModel?.setTickerEnabled(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "Samsung 浮动歌词翻译",
+                        summary = "开启后把翻译写入通知正文，三星浮动通知可尝试双行显示。",
+                        enabled = tickerEnabled,
+                        checked = samsungFloatingLyricTranslation,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setSamsungFloatingLyricTranslation(enabled) }
+                            playerViewModel?.setSamsungFloatingLyricTranslation(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "启用蓝牙车载歌词",
+                        summary = "将当前歌词写入媒体标题，供蓝牙设备或车机显示。",
+                        checked = bluetoothLyricEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setBluetoothLyricEnabled(enabled) }
+                            playerViewModel?.setBluetoothLyricEnabled(enabled)
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "车载歌词传递翻译",
+                        summary = "开启后用当前歌词翻译替换媒体歌手行。",
+                        enabled = bluetoothLyricEnabled,
+                        checked = bluetoothLyricTranslation,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setBluetoothLyricTranslation(enabled) }
+                            playerViewModel?.setBluetoothLyricTranslation(enabled)
+                        }
+                    )
+                    }
                 }
             }
 

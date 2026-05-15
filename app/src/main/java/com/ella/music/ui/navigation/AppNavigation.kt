@@ -28,6 +28,7 @@ import com.ella.music.ui.online.MusicFreeOnlineScreen
 import com.ella.music.ui.player.PlayerScreen
 import com.ella.music.ui.settings.LyricFontScreen
 import com.ella.music.ui.settings.LogScreen
+import com.ella.music.ui.settings.SettingsDetailScreen
 import com.ella.music.ui.settings.SettingsScreen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -49,6 +50,8 @@ sealed class Screen(val route: String) {
         fun createRoute(folderPath: String) = "folder/${java.net.URLEncoder.encode(folderPath, "UTF-8")}"
     }
     data object Settings : Screen("settings")
+    data object SettingsDetail : Screen("settings_detail")
+    data object LyricSettings : Screen("lyric_settings")
     data object LyricFont : Screen("lyric_font")
     data object Logs : Screen("logs")
     data object LxOnline : Screen("lx_online")
@@ -90,7 +93,8 @@ fun AppNavigation(
                 onNavigateToArtist = { navController.navigate(Screen.Artist.route) },
                 onNavigateToAlbum = { navController.navigate(Screen.Album.route) },
                 onNavigateToFolder = { navController.navigate(Screen.Folder.route) },
-                onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
+                onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
+                onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
             )
@@ -196,14 +200,28 @@ fun AppNavigation(
 
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
                 onNavigateToAbout = { navController.navigate(Screen.About.route) },
-                onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
-                onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
-                onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
-                onNavigateToLyricFont = { navController.navigate(Screen.LyricFont.route) },
+                onNavigateToSettingsDetail = { navController.navigate(Screen.SettingsDetail.route) },
+                onNavigateToLyricSettings = { navController.navigate(Screen.LyricSettings.route) },
                 onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
+                mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel
+            )
+        }
+
+        composable(Screen.SettingsDetail.route) {
+            SettingsDetailScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToLyricFont = { navController.navigate(Screen.LyricFont.route) }
+            )
+        }
+
+        composable(Screen.LyricSettings.route) {
+            SettingsDetailScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToLyricFont = { navController.navigate(Screen.LyricFont.route) },
+                playerViewModel = playerViewModel,
+                showOnlyLyrics = true
             )
         }
 

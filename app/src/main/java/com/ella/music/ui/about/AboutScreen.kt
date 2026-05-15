@@ -172,7 +172,7 @@ private fun AboutContent(
         isDarkTheme = isDark,
         alpha = {
             val fade = 1f - scrollProgress
-            if (isDark) 0.82f * fade else fade
+            if (isDark) 0.42f + 0.40f * fade else fade
         },
     ) {
         Column(
@@ -279,6 +279,11 @@ private fun AboutContent(
                         summary = "github.com/Kifranei/Ella",
                         onClick = { uriHandler.openUri("https://github.com/Kifranei/Ella") },
                     )
+                    BasicComponent(
+                        title = "开源许可证",
+                        summary = "AGPL-3.0-or-later",
+                        onClick = { uriHandler.openUri("https://www.gnu.org/licenses/agpl-3.0.html") },
+                    )
                 }
             }
 
@@ -361,14 +366,18 @@ private fun AboutContent(
                     )
                     BasicComponent(
                         title = "MusicFree",
-                        summary = "在线音乐插件协议与插件生态参考",
+                        summary = "AGPLv3；在线音乐插件协议、导入兼容与运行时适配参考",
                         onClick = { uriHandler.openUri("https://github.com/maotoumao/MusicFree") },
                     )
                 }
             }
 
             item {
-                Spacer(Modifier.navigationBarsPadding())
+                Spacer(
+                    Modifier
+                        .height(160.dp)
+                        .navigationBarsPadding()
+                )
             }
         }
     }
@@ -388,7 +397,7 @@ private fun FrostedCard(
             .padding(horizontal = 12.dp)
             .padding(bottom = 12.dp)
             .then(
-                if (blurEnable) Modifier.textureBlur(
+                if (blurEnable && !isDark) Modifier.textureBlur(
                     backdrop = backdrop,
                     shape = RoundedCornerShape(16.dp),
                     blurRadius = 64f,
@@ -399,7 +408,7 @@ private fun FrostedCard(
             ),
         colors = CardDefaults.defaultColors(
             if (isDark) {
-                Color(0x4D52608E)
+                Color(0xFF222224)
             } else if (blurEnable) {
                 Color.Transparent
             } else {

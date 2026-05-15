@@ -17,6 +17,17 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
 
+    <queries>
+        <package android:name="com.lonx.lyrico" />
+        <package android:name="com.example.LyricBox" />
+        <package android:name="com.example.lyricbox" />
+        <package android:name="com.xjcheng.musictageditor" />
+        <intent>
+            <action android:name="com.lonx.lyrico.action.EDIT_TAG" />
+            <data android:mimeType="audio/*" />
+        </intent>
+    </queries>
+
     <application
         android:name=".EllaApp"
         android:allowBackup="true"
@@ -55,5 +66,15 @@
         <service
             android:name=".player.DesktopLyricService"
             android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

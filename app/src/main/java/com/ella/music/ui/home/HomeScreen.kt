@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -87,7 +88,7 @@ fun LibraryScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var sortMode by remember { mutableStateOf(HomeSortMode.Title) }
+    val sortMode = HomeSortMode.entries.getOrElse(LibrarySortUiState.librarySongSortIndex) { HomeSortMode.Title }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var listCoversEnabled by remember { mutableStateOf(false) }
@@ -202,7 +203,7 @@ fun LibraryScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                sortMode = mode
+                                LibrarySortUiState.librarySongSortIndex = mode.ordinal
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),

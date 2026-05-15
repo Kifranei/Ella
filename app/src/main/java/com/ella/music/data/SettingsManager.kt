@@ -50,7 +50,6 @@ class SettingsManager(private val context: Context) {
         val KEY_LYRIC_SOURCE_MODE = intPreferencesKey("lyric_source_mode")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
-        val KEY_PLAYER_FLOW_EFFECT_MODE = intPreferencesKey("player_flow_effect_mode")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
         val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
@@ -88,7 +87,6 @@ class SettingsManager(private val context: Context) {
         const val LYRIC_SOURCE_EMBEDDED = 2
 
         const val PLAYER_FLOW_EFFECT_DARK = 0
-        const val PLAYER_FLOW_EFFECT_LIGHT = 1
     }
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: false }
@@ -111,8 +109,6 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_LYRIC_SOURCE_MODE] ?: LYRIC_SOURCE_AUTO }
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
-    val playerFlowEffectMode: Flow<Int> =
-        context.dataStore.data.map { it[KEY_PLAYER_FLOW_EFFECT_MODE] ?: PLAYER_FLOW_EFFECT_DARK }
     val audioVisualizerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
     val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
@@ -229,12 +225,6 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setPlayerHdrGlow(enabled: Boolean) {
         context.dataStore.edit { it[KEY_PLAYER_HDR_GLOW] = enabled }
-    }
-
-    suspend fun setPlayerFlowEffectMode(mode: Int) {
-        context.dataStore.edit {
-            it[KEY_PLAYER_FLOW_EFFECT_MODE] = mode.coerceIn(PLAYER_FLOW_EFFECT_DARK, PLAYER_FLOW_EFFECT_LIGHT)
-        }
     }
 
     suspend fun setAudioVisualizerEnabled(enabled: Boolean) {
@@ -464,7 +454,6 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_SHUFFLE_MODE)
             setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
-            setInt(KEY_PLAYER_FLOW_EFFECT_MODE)
             setInt(KEY_DECODER_MODE)
             setInt(KEY_LYRIC_FONT_WEIGHT)
 

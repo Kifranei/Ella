@@ -76,14 +76,15 @@ fun LxOnlineScreen(
     val service = remember(context) { LxOnlineService(context) }
     val scope = rememberCoroutineScope()
 
-    val sources by settingsManager.lxSources.collectAsState(initial = emptyList())
+    val loadedSources by settingsManager.lxSources.collectAsState(initial = null)
+    val sources = loadedSources.orEmpty()
     val selectedSourceId by settingsManager.selectedLxSourceId.collectAsState(initial = "")
     val selectedSource = remember(sources, selectedSourceId) {
         sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
     }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
-    LaunchedEffect(sources.isEmpty()) {
-        if (sources.isEmpty() && state.results.isEmpty()) {
+    LaunchedEffect(loadedSources) {
+        if (loadedSources != null && sources.isEmpty() && state.results.isEmpty()) {
             state.importExpanded = true
         }
     }
@@ -218,20 +219,6 @@ fun LxOnlineScreen(
                                     }
                                 ) {
                                     Text(text = if (state.isBusy) "导入中" else "URL 导入")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    enabled = selectedSource != null && !state.isBusy,
-                                    onClick = {
-                                        scope.launch {
-                                            selectedSource?.let { source ->
-                                                settingsManager.removeLxSource(source.id)
-                                                state.message = "已移除 ${source.name}"
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Text(text = "移除当前")
                                 }
                             }
                             if (sources.isNotEmpty()) {

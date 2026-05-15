@@ -1,6 +1,9 @@
 package com.ella.music.ui.artist
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
+import com.ella.music.data.model.Song
+import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SongItem
 import com.ella.music.viewmodel.MainViewModel
@@ -47,7 +54,9 @@ import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.MapAlbum
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.Locale
 
 @Composable
 fun ArtistScreen(
@@ -62,10 +71,13 @@ fun ArtistScreen(
     val albums by mainViewModel.albums.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
+    var sortExpanded by remember { mutableStateOf(false) }
+    val sortMode = ArtistDetailSongSortMode.entries.getOrElse(LibrarySortUiState.artistDetailSongSortIndex) { ArtistDetailSongSortMode.Title }
 
     val artistSongs = remember(songs, artistName) {
         mainViewModel.getSongsForArtist(artistName)
     }
+    val sortedArtistSongs = remember(artistSongs, sortMode) { artistSongs.sortedForArtistDetail(sortMode) }
     val artistAlbums = remember(albums, songs, artistName) {
         mainViewModel.getAlbumsForArtist(artistName)
     }
@@ -86,11 +98,11 @@ fun ArtistScreen(
                 ArtistHeader(
                     artistName = artistName,
                     coverUri = artistCoverUri,
-                    songCount = artistSongs.size,
+                    songCount = sortedArtistSongs.size,
                     albumCount = artistAlbums.size,
                     onPlayAll = {
-                        if (artistSongs.isNotEmpty()) {
-                            playerViewModel.setPlaylist(artistSongs, 0)
+                        if (sortedArtistSongs.isNotEmpty()) {
+                            playerViewModel.setPlaylist(sortedArtistSongs, 0)
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         }
                     }
@@ -101,7 +113,16 @@ fun ArtistScreen(
                 SectionTitle("歌曲")
             }
 
-            itemsIndexed(artistSongs) { index, song ->
+            item {
+                Text(
+                    text = "${sortedArtistSongs.size} 首歌曲 · ${sortMode.label}",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+
+            itemsIndexed(sortedArtistSongs) { index, song ->
                 SongItem(
                     song = song,
                     isCurrent = currentSong?.id == song.id,
@@ -109,7 +130,7 @@ fun ArtistScreen(
                     loadCoverArt = mainViewModel::getCoverArtBitmap,
                     loadAudioInfo = mainViewModel::getAudioInfo,
                     onClick = {
-                        playerViewModel.setPlaylist(artistSongs, index)
+                        playerViewModel.setPlaylist(sortedArtistSongs, index)
                         if (openPlayerOnPlay) onNavigateToPlayer()
                     },
                     onAddToQueue = { playerViewModel.addToPlaylist(song) }
@@ -152,6 +173,55 @@ fun ArtistScreen(
                 tint = Color.White,
                 modifier = Modifier.size(26.dp)
             )
+        }
+
+        IconButton(
+            onClick = { sortExpanded = !sortExpanded },
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(end = 8.dp, top = 8.dp)
+                .size(48.dp)
+                .align(Alignment.TopEnd)
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Sort,
+                contentDescription = "排序",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = sortExpanded,
+            enter = expandVertically(),
+            exit = shrinkVertically(),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 60.dp, end = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.94f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                ArtistDetailSongSortMode.entries.forEach { mode ->
+                    Text(
+                        text = mode.label,
+                        fontSize = 14.sp,
+                        fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
+                        color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                LibrarySortUiState.artistDetailSongSortIndex = mode.ordinal
+                                sortExpanded = false
+                            }
+                            .padding(vertical = 10.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -256,6 +326,28 @@ private fun SectionTitle(text: String) {
         color = MiuixTheme.colorScheme.onBackground.copy(alpha = 0.88f),
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
     )
+}
+
+private enum class ArtistDetailSongSortMode(val label: String) {
+    Title("歌曲名称"),
+    AlbumTrack("专辑曲序"),
+    FileName("文件名"),
+    DateAdded("添加时间"),
+    DateModified("修改时间")
+}
+
+private fun List<Song>.sortedForArtistDetail(mode: ArtistDetailSongSortMode): List<Song> {
+    return when (mode) {
+        ArtistDetailSongSortMode.Title -> sortedBy { it.title.lowercase(Locale.ROOT) }
+        ArtistDetailSongSortMode.AlbumTrack -> sortedWith(
+            compareBy<Song> { it.album.lowercase(Locale.ROOT) }
+                .thenBy { if (it.trackNumber > 0) it.trackNumber else Int.MAX_VALUE }
+                .thenBy { it.title.lowercase(Locale.ROOT) }
+        )
+        ArtistDetailSongSortMode.FileName -> sortedBy { it.fileName.ifBlank { it.path.substringAfterLast('/') }.lowercase(Locale.ROOT) }
+        ArtistDetailSongSortMode.DateAdded -> sortedByDescending { it.dateAdded }
+        ArtistDetailSongSortMode.DateModified -> sortedByDescending { it.dateModified }
+    }
 }
 
 @Composable
