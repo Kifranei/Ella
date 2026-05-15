@@ -64,14 +64,104 @@ fun SettingsScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToSettingsDetail: () -> Unit,
     onNavigateToLyricSettings: () -> Unit,
+    onNavigateToAudioSettings: () -> Unit,
+    onNavigateToBackupSettings: () -> Unit,
     onNavigateToLogs: () -> Unit,
     mainViewModel: MainViewModel? = null,
     playerViewModel: PlayerViewModel? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        SmallTopAppBar(
+            title = "设置",
+            color = pageBackground
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            SmallTitle(text = "应用")
+
+            SettingsCardGroup {
+                Column {
+                    ArrowPreference(
+                        title = "应用偏好",
+                        summary = "外观和扫描相关设置",
+                        onClick = onNavigateToSettingsDetail
+                    )
+                    ArrowPreference(
+                        title = "歌词",
+                        summary = "词幕、桌面歌词、状态栏歌词和车载歌词",
+                        onClick = onNavigateToLyricSettings
+                    )
+                    ArrowPreference(
+                        title = "音频",
+                        summary = "播放、解码、随机和音频焦点",
+                        onClick = onNavigateToAudioSettings
+                    )
+                    ArrowPreference(
+                        title = "备份",
+                        summary = "导出和恢复设置、听歌历史与统计数据",
+                        onClick = onNavigateToBackupSettings
+                    )
+                }
+            }
+
+            SmallTitle(text = "其他")
+
+            SettingsCardGroup {
+                Column {
+                    ArrowPreference(
+                        title = "清除封面歌词缓存",
+                        summary = "清除 WebDAV、LX 和 MusicFree 的封面、歌词与远程元数据缓存",
+                        onClick = {
+                            scope.launch {
+                                mainViewModel?.clearOnlineMetadataCache()
+                                playerViewModel?.clearOnlineMetadataCache()
+                                Toast.makeText(context, "在线封面歌词缓存已清除", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                    ArrowPreference(
+                        title = "日志",
+                        summary = "查看详细日志、警告和闪退记录",
+                        onClick = onNavigateToLogs
+                    )
+                    ArrowPreference(
+                        title = "关于",
+                        summary = "Ella Music v${BuildConfig.VERSION_NAME}",
+                        onClick = onNavigateToAbout
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+    }
+}
+
+@Composable
+fun AudioSettingsScreen(
+    onBack: () -> Unit,
+    playerViewModel: PlayerViewModel? = null
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager(context) }
-    val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
 
@@ -122,6 +212,116 @@ fun SettingsScreen(
             )
         }
     }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(pageBackground)
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        SmallTopAppBar(
+            title = "音频",
+            color = pageBackground,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            SmallTitle(text = "播放")
+
+            SettingsCardGroup {
+                Column {
+                    SwitchPreference(
+                        title = "无缝播放",
+                        summary = "歌曲之间无间隙切换",
+                        checked = gaplessPlayback,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setGaplessPlayback(it) }
+                        }
+                    )
+                    SwitchPreference(
+                        title = "ReplayGain 音量均衡",
+                        summary = "根据音频标签自动调整播放音量",
+                        checked = replayGainEnabled,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setReplayGainEnabled(it) }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = "启动后自动播放",
+                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
+                        items = startupPlayEntries,
+                        selectedIndex = selectedStartupPlayMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setStartupPlayMode(index) }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = "随机播放模式",
+                        summary = "当前：${shuffleModeLabels[selectedShuffleMode]}",
+                        items = shuffleModeEntries,
+                        selectedIndex = selectedShuffleMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setShuffleMode(index) }
+                            playerViewModel?.setShuffleMode(index)
+                        }
+                    )
+                }
+            }
+
+            SmallTitle(text = "系统")
+
+            SettingsCardGroup {
+                Column {
+                    SwitchPreference(
+                        title = "关闭音频焦点",
+                        summary = "开启后播放时不再抢占其他应用音频焦点，重启播放器服务后生效",
+                        checked = audioFocusDisabled,
+                        onCheckedChange = {
+                            scope.launch { settingsManager.setAudioFocusDisabled(it) }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = "解码器",
+                        summary = "当前：${decoderLabels[selectedDecoderMode]}",
+                        items = decoderEntries,
+                        selectedIndex = selectedDecoderMode,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setDecoderMode(index) }
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(160.dp))
+        }
+    }
+}
+
+@Composable
+fun BackupSettingsScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsManager = remember { SettingsManager(context) }
+    val playbackStatsStore = remember { PlaybackStatsStore.getInstance(context) }
+    val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
+    val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -174,8 +374,18 @@ fun SettingsScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         SmallTopAppBar(
-            title = "设置",
-            color = pageBackground
+            title = "备份",
+            color = pageBackground,
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         )
 
         Column(
@@ -185,30 +395,12 @@ fun SettingsScreen(
                 .padding(horizontal = 12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-
-            SmallTitle(text = "应用")
-
-            SettingsCardGroup {
-                Column {
-                    ArrowPreference(
-                        title = "应用偏好",
-                        summary = "外观和扫描相关设置",
-                        onClick = onNavigateToSettingsDetail
-                    )
-                    ArrowPreference(
-                        title = "歌词",
-                        summary = "词幕、桌面歌词、状态栏歌词和车载歌词",
-                        onClick = onNavigateToLyricSettings
-                    )
-                }
-            }
-
             SmallTitle(text = "备份")
 
             SettingsCardGroup {
                 Column {
                     ArrowPreference(
-                        title = "备份设置和听歌统计",
+                        title = "导出设置和听歌统计",
                         summary = "导出设置、听歌历史和排行热力图数据",
                         onClick = {
                             exportLauncher.launch("ella_backup_${System.currentTimeMillis()}.json")
@@ -220,98 +412,6 @@ fun SettingsScreen(
                         onClick = {
                             importLauncher.launch(arrayOf("application/json", "text/json", "text/*"))
                         }
-                    )
-                }
-            }
-
-            SmallTitle(text = "音频")
-
-            SettingsCardGroup {
-                Column {
-                SwitchPreference(
-                    title = "无缝播放",
-                    summary = "歌曲之间无间隙切换",
-                    checked = gaplessPlayback,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setGaplessPlayback(it) }
-                    }
-                )
-
-                SwitchPreference(
-                    title = "ReplayGain 音量均衡",
-                    summary = "根据音频标签自动调整播放音量",
-                    checked = replayGainEnabled,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setReplayGainEnabled(it) }
-                    }
-                )
-
-                SwitchPreference(
-                    title = "关闭音频焦点",
-                    summary = "开启后播放时不再抢占其他应用音频焦点，重启播放器服务后生效",
-                    checked = audioFocusDisabled,
-                    onCheckedChange = {
-                        scope.launch { settingsManager.setAudioFocusDisabled(it) }
-                    }
-                )
-
-                    WindowSpinnerPreference(
-                        title = "启动后自动播放",
-                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
-                        items = startupPlayEntries,
-                        selectedIndex = selectedStartupPlayMode,
-                        onSelectedIndexChange = { index ->
-                            scope.launch { settingsManager.setStartupPlayMode(index) }
-                        }
-                    )
-
-                    WindowSpinnerPreference(
-                        title = "随机播放模式",
-                        summary = "当前：${shuffleModeLabels[selectedShuffleMode]}",
-                        items = shuffleModeEntries,
-                        selectedIndex = selectedShuffleMode,
-                        onSelectedIndexChange = { index ->
-                            scope.launch { settingsManager.setShuffleMode(index) }
-                            playerViewModel?.setShuffleMode(index)
-                        }
-                    )
-
-                    WindowSpinnerPreference(
-                        title = "解码器",
-                        summary = "当前：${decoderLabels[selectedDecoderMode]}",
-                        items = decoderEntries,
-                        selectedIndex = selectedDecoderMode,
-                        onSelectedIndexChange = { index ->
-                            scope.launch { settingsManager.setDecoderMode(index) }
-                        }
-                    )
-                }
-            }
-
-            SmallTitle(text = "其他")
-
-            SettingsCardGroup {
-                Column {
-                    ArrowPreference(
-                        title = "清除封面歌词缓存",
-                        summary = "清除 WebDAV、LX 和 MusicFree 的封面、歌词与远程元数据缓存",
-                        onClick = {
-                            scope.launch {
-                                mainViewModel?.clearOnlineMetadataCache()
-                                playerViewModel?.clearOnlineMetadataCache()
-                                Toast.makeText(context, "在线封面歌词缓存已清除", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    )
-                    ArrowPreference(
-                        title = "日志",
-                        summary = "查看详细日志、警告和闪退记录",
-                        onClick = onNavigateToLogs
-                    )
-                    ArrowPreference(
-                        title = "关于",
-                        summary = "Ella Music v${BuildConfig.VERSION_NAME}",
-                        onClick = onNavigateToAbout
                     )
                 }
             }

@@ -21,7 +21,6 @@
         <package android:name="com.lonx.lyrico" />
         <package android:name="com.example.LyricBox" />
         <package android:name="com.example.lyricbox" />
-        <package android:name="com.xjcheng.musictageditor" />
         <intent>
             <action android:name="com.lonx.lyrico.action.EDIT_TAG" />
             <data android:mimeType="audio/*" />

@@ -81,7 +81,10 @@ fun HomeScreen(
     }
     val songsById = remember(songs) { songs.associateBy { it.id } }
     val recentSongs = remember(history, songsById) {
-        history.take(5).mapNotNull { entry -> songsById[entry.songId] }
+        history
+            .distinctBy { it.songId }
+            .take(5)
+            .mapNotNull { entry -> songsById[entry.songId] }
     }
 
     Column(

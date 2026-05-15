@@ -3,6 +3,7 @@ package com.ella.music.ui.player
 import android.content.ContentUris
 import android.content.Context
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.DownloadManager
 import android.Manifest
 import android.media.AudioDeviceInfo
@@ -28,6 +29,7 @@ import androidx.core.content.FileProvider
 import android.os.Environment
 import android.provider.Settings
 import android.provider.MediaStore
+import android.view.View
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -113,6 +115,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -131,6 +134,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.media3.common.Player
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.audioQualitySummary
@@ -171,6 +175,7 @@ fun PlayerScreen(
     onNavigateToArtist: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager(context) }
@@ -234,6 +239,9 @@ fun PlayerScreen(
     )
     val topDragLimitPx = with(density) { 132.dp.toPx() }
     val dismissThresholdPx = with(density) { 112.dp.toPx() }
+    LaunchedEffect(landscapeExpanded) {
+        setPlayerSystemBars(context.findActivity(), view)
+    }
     val dragCornerRadius by animateDpAsState(
         targetValue = if (dragDismissOffset > 1f) 28.dp else 0.dp,
         animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
@@ -1149,13 +1157,17 @@ private fun LandscapeLyricsOverlay(
     modifier: Modifier = Modifier
 ) {
     val activity = LocalContext.current.findActivity()
+    val view = LocalView.current
     DisposableEffect(activity) {
         val oldOrientation = activity?.requestedOrientation
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        setPlayerSystemBars(activity, view)
         onDispose {
             if (oldOrientation != null) {
                 activity.requestedOrientation = oldOrientation
             }
+            setPlayerSystemBars(activity, view)
+            view.post { setPlayerSystemBars(activity, view) }
         }
     }
     BackHandler(onBack = onDismiss)
@@ -3514,6 +3526,19 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private fun setPlayerSystemBars(activity: Activity?, view: View) {
+    val window = activity?.window ?: return
+    window.statusBarColor = android.graphics.Color.TRANSPARENT
+    window.navigationBarColor = android.graphics.Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.isNavigationBarContrastEnforced = false
+    }
+    WindowCompat.getInsetsController(window, view).apply {
+        isAppearanceLightStatusBars = false
+        isAppearanceLightNavigationBars = false
+    }
+}
+
 @Composable
 private fun rememberBluetoothOutputName(): String? {
     val context = LocalContext.current
@@ -3606,89 +3631,116 @@ private fun openExternalTagEditor(context: Context, song: Song) {
         label: String,
         action: String? = null,
         component: ComponentName? = null,
-        packageName: String? = null
+        packageName: String? = null,
+        dataUri: Uri = editUri,
+        streamUri: Uri = editUri
     ): Intent {
         return Intent(action ?: Intent.ACTION_EDIT).apply {
             component?.let { setComponent(it) }
             packageName?.let { setPackage(it) }
-            setDataAndType(editUri, mimeType)
-            putExtra(Intent.EXTRA_STREAM, editUri)
+            setDataAndType(dataUri, mimeType)
+            putExtra(Intent.EXTRA_STREAM, streamUri)
             putExtra(Intent.EXTRA_TITLE, "${song.title} - ${song.artist}")
             putExtra("title", song.title)
             putExtra("artist", song.artist)
             putExtra("album", song.album)
             putExtra("path", song.path)
             putExtra("filePath", song.path)
-            putExtra("uri", editUri.toString())
+            putExtra("id", song.id)
+            putExtra("songId", song.id)
+            putExtra("mediaId", song.id)
+            putExtra("uri", dataUri.toString())
             putExtra("mediaStoreUri", mediaStoreUri.toString())
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            clipData = ClipData.newUri(context.contentResolver, label, editUri)
+            clipData = ClipData.newUri(context.contentResolver, label, dataUri)
         }
     }
 
-    val candidates = listOf(
-        tagEditorIntent(
-            label = "Lyrico",
-            action = "com.lonx.lyrico.action.EDIT_TAG"
-        ),
-        tagEditorIntent(
-            label = "Lyrico",
-            action = Intent.ACTION_EDIT,
-            packageName = "com.lonx.lyrico"
-        ),
-        tagEditorIntent(
-            label = "LunaBeat",
-            component = ComponentName("com.example.LyricBox", "com.example.LyricBox.SongMetadataEditActivity")
-        ),
-        tagEditorIntent(
-            label = "LunaBeat",
-            component = ComponentName("com.example.lyricbox", "com.example.LyricBox.SongMetadataEditActivity")
-        ),
-        tagEditorIntent(
-            label = "音乐标签",
-            component = ComponentName("com.xjcheng.musictageditor", "com.xjcheng.musictageditor.SongDetailActivity")
-        )
-    ).distinctBy { intent ->
-        "${intent.action}|${intent.component?.flattenToShortString()}|${intent.`package`}"
-    }.filter { intent ->
-        intent.resolveActivity(context.packageManager) != null ||
-            intent.component?.packageName?.let { context.isPackageInstalled(it) } == true ||
-            intent.`package`?.let { context.isPackageInstalled(it) } == true
+    data class TagEditorOption(
+        val label: String,
+        val intents: List<Intent>
+    )
+
+    fun Intent.canOpen(): Boolean {
+        return resolveActivity(context.packageManager) != null ||
+            component?.packageName?.let { context.isPackageInstalled(it) } == true ||
+            `package`?.let { context.isPackageInstalled(it) } == true
     }
 
-    if (candidates.isEmpty()) {
-        Toast.makeText(context, "未找到支持编辑标签的应用，请先安装 Lyrico、LunaBeat 或音乐标签", Toast.LENGTH_SHORT).show()
+    val options = listOf(
+        TagEditorOption(
+            label = "Lyrico",
+            intents = listOf(
+                tagEditorIntent(
+                    label = "Lyrico",
+                    action = "com.lonx.lyrico.action.EDIT_TAG",
+                    packageName = "com.lonx.lyrico"
+                )
+            )
+        ),
+        TagEditorOption(
+            label = "LunaBeat",
+            intents = listOf(
+                tagEditorIntent(
+                    label = "LunaBeat",
+                    component = ComponentName("com.example.LyricBox", "com.example.LyricBox.SongMetadataEditActivity")
+                ),
+                tagEditorIntent(
+                    label = "LunaBeat",
+                    component = ComponentName("com.example.lyricbox", "com.example.LyricBox.SongMetadataEditActivity")
+                )
+            )
+        )
+    ).mapNotNull { option ->
+        option.copy(intents = option.intents.filter { it.canOpen() })
+            .takeIf { it.intents.isNotEmpty() }
+    }
+
+    if (options.isEmpty()) {
+        Toast.makeText(context, "未找到支持编辑标签的应用，请先安装 Lyrico 或 LunaBeat", Toast.LENGTH_SHORT).show()
         return
     }
 
-    val launchIntent = if (candidates.size == 1) {
-        candidates.first()
-    } else {
-        Intent.createChooser(candidates.first(), "选择标签编辑器").apply {
-            putExtra(Intent.EXTRA_INITIAL_INTENTS, candidates.drop(1).toTypedArray())
-            setDataAndType(editUri, mimeType)
-            putExtra(Intent.EXTRA_STREAM, editUri)
-            clipData = ClipData.newUri(context.contentResolver, "歌曲文件", editUri)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        }
-    }
-
-    val launched = runCatching {
-        context.startActivity(launchIntent)
-        true
-    }.getOrDefault(false)
-    if (!launched) {
-        val fallbackLaunched = candidates.any { intent ->
+    fun launchOption(option: TagEditorOption) {
+        val launched = option.intents.any { intent ->
             runCatching {
+                val targetPackage = intent.component?.packageName ?: intent.`package`
+                targetPackage?.let { packageName ->
+                    context.grantUriPermission(
+                        packageName,
+                        intent.data ?: editUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    )
+                    val streamUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri
+                    }
+                    streamUri?.let { uri ->
+                        context.grantUriPermission(
+                            packageName,
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                        )
+                    }
+                }
                 context.startActivity(intent)
                 true
             }.getOrDefault(false)
         }
-        if (!fallbackLaunched) {
+        if (!launched) {
             Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
         }
     }
+
+    AlertDialog.Builder(context)
+        .setTitle("选择标签编辑器")
+        .setItems(options.map { it.label }.toTypedArray()) { _, index ->
+            launchOption(options[index])
+        }
+        .show()
 }
 
 private fun Context.isPackageInstalled(packageName: String): Boolean {

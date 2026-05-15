@@ -26,6 +26,8 @@ import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
 import com.ella.music.ui.online.MusicFreeOnlineScreen
 import com.ella.music.ui.player.PlayerScreen
+import com.ella.music.ui.settings.AudioSettingsScreen
+import com.ella.music.ui.settings.BackupSettingsScreen
 import com.ella.music.ui.settings.LyricFontScreen
 import com.ella.music.ui.settings.LogScreen
 import com.ella.music.ui.settings.SettingsDetailScreen
@@ -52,6 +54,8 @@ sealed class Screen(val route: String) {
     data object Settings : Screen("settings")
     data object SettingsDetail : Screen("settings_detail")
     data object LyricSettings : Screen("lyric_settings")
+    data object AudioSettings : Screen("audio_settings")
+    data object BackupSettings : Screen("backup_settings")
     data object LyricFont : Screen("lyric_font")
     data object Logs : Screen("logs")
     data object LxOnline : Screen("lx_online")
@@ -203,9 +207,24 @@ fun AppNavigation(
                 onNavigateToAbout = { navController.navigate(Screen.About.route) },
                 onNavigateToSettingsDetail = { navController.navigate(Screen.SettingsDetail.route) },
                 onNavigateToLyricSettings = { navController.navigate(Screen.LyricSettings.route) },
+                onNavigateToAudioSettings = { navController.navigate(Screen.AudioSettings.route) },
+                onNavigateToBackupSettings = { navController.navigate(Screen.BackupSettings.route) },
                 onNavigateToLogs = { navController.navigate(Screen.Logs.route) },
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel
+            )
+        }
+
+        composable(Screen.AudioSettings.route) {
+            AudioSettingsScreen(
+                onBack = { navController.popBackStack() },
+                playerViewModel = playerViewModel
+            )
+        }
+
+        composable(Screen.BackupSettings.route) {
+            BackupSettingsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
