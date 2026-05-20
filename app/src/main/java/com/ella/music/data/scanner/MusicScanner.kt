@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.util.Log
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.parser.LrcParser
 import com.kyant.taglib.TagLib
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ class MusicScanner(private val context: Context) {
         minDurationMs: Long = 0,
         includeFolders: List<String> = emptyList(),
         excludeFolders: List<String> = emptyList(),
+        deepMetadata: Boolean = false,
         onProgress: ((Int) -> Unit)? = null
     ): List<Song> = withContext(Dispatchers.IO) {
         val songs = mutableListOf<Song>()
@@ -92,7 +94,13 @@ class MusicScanner(private val context: Context) {
                 val file = File(path)
                 if (!file.exists()) continue
 
-                val audioFile = readAudioFile(file)
+                val shouldDeepRead = deepMetadata ||
+                    isMissingTag(title, file.name) ||
+                    isMissingTag(artist) ||
+                    isMissingTag(album) ||
+                    duration <= 0
+
+                val audioFile = if (shouldDeepRead) readAudioFile(file) else null
                 val tag = audioFile?.safeTag(file)
 
                 if (tag != null) {
@@ -102,7 +110,7 @@ class MusicScanner(private val context: Context) {
                     if (duration <= 0) duration = (audioFile.audioHeader?.trackLength ?: 0) * 1000L
                 }
 
-                if (shouldReadTagsWithTagLib(file, title, artist, album, duration)) {
+                if (shouldReadTagsWithTagLib(file, title, artist, album, duration, deepMetadata)) {
                     try {
                         ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
                             val audioProps = TagLib.getAudioProperties(fd.dup().detachFd())
@@ -127,13 +135,13 @@ class MusicScanner(private val context: Context) {
                     }
                 }
 
-                file.readWavInfoTags()?.let { wavInfo ->
+                if (shouldDeepRead || deepMetadata) file.readWavInfoTags()?.let { wavInfo ->
                     if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
                     if (isMissingTag(artist)) artist = wavInfo.artist.orEmpty()
                     if (isMissingTag(album)) album = wavInfo.album.orEmpty()
                 }
 
-                if (isMissingTag(title, file.name) || isMissingTag(artist) || isMissingTag(album) || duration <= 0) {
+                if (shouldDeepRead && (isMissingTag(title, file.name) || isMissingTag(artist) || isMissingTag(album) || duration <= 0)) {
                     try {
                         val retriever = MediaMetadataRetriever()
                         retriever.setDataSource(path)
@@ -291,6 +299,59 @@ class MusicScanner(private val context: Context) {
         }
     }
 
+    fun extractSongTagInfo(path: String): SongTagInfo {
+        val file = File(path)
+        if (!file.exists() || !file.isFile) return SongTagInfo()
+
+        val jaudioValues = runCatching {
+            readAudioFile(file)?.safeTag(file)?.let { tag ->
+                mapOf(
+                    "title" to tag.safeFirst(file, FieldKey.TITLE),
+                    "artist" to tag.safeFirst(file, FieldKey.ARTIST),
+                    "album" to tag.safeFirst(file, FieldKey.ALBUM),
+                    "albumArtist" to tag.safeFirst(file, FieldKey.ALBUM_ARTIST),
+                    "genre" to tag.safeFirst(file, FieldKey.GENRE),
+                    "year" to tag.safeFirst(file, FieldKey.YEAR),
+                    "track" to tag.safeFirst(file, FieldKey.TRACK),
+                    "comment" to tag.safeFirst(file, FieldKey.COMMENT)
+                )
+            }.orEmpty()
+        }.getOrElse {
+            Log.d(TAG, "jaudiotagger details unavailable for ${file.path}", it)
+            emptyMap()
+        }
+
+        val tagLibValues: Map<String, List<String>> = runCatching {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                TagLib.getMetadata(fd.dup().detachFd(), false)
+                    ?.propertyMap
+                    .orEmpty()
+                    .mapValues { (_, values) -> values.toList() }
+            }
+        }.getOrElse {
+            Log.d(TAG, "TagLib details unavailable for ${file.path}", it)
+            emptyMap()
+        }
+
+        return SongTagInfo(
+            title = jaudioValues["title"].orEmpty().ifBlank { tagLibValues.firstTagValue("TITLE") },
+            artist = jaudioValues["artist"].orEmpty().ifBlank { tagLibValues.firstTagValue("ARTIST") },
+            album = jaudioValues["album"].orEmpty().ifBlank { tagLibValues.firstTagValue("ALBUM") },
+            albumArtist = jaudioValues["albumArtist"].orEmpty().ifBlank {
+                tagLibValues.firstTagValue("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST")
+            },
+            genre = jaudioValues["genre"].orEmpty().ifBlank { tagLibValues.firstTagValue("GENRE") },
+            year = jaudioValues["year"].orEmpty().ifBlank { tagLibValues.firstTagValue("DATE", "YEAR") },
+            track = jaudioValues["track"].orEmpty().ifBlank { tagLibValues.firstTagValue("TRACKNUMBER", "TRACK") },
+            comment = jaudioValues["comment"].orEmpty().ifBlank {
+                tagLibValues.firstTagValue("COMMENT", "DESCRIPTION", "SUBTITLE")
+            }.cleanTagText(),
+            neteaseKey = tagLibValues.findNeteaseKey()
+                .ifBlank { jaudioValues["comment"].orEmpty().takeIf { it.looksLikeNeteaseValue() }.orEmpty() }
+                .cleanTagText()
+        )
+    }
+
     fun getAlbumArtUri(albumId: Long): Uri =
         ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
 
@@ -309,11 +370,10 @@ class MusicScanner(private val context: Context) {
         title: String,
         artist: String,
         album: String,
-        duration: Long
+        duration: Long,
+        deepMetadata: Boolean
     ): Boolean {
-        val extension = file.extension.lowercase()
-        val preferTagLib = extension in setOf("wav", "wave", "aif", "aiff", "flac", "ogg", "opus", "m4a", "mp4")
-        return preferTagLib ||
+        return deepMetadata ||
             isMissingTag(title, file.name) ||
             isMissingTag(artist) ||
             isMissingTag(album) ||
@@ -535,6 +595,61 @@ class MusicScanner(private val context: Context) {
             }
         }
         return values.toList()
+    }
+
+    private fun Map<String, List<String>>.firstTagValue(vararg keys: String): String {
+        val normalizedKeys = keys.map { it.normalizedPropertyKey() }.toSet()
+        for (key in keys) {
+            get(key)?.firstNotBlank()?.let { return it.cleanTagText() }
+        }
+        for ((key, values) in this) {
+            if (key.normalizedPropertyKey() in normalizedKeys) {
+                values.firstNotBlank()?.let { return it.cleanTagText() }
+            }
+        }
+        return ""
+    }
+
+    private fun Map<String, List<String>>.findNeteaseKey(): String {
+        for ((key, values) in this) {
+            val normalizedKey = key.normalizedPropertyKey()
+            val value = values.firstNotBlank().orEmpty()
+            if (value.isBlank()) continue
+            if ("163" in normalizedKey || "netease" in normalizedKey || "cloudmusic" in normalizedKey) {
+                return value
+            }
+        }
+        for (value in values.flatten()) {
+            val extracted = value.extractNeteaseValue()
+            if (extracted.isNotBlank()) return extracted
+        }
+        return ""
+    }
+
+    private fun List<String>.firstNotBlank(): String? =
+        firstOrNull { it.trim().isNotBlank() }?.trim()
+
+    private fun String.cleanTagText(): String =
+        trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')
+            .replace(Regex("""\s+"""), " ")
+
+    private fun String.looksLikeNeteaseValue(): Boolean =
+        lowercase().let { "163" in it || "netease" in it || "cloudmusic" in it || "music.163.com" in it }
+
+    private fun String.extractNeteaseValue(): String {
+        val text = cleanTagText()
+        if (!looksLikeNeteaseValue()) return ""
+        Regex("""(?:music\.163\.com/(?:#/)?song\?id=|songid[:=]\s*|song_id[:=]\s*|id=)(\d{4,})""", RegexOption.IGNORE_CASE)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.let { return it }
+        Regex("""(?:163|netease|cloudmusic|music id|song id)[^0-9]{0,20}(\d{4,})""", RegexOption.IGNORE_CASE)
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.let { return it }
+        return text
     }
 
     private fun selectBestLyrics(candidates: List<String>): String? {

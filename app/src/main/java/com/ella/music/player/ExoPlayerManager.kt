@@ -9,6 +9,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.LruCache
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -370,9 +371,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun skipToPrevious() {
-        if (!restartCurrentInRepeatOne()) {
-            mediaController?.seekToPreviousMediaItem()
-        }
+        mediaController?.seekToPreviousMediaItem()
         updateCurrentSong()
         savePlaybackQueue(force = true)
     }
@@ -508,6 +507,30 @@ class ExoPlayerManager(private val context: Context) {
         updateCurrentSong()
     }
 
+    fun updateCurrentSongMetadata(updatedSong: Song) {
+        val controller = mediaController
+        val current = _currentSong.value ?: return
+        if (current.id != updatedSong.id && current.path != updatedSong.path) return
+
+        val playlistIndex = playlist.indexOfFirst { it.id == current.id || it.path == current.path }
+        if (playlistIndex >= 0) {
+            playlist[playlistIndex] = updatedSong
+            _playlist.value = playlist.toList()
+        }
+
+        _currentSong.value = updatedSong
+        notificationArtworkCache.remove(updatedSong.id)
+        missingNotificationArtworkIds.remove(updatedSong.id)
+        artworkAppliedSongId = null
+        sessionMetadataSongId = null
+
+        if (controller != null && controller.currentMediaItemIndex >= 0) {
+            refreshCurrentSessionMetadata(controller, updatedSong)
+            refreshCurrentNotificationArtwork(updatedSong)
+        }
+        savePlaybackQueue(force = true)
+    }
+
     private fun songToMediaItem(song: Song): MediaItem {
         val builder = MediaItem.Builder()
             .setUri(song.playbackUri())
@@ -541,13 +564,21 @@ class ExoPlayerManager(private val context: Context) {
         artworkData: ByteArray? = null
     ): MediaMetadata {
         return MediaMetadata.Builder()
+            .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
             .setTitle(titleOverride ?: title)
             .setArtist(artistOverride ?: artist)
             .setAlbumTitle(album)
+            .setAlbumArtist(artist)
+            .setDisplayTitle(titleOverride ?: title)
+            .setSubtitle(artistOverride ?: artist)
+            .setDescription(album)
+            .setDurationMs(duration.takeIf { it > 0L } ?: C.TIME_UNSET)
+            .setTrackNumber(trackNumber.takeIf { it > 0 })
             .apply {
                 if (artworkData != null) {
                     setArtworkData(artworkData, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
                 }
+                artworkUriForMediaCenter()?.let(::setArtworkUri)
             }
             .setExtras(
                 Bundle().apply {
@@ -557,6 +588,14 @@ class ExoPlayerManager(private val context: Context) {
                 }
             )
             .build()
+    }
+
+    private fun Song.artworkUriForMediaCenter(): Uri? {
+        coverUrl.takeIf { it.isNotBlank() }?.let { return it.toUri() }
+        if (albumId > 0L) {
+            return Uri.parse("content://media/external/audio/albumart/$albumId")
+        }
+        return null
     }
 
     private fun updateCurrentSong() {

@@ -33,8 +33,8 @@ class LyriconBridge(private val context: Context) {
             provider = LyriconFactory.createProvider(
                 context = context,
                 logo = ProviderLogo
-                    .fromDrawable(context, R.drawable.ic_launcher, width = 96, height = 96)
-                    .copy(colorful = true)
+                    .fromDrawable(context, R.drawable.ic_flyme_ticker, width = 96, height = 96)
+                    .copy(colorful = false)
             )
             provider?.service?.addConnectionListener {
                 onConnected {

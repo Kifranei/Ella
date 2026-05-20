@@ -42,6 +42,13 @@ class SettingsManager(private val context: Context) {
         val KEY_TICKER_HIDE_NOTIFICATION = booleanPreferencesKey("ticker_hide_notification")
         val KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION = booleanPreferencesKey("samsung_floating_lyric_translation")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
+        val KEY_DESKTOP_LYRIC_LOCKED = booleanPreferencesKey("desktop_lyric_locked")
+        val KEY_DESKTOP_LYRIC_FONT_SCALE = intPreferencesKey("desktop_lyric_font_scale")
+        val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
+        val KEY_DESKTOP_LYRIC_OPACITY = intPreferencesKey("desktop_lyric_opacity")
+        val KEY_DESKTOP_LYRIC_TEXT_COLOR = intPreferencesKey("desktop_lyric_text_color")
+        val KEY_DESKTOP_LYRIC_X = intPreferencesKey("desktop_lyric_x")
+        val KEY_DESKTOP_LYRIC_Y = intPreferencesKey("desktop_lyric_y")
         val KEY_SUPER_LYRIC_ENABLED = booleanPreferencesKey("super_lyric_enabled")
         val KEY_SUPER_LYRIC_TRANSLATION = booleanPreferencesKey("super_lyric_translation")
         val KEY_LYRIC_GETTER_ENABLED = booleanPreferencesKey("lyric_getter_enabled")
@@ -49,11 +56,14 @@ class SettingsManager(private val context: Context) {
         val KEY_REPLAYGAIN_ENABLED = booleanPreferencesKey("replaygain_enabled")
         val KEY_AUDIO_FOCUS_DISABLED = booleanPreferencesKey("audio_focus_disabled")
         val KEY_SHUFFLE_MODE = intPreferencesKey("shuffle_mode")
+        val KEY_PREVIOUS_BUTTON_ACTION = intPreferencesKey("previous_button_action")
         val KEY_LYRIC_SOURCE_MODE = intPreferencesKey("lyric_source_mode")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
+        val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
+        val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
         val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
         val KEY_WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
@@ -82,6 +92,10 @@ class SettingsManager(private val context: Context) {
         const val SHUFFLE_MODE_PSEUDO = 0
         const val SHUFFLE_MODE_TRUE_RANDOM = 1
 
+        const val PREVIOUS_BUTTON_PREVIOUS = 0
+        const val PREVIOUS_BUTTON_REPLAY_CURRENT = 1
+        const val PREVIOUS_REPLAY_THRESHOLD_MS = 20_000L
+
         const val STARTUP_PLAY_OFF = 0
         const val STARTUP_PLAY_RANDOM = 1
         const val STARTUP_PLAY_RESUME = 2
@@ -95,14 +109,22 @@ class SettingsManager(private val context: Context) {
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: false }
     val lyriconTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_TRANSLATION] ?: true }
-    val autoScan: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_SCAN] ?: false }
+    val autoScan: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_SCAN] ?: true }
     val gaplessPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_GAPLESS] ?: true }
     val themeMode: Flow<Int> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: 0 }
     val tickerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_ENABLED] ?: false }
-    val tickerHideNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HIDE_NOTIFICATION] ?: false }
+    val tickerHideNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HIDE_NOTIFICATION] ?: true }
     val samsungFloatingLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION] ?: false }
     val desktopLyricEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_ENABLED] ?: false }
+    val desktopLyricLocked: Flow<Boolean> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_LOCKED] ?: false }
+    val desktopLyricFontScale: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_FONT_SCALE] ?: 100 }
+    val desktopLyricTranslationScale: Flow<Int> =
+        context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_TRANSLATION_SCALE] ?: 110 }
+    val desktopLyricOpacity: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_OPACITY] ?: 100 }
+    val desktopLyricTextColor: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_TEXT_COLOR] ?: -1 }
+    val desktopLyricX: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_X] ?: Int.MIN_VALUE }
+    val desktopLyricY: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_Y] ?: Int.MIN_VALUE }
     val superLyricEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_SUPER_LYRIC_ENABLED] ?: false }
     val superLyricTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_SUPER_LYRIC_TRANSLATION] ?: true }
     val lyricGetterEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_GETTER_ENABLED] ?: false }
@@ -111,14 +133,20 @@ class SettingsManager(private val context: Context) {
     val audioFocusDisabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUDIO_FOCUS_DISABLED] ?: false }
     val shuffleMode: Flow<Int> =
         context.dataStore.data.map { it[KEY_SHUFFLE_MODE] ?: SHUFFLE_MODE_PSEUDO }
+    val previousButtonAction: Flow<Int> =
+        context.dataStore.data.map { it[KEY_PREVIOUS_BUTTON_ACTION] ?: PREVIOUS_BUTTON_PREVIOUS }
     val lyricSourceMode: Flow<Int> =
         context.dataStore.data.map { it[KEY_LYRIC_SOURCE_MODE] ?: LYRIC_SOURCE_AUTO }
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
+    val lyricPageKeepScreenOn: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
     val miniPlayerLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRIC_TRANSLATION] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val audioVisualizerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
+    val dynamicCoverEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
     val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
     val webDavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
     val webDavPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
@@ -196,6 +224,33 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_DESKTOP_LYRIC_ENABLED] = enabled }
     }
 
+    suspend fun setDesktopLyricLocked(locked: Boolean) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_LOCKED] = locked }
+    }
+
+    suspend fun setDesktopLyricFontScale(scale: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_FONT_SCALE] = scale.coerceIn(80, 220) }
+    }
+
+    suspend fun setDesktopLyricTranslationScale(scale: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_TRANSLATION_SCALE] = scale.coerceIn(80, 220) }
+    }
+
+    suspend fun setDesktopLyricOpacity(opacity: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_OPACITY] = opacity.coerceIn(35, 100) }
+    }
+
+    suspend fun setDesktopLyricTextColor(color: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_TEXT_COLOR] = color }
+    }
+
+    suspend fun setDesktopLyricPosition(x: Int, y: Int) {
+        context.dataStore.edit {
+            it[KEY_DESKTOP_LYRIC_X] = x
+            it[KEY_DESKTOP_LYRIC_Y] = y
+        }
+    }
+
     suspend fun setSuperLyricEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_SUPER_LYRIC_ENABLED] = enabled }
     }
@@ -232,12 +287,22 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_SHUFFLE_MODE] = mode.coerceIn(SHUFFLE_MODE_PSEUDO, SHUFFLE_MODE_TRUE_RANDOM) }
     }
 
+    suspend fun setPreviousButtonAction(action: Int) {
+        context.dataStore.edit {
+            it[KEY_PREVIOUS_BUTTON_ACTION] = action.coerceIn(PREVIOUS_BUTTON_PREVIOUS, PREVIOUS_BUTTON_REPLAY_CURRENT)
+        }
+    }
+
     suspend fun setLyricSourceMode(mode: Int) {
         context.dataStore.edit { it[KEY_LYRIC_SOURCE_MODE] = mode.coerceIn(LYRIC_SOURCE_AUTO, LYRIC_SOURCE_EMBEDDED) }
     }
 
     suspend fun setLyricPageTranslation(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_PAGE_TRANSLATION] = enabled }
+    }
+
+    suspend fun setLyricPageKeepScreenOn(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] = enabled }
     }
 
     suspend fun setMiniPlayerLyricTranslation(enabled: Boolean) {
@@ -250,6 +315,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setAudioVisualizerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_AUDIO_VISUALIZER_ENABLED] = enabled }
+    }
+
+    suspend fun setDynamicCoverEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DYNAMIC_COVER_ENABLED] = enabled }
     }
 
     suspend fun setWebDavConfig(url: String, username: String, password: String) {
@@ -463,15 +532,18 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION)
             setBoolean(KEY_DESKTOP_LYRIC_ENABLED)
+            setBoolean(KEY_DESKTOP_LYRIC_LOCKED)
             setBoolean(KEY_SUPER_LYRIC_ENABLED)
             setBoolean(KEY_SUPER_LYRIC_TRANSLATION)
             setBoolean(KEY_LYRIC_GETTER_ENABLED)
             setBoolean(KEY_REPLAYGAIN_ENABLED)
             setBoolean(KEY_AUDIO_FOCUS_DISABLED)
             setBoolean(KEY_LYRIC_PAGE_TRANSLATION)
+            setBoolean(KEY_LYRIC_PAGE_KEEP_SCREEN_ON)
             setBoolean(KEY_MINI_PLAYER_LYRIC_TRANSLATION)
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
+            setBoolean(KEY_DYNAMIC_COVER_ENABLED)
             setBoolean(KEY_BLUETOOTH_LYRIC_ENABLED)
             setBoolean(KEY_BLUETOOTH_LYRIC_TRANSLATION)
             setBoolean(KEY_OPEN_PLAYER_ON_PLAY)
@@ -480,8 +552,15 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_THEME_MODE)
             setInt(KEY_MIN_DURATION)
             setInt(KEY_SHUFFLE_MODE)
+            setInt(KEY_PREVIOUS_BUTTON_ACTION)
             setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
+            setInt(KEY_DESKTOP_LYRIC_FONT_SCALE)
+            setInt(KEY_DESKTOP_LYRIC_TRANSLATION_SCALE)
+            setInt(KEY_DESKTOP_LYRIC_OPACITY)
+            setInt(KEY_DESKTOP_LYRIC_TEXT_COLOR)
+            setInt(KEY_DESKTOP_LYRIC_X)
+            setInt(KEY_DESKTOP_LYRIC_Y)
             setInt(KEY_DECODER_MODE)
             setInt(KEY_LYRIC_FONT_WEIGHT)
             setInt(KEY_LYRIC_FONT_SCALE)

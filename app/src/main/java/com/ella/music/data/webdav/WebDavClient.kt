@@ -2,11 +2,13 @@ package com.ella.music.data.webdav
 
 import android.text.Html
 import android.util.Log
+import com.ella.music.data.AppNetworkLoggingInterceptor
 import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.w3c.dom.Element
 import org.xml.sax.InputSource
 import java.io.File
@@ -16,14 +18,24 @@ import java.net.URI
 import java.net.SocketTimeoutException
 import java.net.URLDecoder
 import java.net.UnknownHostException
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLHandshakeException
 import javax.xml.parsers.DocumentBuilderFactory
 
+enum class WebDavAuthMode {
+    AUTO,
+    BASIC,
+    DIGEST
+}
+
 data class WebDavConfig(
     val url: String,
     val username: String,
-    val password: String
+    val password: String,
+    val authMode: WebDavAuthMode = WebDavAuthMode.AUTO
 ) {
     val isConfigured: Boolean get() = url.trim().isNotBlank()
 }
@@ -48,12 +60,39 @@ object WebDavClient {
     private val audioExtensions = setOf("mp3", "m4a", "flac", "wav", "ogg", "opus", "aac", "alac")
     private val listCache = mutableMapOf<String, List<WebDavItem>>()
     private val xmlMediaType = "application/xml; charset=utf-8".toMediaType()
+    private val secureRandom = SecureRandom()
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(12, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .addInterceptor(AppNetworkLoggingInterceptor(TAG))
+        .authenticator { _, response ->
+            response.request.tag(WebDavConfig::class.java)?.let { config ->
+                authenticate(response, config)
+            }
+        }
         .build()
+
+    fun newAuthenticatedOkHttpClient(configProvider: () -> WebDavConfig): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .addInterceptor(AppNetworkLoggingInterceptor(TAG))
+            .authenticator { _, response -> authenticate(response, configProvider()) }
+            .addInterceptor { chain ->
+                val config = configProvider()
+                val request = chain.request().newBuilder()
+                    .tag(WebDavConfig::class.java, config)
+                    .apply { applyPreemptiveBasicAuth(config) }
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+    }
 
     fun isAudioFile(name: String): Boolean {
         val ext = name.substringAfterLast('.', "").lowercase()
@@ -87,7 +126,7 @@ object WebDavClient {
     fun list(config: WebDavConfig, url: String = config.url, forceRefresh: Boolean = false): List<WebDavItem> {
         if (!config.isConfigured) return emptyList()
         val requestUrl = normalizeCollectionUrl(url)
-        val cacheKey = "${requestUrl}|${config.username}"
+        val cacheKey = "${requestUrl}|${config.username}|${config.authMode}"
         if (!forceRefresh) listCache[cacheKey]?.let { return it }
         val propfind = executePropfind(requestUrl, config, depth = "1")
         val response = propfind.body
@@ -113,11 +152,8 @@ object WebDavClient {
         val request = Request.Builder()
             .url(normalizeRequestUrl(url))
             .get()
-            .apply {
-                if (config.username.isNotBlank() || config.password.isNotBlank()) {
-                    header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
-                }
-            }
+            .tag(WebDavConfig::class.java, config)
+            .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
         httpClient.newCall(request).execute().use { response ->
@@ -179,14 +215,11 @@ object WebDavClient {
         val request = Request.Builder()
             .url(requestUrl)
             .method("PROPFIND", body)
+            .tag(WebDavConfig::class.java, config)
             .header("Depth", depth)
             .header("Accept", "application/xml, text/xml, */*")
             .header("Content-Type", "application/xml; charset=utf-8")
-            .apply {
-                if (config.username.isNotBlank() || config.password.isNotBlank()) {
-                    header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
-                }
-            }
+            .apply { applyPreemptiveBasicAuth(config) }
             .build()
 
         return httpClient.newCall(request).execute().use { response ->
@@ -199,6 +232,150 @@ object WebDavClient {
     }
 
     private data class WebDavResponse(val code: Int, val body: String)
+
+    private fun Request.Builder.applyPreemptiveBasicAuth(config: WebDavConfig) {
+        if ((config.username.isNotBlank() || config.password.isNotBlank()) && config.authMode != WebDavAuthMode.DIGEST) {
+            header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
+        }
+    }
+
+    private fun authenticate(response: Response, config: WebDavConfig): Request? {
+        if (config.username.isBlank()) return null
+        if (responseCount(response) >= 3) {
+            Log.w(TAG, "WebDAV auth retry limit reached: ${response.request.url.toString().safeLogUrl()}")
+            return null
+        }
+        val challenges = parseAuthChallenges(response.headers("WWW-Authenticate"))
+        val existingAuth = response.request.header("Authorization")
+        val digestHeader = challenges["Digest"]
+        val basicHeader = challenges["Basic"]
+        return when (config.authMode) {
+            WebDavAuthMode.DIGEST -> digestHeader?.let { response.digestRequest(config, it) }
+            WebDavAuthMode.BASIC -> basicHeader?.let { response.basicRequest(config) }
+            WebDavAuthMode.AUTO -> {
+                digestHeader?.let { response.digestRequest(config, it) }
+                    ?: if (existingAuth?.startsWith("Basic", ignoreCase = true) != true) {
+                        basicHeader?.let { response.basicRequest(config) }
+                    } else {
+                        null
+                    }
+            }
+        }
+    }
+
+    private fun responseCount(response: Response): Int {
+        var count = 1
+        var prior = response.priorResponse
+        while (prior != null) {
+            count++
+            prior = prior.priorResponse
+        }
+        return count
+    }
+
+    private fun parseAuthChallenges(headers: List<String>): Map<String, String> {
+        val result = linkedMapOf<String, String>()
+        headers.forEach { header ->
+            val value = header.trim()
+            when {
+                value.startsWith("Digest", ignoreCase = true) -> result["Digest"] = value
+                value.startsWith("Basic", ignoreCase = true) -> result["Basic"] = value
+                value.contains("Digest", ignoreCase = true) -> {
+                    value.substring(value.indexOf("Digest", ignoreCase = true)).let { result["Digest"] = it }
+                }
+                value.contains("Basic", ignoreCase = true) -> {
+                    value.substring(value.indexOf("Basic", ignoreCase = true)).let { result["Basic"] = it }
+                }
+            }
+        }
+        return result
+    }
+
+    private fun Response.basicRequest(config: WebDavConfig): Request {
+        Log.i(TAG, "WebDAV using Basic auth: ${request.url.toString().safeLogUrl()}")
+        return request.newBuilder()
+            .header("Authorization", Credentials.basic(config.username, config.password, Charsets.UTF_8))
+            .build()
+    }
+
+    private fun Response.digestRequest(config: WebDavConfig, authHeader: String): Request? {
+        return runCatching {
+            val realm = authHeader.authParam("realm") ?: return null
+            val nonce = authHeader.authParam("nonce") ?: return null
+            val opaque = authHeader.authParam("opaque")
+            val algorithm = authHeader.authParam("algorithm") ?: "MD5"
+            val qop = authHeader.authParam("qop")
+                ?.split(',')
+                ?.map { it.trim().trim('"') }
+                ?.firstOrNull { it.equals("auth", ignoreCase = true) }
+            val url = request.url
+            val digestUri = url.encodedPath + url.encodedQuery?.let { "?$it" }.orEmpty()
+            val method = request.method
+            val cnonce = generateCnonce()
+            val nc = "00000001"
+            val hash = algorithm.substringBefore("-").uppercase(Locale.ROOT)
+            val ha1Base = digestHash(hash, "${config.username}:$realm:${config.password}")
+            val ha1 = if (algorithm.endsWith("-sess", ignoreCase = true)) {
+                digestHash(hash, "$ha1Base:$nonce:$cnonce")
+            } else {
+                ha1Base
+            }
+            val ha2 = digestHash(hash, "$method:$digestUri")
+            val digestResponse = if (qop != null) {
+                digestHash(hash, "$ha1:$nonce:$nc:$cnonce:$qop:$ha2")
+            } else {
+                digestHash(hash, "$ha1:$nonce:$ha2")
+            }
+            val authValue = buildString {
+                append("Digest ")
+                append("""username="${config.username}", """)
+                append("""realm="$realm", """)
+                append("""nonce="$nonce", """)
+                append("""uri="$digestUri", """)
+                append("""response="$digestResponse"""")
+                append(""", algorithm=$algorithm""")
+                if (opaque != null) append(""", opaque="$opaque"""")
+                if (qop != null) {
+                    append(""", qop=$qop""")
+                    append(""", nc=$nc""")
+                    append(""", cnonce="$cnonce"""")
+                }
+            }
+            Log.i(TAG, "WebDAV using Digest auth: ${request.url.toString().safeLogUrl()} algorithm=$algorithm")
+            request.newBuilder()
+                .header("Authorization", authValue)
+                .build()
+        }.getOrElse { error ->
+            Log.w(TAG, "WebDAV Digest auth failed", error)
+            null
+        }
+    }
+
+    private fun String.authParam(name: String): String? {
+        val quoted = Regex("""(?i)(?:^|,\s*)${Regex.escape(name)}\s*=\s*"([^"]*)"""").find(this)
+        if (quoted != null) return quoted.groupValues[1]
+        return Regex("""(?i)(?:^|,\s*)${Regex.escape(name)}\s*=\s*([^,\s]+)""")
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim('"')
+    }
+
+    private fun digestHash(algorithm: String, input: String): String {
+        val digestAlgorithm = when (algorithm.uppercase(Locale.ROOT)) {
+            "SHA-256" -> "SHA-256"
+            else -> "MD5"
+        }
+        return MessageDigest.getInstance(digestAlgorithm)
+            .digest(input.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun generateCnonce(): String {
+        val bytes = ByteArray(8)
+        secureRandom.nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
 
     private fun WebDavResponse.toFriendlyMessage(): String {
         return when (code) {

@@ -1,5 +1,8 @@
 package com.ella.music.ui.playlist
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,6 +58,8 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 
@@ -63,10 +69,30 @@ fun PlaylistScreen(
     onBack: () -> Unit,
     onPlaylistClick: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     val favorites = playlists.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
     val customPlaylists = playlists.filterNot { it.id == FAVORITES_PLAYLIST_ID }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        mainViewModel.importLocalPlaylist(uri) { result ->
+            result
+                .onSuccess { importResult ->
+                    val message = if (importResult.importedCount == 0) {
+                        "没有可导入的歌曲"
+                    } else {
+                        val missingText = if (importResult.missingCount > 0) "，保留 ${importResult.missingCount} 首未匹配路径" else ""
+                        val duplicateText = if (importResult.duplicateCount > 0) "，跳过 ${importResult.duplicateCount} 条重复" else ""
+                        "已导入 ${importResult.importedCount} 首，匹配 ${importResult.matchedCount} 首$missingText$duplicateText"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+                .onFailure {
+                    Toast.makeText(context, "导入失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -87,6 +113,14 @@ fun PlaylistScreen(
                 }
             },
             actions = {
+                IconButton(onClick = { importLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*")) }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Download,
+                        contentDescription = "导入歌单",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
                 IconButton(onClick = { showCreateDialog = true }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Add,
@@ -163,6 +197,7 @@ fun PlaylistDetailScreen(
     onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit
 ) {
+    val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
@@ -170,6 +205,20 @@ fun PlaylistDetailScreen(
     val playlist = playlists.firstOrNull { it.id == playlistId }
     val songs = remember(playlist, librarySongs) {
         playlist?.let(mainViewModel::playlistSongs).orEmpty()
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        val targetPlaylist = playlist
+        if (uri == null || targetPlaylist == null) return@rememberLauncherForActivityResult
+        mainViewModel.exportLocalPlaylist(targetPlaylist, uri) { result ->
+            result
+                .onSuccess { exportResult ->
+                    val skippedText = if (exportResult.skippedCount > 0) "，跳过 ${exportResult.skippedCount} 首在线歌曲" else ""
+                    Toast.makeText(context, "已导出 ${exportResult.exportedCount} 首$skippedText", Toast.LENGTH_SHORT).show()
+                }
+                .onFailure {
+                    Toast.makeText(context, "导出失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                }
+        }
     }
 
     Column(
@@ -188,6 +237,18 @@ fun PlaylistDetailScreen(
                         contentDescription = "返回",
                         tint = MiuixTheme.colorScheme.onSurface
                     )
+                }
+            },
+            actions = {
+                if (playlist != null) {
+                    IconButton(onClick = { exportLauncher.launch("${playlist.name.safePlaylistFileName()}.txt") }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Share,
+                            contentDescription = "导出歌单",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         )
@@ -272,6 +333,9 @@ fun PlaylistDetailScreen(
         }
     }
 }
+
+private fun String.safePlaylistFileName(): String =
+    replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Ella Playlist" }
 
 @Composable
 private fun PlaylistRow(

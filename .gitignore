@@ -10,7 +10,9 @@
 .cxx
 local.properties
 /app/build
+/app/debug
 /app/release
+/.tmp
 /ffmpeg-decoder/build
 /ffmpeg-decoder/src/main/jni/ffmpeg/*
 !/ffmpeg-decoder/src/main/jni/ffmpeg/android-libs/

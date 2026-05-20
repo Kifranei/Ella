@@ -73,6 +73,15 @@ class DesktopLyricBridge(private val context: Context) {
         context.startService(Intent(context, DesktopLyricService::class.java).setAction(DesktopLyricService.ACTION_HIDE))
     }
 
+    fun applySettings() {
+        lastLineKey = null
+        if (!enabled || !canDrawOverlay()) return
+        context.startService(
+            Intent(context, DesktopLyricService::class.java)
+                .setAction(DesktopLyricService.ACTION_APPLY_SETTINGS)
+        )
+    }
+
     private fun canDrawOverlay(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
     }

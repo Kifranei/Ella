@@ -10,67 +10,154 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
+enum class AppLogType(val label: String) {
+    APP("应用"),
+    CRASH("崩溃"),
+    METADATA("元数据"),
+    PLAYBACK("播放"),
+    LYRICS("歌词"),
+    LIBRARY("音乐库"),
+    ONLINE("在线"),
+    DATABASE("数据"),
+    NETWORK("网络")
+}
+
 data class AppLogEntry(
     val time: Long,
     val level: String,
     val tag: String,
     val message: String,
-    val throwable: String? = null
-)
+    val type: String = AppLogType.APP.name,
+    val detail: String? = null,
+    val relatedId: String? = null
+) {
+    val throwable: String? get() = detail
+}
 
 object AppLogStore {
     private const val FILE_NAME = "ella_logs.tsv"
     private const val PREF_NAME = "ella_log_prefs"
     private const val KEY_RETENTION_DAYS = "retention_days"
-    private const val MAX_LINES = 800
+    private const val MAX_LINES = 3_000
+    private const val MAX_MESSAGE_LENGTH = 2_000
+    private const val MAX_DETAIL_LENGTH = 24_000
+    private const val RECENT_WINDOW_MS = 4_000L
     private val lock = Any()
-    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
+    private val recentSignatures = LinkedHashMap<String, Long>()
 
-    fun info(context: Context, tag: String, message: String) {
-        append(context.applicationContext, AppLogEntry(System.currentTimeMillis(), "INFO", tag, message))
+    @Volatile
+    private var appContext: Context? = null
+
+    fun install(context: Context) {
+        appContext = context.applicationContext
     }
 
-    fun debug(context: Context, tag: String, message: String) {
-        append(context.applicationContext, AppLogEntry(System.currentTimeMillis(), "DEBUG", tag, message))
+    fun info(context: Context, tag: String, message: String, type: AppLogType = tag.detectType()) {
+        log(context.applicationContext, "INFO", type, tag, message)
     }
 
-    fun warn(context: Context, tag: String, message: String, throwable: Throwable? = null) {
-        append(
-            context.applicationContext,
-            AppLogEntry(
-                time = System.currentTimeMillis(),
-                level = "WARN",
-                tag = tag,
-                message = message,
-                throwable = throwable?.stackTraceToString()
-            )
+    fun debug(context: Context, tag: String, message: String, type: AppLogType = tag.detectType()) {
+        log(context.applicationContext, "DEBUG", type, tag, message)
+    }
+
+    fun warn(
+        context: Context,
+        tag: String,
+        message: String,
+        throwable: Throwable? = null,
+        type: AppLogType = tag.detectType()
+    ) {
+        log(
+            context = context.applicationContext,
+            level = "WARNING",
+            type = type,
+            tag = tag,
+            message = message,
+            detail = throwable?.stackTraceToString()
         )
     }
 
-    fun error(context: Context, tag: String, message: String, throwable: Throwable? = null) {
-        append(
-            context.applicationContext,
-            AppLogEntry(
-                time = System.currentTimeMillis(),
-                level = "ERROR",
-                tag = tag,
-                message = message,
-                throwable = throwable?.stackTraceToString()
-            )
+    fun error(
+        context: Context,
+        tag: String,
+        message: String,
+        throwable: Throwable? = null,
+        type: AppLogType = tag.detectType()
+    ) {
+        log(
+            context = context.applicationContext,
+            level = "ERROR",
+            type = type,
+            tag = tag,
+            message = message,
+            detail = throwable?.stackTraceToString()
         )
     }
 
     fun crash(context: Context, threadName: String, throwable: Throwable) {
-        append(
-            context.applicationContext,
-            AppLogEntry(
-                time = System.currentTimeMillis(),
-                level = "CRASH",
-                tag = threadName,
-                message = throwable.message ?: throwable.javaClass.name,
-                throwable = throwable.stackTraceToString()
-            )
+        log(
+            context = context.applicationContext,
+            level = "ERROR",
+            type = AppLogType.CRASH,
+            tag = "Crash/$threadName",
+            message = throwable.message ?: throwable.javaClass.name,
+            detail = throwable.stackTraceToString()
         )
+    }
+
+    fun network(tag: String, message: String, detail: String? = null, level: String = "WARNING") {
+        logGlobal(level = level, type = AppLogType.NETWORK, tag = tag, message = message, detail = detail)
+    }
+
+    fun logcat(level: String, tag: String, message: String, detail: String? = null) {
+        val type = "$tag $message $detail".detectType()
+        logGlobal(
+            level = normalizeLevel(level),
+            type = type,
+            tag = tag,
+            message = message,
+            detail = detail,
+            echoToLogcat = false,
+            skipIfRecent = true
+        )
+    }
+
+    fun logGlobal(
+        level: String,
+        type: AppLogType,
+        tag: String,
+        message: String,
+        detail: String? = null,
+        relatedId: String? = null,
+        echoToLogcat: Boolean = true,
+        skipIfRecent: Boolean = false
+    ) {
+        val context = appContext ?: return
+        log(context, level, type, tag, message, detail, relatedId, echoToLogcat, skipIfRecent)
+    }
+
+    fun log(
+        context: Context,
+        level: String,
+        type: AppLogType,
+        tag: String,
+        message: String,
+        detail: String? = null,
+        relatedId: String? = null,
+        echoToLogcat: Boolean = true,
+        skipIfRecent: Boolean = false
+    ) {
+        val entry = AppLogEntry(
+            time = System.currentTimeMillis(),
+            level = normalizeLevel(level),
+            type = type.name,
+            tag = tag.take(MAX_MESSAGE_LENGTH),
+            message = message.take(MAX_MESSAGE_LENGTH),
+            detail = detail?.take(MAX_DETAIL_LENGTH),
+            relatedId = relatedId?.take(MAX_MESSAGE_LENGTH)
+        )
+        append(context.applicationContext, entry, echoToLogcat, skipIfRecent)
     }
 
     fun read(context: Context): List<AppLogEntry> = synchronized(lock) {
@@ -99,6 +186,7 @@ object AppLogStore {
     fun clear(context: Context) = synchronized(lock) {
         val file = logFile(context)
         if (file.exists()) file.delete()
+        recentSignatures.clear()
     }
 
     fun clearOlderThan(context: Context, days: Int): Int = synchronized(lock) {
@@ -121,28 +209,32 @@ object AppLogStore {
     fun buildDetailedReport(context: Context, entries: List<AppLogEntry> = read(context)): String {
         val appContext = context.applicationContext
         return buildString {
-            appendLine("Ella Music 运行日志")
-            appendLine("生成时间: ${formatTime(System.currentTimeMillis())}")
-            appendLine("应用版本: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-            appendLine("构建时间: ${BuildConfig.BUILD_TIME}")
-            appendLine("包名: ${appContext.packageName}")
-            appendLine("设备: ${Build.MANUFACTURER} ${Build.MODEL}")
+            appendLine("Ella Music diagnostic info")
+            appendLine("Generated: ${formatTime(System.currentTimeMillis())}")
+            appendLine("App version: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+            appendLine("Build time: ${BuildConfig.BUILD_TIME}")
+            appendLine("Package: ${appContext.packageName}")
+            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL} (${Build.DEVICE})")
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-            appendLine("日志条数: ${entries.size}")
+            appendLine("Log count: ${entries.size}")
+            appendLine("Error count: ${entries.count { it.level == "ERROR" }}")
+            appendLine("Warning count: ${entries.count { it.level == "WARNING" }}")
             appendLine()
-            appendLine("== AppLogStore ==")
+            appendLine("== App logs ==")
             if (entries.isEmpty()) {
-                appendLine("暂无持久化日志")
+                appendLine("No persisted logs")
             } else {
                 entries.asReversed().forEach { entry ->
                     appendLine(entry.toReportLine())
-                    entry.throwable?.takeIf { it.isNotBlank() }?.let { throwable ->
-                        appendLine(throwable.trimEnd())
+                    entry.relatedId?.takeIf { it.isNotBlank() }?.let { appendLine("Related: $it") }
+                    entry.detail?.takeIf { it.isNotBlank() }?.let { detail ->
+                        appendLine(detail.trimEnd())
                     }
+                    appendLine("----")
                 }
             }
             appendLine()
-            appendLine("== Logcat Tail ==")
+            appendLine("== Logcat tail ==")
             append(readLogcatTail())
         }
     }
@@ -158,8 +250,20 @@ object AppLogStore {
         timeFormat.format(Date(time))
     }
 
-    private fun append(context: Context, entry: AppLogEntry) = synchronized(lock) {
-        Log.println(entry.logPriority(), entry.tag, entry.message)
+    private fun append(
+        context: Context,
+        entry: AppLogEntry,
+        echoToLogcat: Boolean = true,
+        skipIfRecent: Boolean = false
+    ) = synchronized(lock) {
+        val signature = entry.signature()
+        cleanupRecentLocked(entry.time)
+        if (skipIfRecent && recentSignatures.containsKey(signature)) return@synchronized
+        recentSignatures[signature] = entry.time
+
+        if (echoToLogcat) {
+            Log.println(entry.logPriority(), entry.tag, entry.message)
+        }
         val file = logFile(context)
         val cutoff = System.currentTimeMillis() - retentionDays(context) * 24L * 60L * 60L * 1000L
         val lines = if (file.exists()) {
@@ -173,10 +277,20 @@ object AppLogStore {
         file.writeText((lines + encode(entry)).joinToString(separator = "\n"))
     }
 
+    private fun cleanupRecentLocked(now: Long) {
+        val iterator = recentSignatures.entries.iterator()
+        while (iterator.hasNext()) {
+            if (now - iterator.next().value > RECENT_WINDOW_MS) iterator.remove()
+        }
+    }
+
+    private fun AppLogEntry.signature(): String =
+        "${level.uppercase(Locale.ROOT)}|${type.uppercase(Locale.ROOT)}|$tag|$message"
+
     private fun AppLogEntry.logPriority(): Int = when (level) {
         "DEBUG" -> Log.DEBUG
-        "WARN" -> Log.WARN
-        "ERROR", "CRASH" -> Log.ERROR
+        "WARNING" -> Log.WARN
+        "ERROR" -> Log.ERROR
         else -> Log.INFO
     }
 
@@ -187,7 +301,7 @@ object AppLogStore {
     }
 
     private fun AppLogEntry.toReportLine(): String {
-        return "[${formatTime(time)}] $level/$tag: $message"
+        return "[${formatTime(time)}] $level/${typeLabel()} $tag: $message"
     }
 
     private fun exportTimeFormat(): String {
@@ -197,7 +311,9 @@ object AppLogStore {
 
     private fun readLogcatTail(): String {
         return runCatching {
-            val process = ProcessBuilder("logcat", "-d", "-t", "600").redirectErrorStream(true).start()
+            val process = ProcessBuilder("logcat", "-d", "-v", "time", "-t", "900")
+                .redirectErrorStream(true)
+                .start()
             if (!process.waitFor(2, TimeUnit.SECONDS)) {
                 process.destroy()
                 return@runCatching "读取 logcat 超时\n"
@@ -211,21 +327,61 @@ object AppLogStore {
     private fun encode(entry: AppLogEntry): String = listOf(
         entry.time.toString(),
         entry.level,
+        entry.type,
         entry.tag,
         entry.message,
-        entry.throwable.orEmpty()
+        entry.detail.orEmpty(),
+        entry.relatedId.orEmpty()
     ).joinToString("\t") { it.escape() }
 
     private fun decode(line: String): AppLogEntry? {
         val parts = line.split('\t').map { it.unescape() }
-        if (parts.size < 5) return null
-        return AppLogEntry(
-            time = parts[0].toLongOrNull() ?: return null,
-            level = parts[1],
-            tag = parts[2],
-            message = parts[3],
-            throwable = parts[4].takeIf { it.isNotBlank() }
-        )
+        return when {
+            parts.size >= 7 -> AppLogEntry(
+                time = parts[0].toLongOrNull() ?: return null,
+                level = normalizeLevel(parts[1]),
+                type = parts[2].ifBlank { AppLogType.APP.name },
+                tag = parts[3],
+                message = parts[4],
+                detail = parts[5].takeIf { it.isNotBlank() },
+                relatedId = parts[6].takeIf { it.isNotBlank() }
+            )
+            parts.size >= 5 -> AppLogEntry(
+                time = parts[0].toLongOrNull() ?: return null,
+                level = normalizeLevel(parts[1]),
+                tag = parts[2],
+                message = parts[3],
+                type = "${parts[2]} ${parts[3]} ${parts[4]}".detectType().name,
+                detail = parts[4].takeIf { it.isNotBlank() }
+            )
+            else -> null
+        }
+    }
+
+    private fun normalizeLevel(level: String): String = when (level.uppercase(Locale.ROOT)) {
+        "D", "DEBUG" -> "DEBUG"
+        "I", "INFO" -> "INFO"
+        "W", "WARN", "WARNING" -> "WARNING"
+        "E", "ERROR", "CRASH", "F", "FATAL" -> "ERROR"
+        else -> level.uppercase(Locale.ROOT).ifBlank { "INFO" }
+    }
+
+    private fun AppLogEntry.typeLabel(): String =
+        runCatching { AppLogType.valueOf(type).label }.getOrDefault(type)
+
+    private fun String.detectType(): AppLogType {
+        val haystack = lowercase(Locale.ROOT)
+        return when {
+            listOf("crash", "fatal", "exception", "闪退", "崩溃").any { it in haystack } -> AppLogType.CRASH
+            listOf("http", "network", "okhttp", "webdav", "download", "api", "request", "response", "网络", "下载").any { it in haystack } -> AppLogType.NETWORK
+            listOf("player", "playback", "exo", "media3", "decoder", "queue", "audio focus", "播放", "解码", "队列").any { it in haystack } -> AppLogType.PLAYBACK
+            listOf("lyric", "ticker", "superlyric", "lyricon", "flyme", "samsung", "歌词", "词幕").any { it in haystack } -> AppLogType.LYRICS
+            listOf("scan", "scanner", "library", "folder", "album", "artist", "cover", "音乐库", "扫描", "封面").any { it in haystack } -> AppLogType.LIBRARY
+            listOf("tag", "metadata", "jaudiotagger", "taglib", "wav", "alac", "元数据", "标签").any { it in haystack } -> AppLogType.METADATA
+            listOf("lx", "musicfree", "plugin", "online", "quickjs", "在线", "插件").any { it in haystack } -> AppLogType.ONLINE
+            listOf("database", "db", "cache", "playlist", "stats", "backup", "restore", "数据", "备份").any { it in haystack } -> AppLogType.DATABASE
+            else -> AppLogType.APP
+        }
     }
 
     private fun String.escape(): String = replace("\\", "\\\\")

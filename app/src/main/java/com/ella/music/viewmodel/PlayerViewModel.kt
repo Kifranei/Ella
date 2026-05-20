@@ -46,6 +46,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val lyricGetterBridge = LyricGetterBridge(application)
     private val playlistStore = PlaylistStore.getInstance(application)
     private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
+    private val minPlaybackStatsListenMs = 20_000L
 
     val currentSong: StateFlow<Song?> = playerManager.currentSong
     val isPlaying: StateFlow<Boolean> = playerManager.isPlaying
@@ -109,6 +110,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var appliedDecoderMode: Int? = null
     private var appliedAudioFocusDisabled: Boolean? = null
     private var appliedLyricSourceMode: Int? = null
+    private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
     private var lastBluetoothLyricPayload: Pair<String, String?>? = null
     private var sleepTimerJob: Job? = null
     private var externalLyricResendJob: Job? = null
@@ -130,6 +132,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initLyricPageTranslation()
         initBluetoothLyric()
         initShuffleMode()
+        initPreviousButtonAction()
         initDecoderMode()
         initAudioFocusMode()
         initLyricSourceMode()
@@ -234,6 +237,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settingsManager.shuffleMode.distinctUntilChanged().collect { mode ->
                 playerManager.setShuffleMode(mode)
+            }
+        }
+    }
+
+    private fun initPreviousButtonAction() {
+        viewModelScope.launch {
+            settingsManager.previousButtonAction.distinctUntilChanged().collect { action ->
+                previousButtonAction = action.coerceIn(
+                    SettingsManager.PREVIOUS_BUTTON_PREVIOUS,
+                    SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT
+                )
             }
         }
     }
@@ -371,7 +385,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     lyriconBridge.sendPlaybackState(playing)
                     if (!playing) {
                         tickerBridge.clearLyric()
-                        desktopLyricBridge.clearLyric()
+                        resendDesktopLyric()
                         superLyricBridge.sendStop()
                         lyricGetterBridge.clearLyric()
                         playerManager.clearBluetoothLyric()
@@ -435,14 +449,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (song != null && isPlaying.value) {
-            if (playCountedSongId != song.id) {
-                playbackStatsStore.recordPlay(song)
-                playCountedSongId = song.id
-            }
             if (lastStatsTickMs > 0L) {
                 pendingListenMs += (now - lastStatsTickMs).coerceIn(0L, 1500L)
             }
-            if (pendingListenMs >= 5000L) {
+            if (playCountedSongId != song.id && pendingListenMs >= minPlaybackStatsListenMs) {
+                playbackStatsStore.recordPlay(song)
+                playCountedSongId = song.id
+            }
+            if (playCountedSongId == song.id && pendingListenMs >= 5000L) {
                 playbackStatsStore.addListenTime(song, pendingListenMs)
                 pendingListenMs = 0L
             }
@@ -454,7 +468,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private suspend fun flushPlaybackStats() {
         val song = statsSong
-        if (song != null && pendingListenMs > 0L) {
+        if (song != null && playCountedSongId == song.id && pendingListenMs > 0L) {
             playbackStatsStore.addListenTime(song, pendingListenMs)
         }
         pendingListenMs = 0L
@@ -486,7 +500,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun resendDesktopLyric() {
-        if (!desktopLyricBridge.isEnabled() || !isPlaying.value) return
+        if (!desktopLyricBridge.isEnabled()) return
         val index = _currentLyricIndex.value
         val currentLyrics = _lyrics.value
         desktopLyricBridge.sendLyric(
@@ -498,7 +512,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun updateDesktopLyricFrame() {
-        if (!desktopLyricBridge.isEnabled() || !isPlaying.value) return
+        if (!desktopLyricBridge.isEnabled()) return
         val index = _currentLyricIndex.value
         val line = _lyrics.value.getOrNull(index) ?: return
         desktopLyricBridge.sendLyric(line, currentPosition.value, _showLyricTranslation.value, _showLyricPronunciation.value)
@@ -597,11 +611,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun skipToPrevious() {
-        if (repeatMode.value == Player.REPEAT_MODE_ONE) {
+        if (shouldReplayCurrentFromPreviousButton()) {
             playerManager.restartCurrent()
             return
         }
         if (!playLazyOnlineOffset(-1)) playerManager.skipToPrevious()
+    }
+
+    private fun shouldReplayCurrentFromPreviousButton(): Boolean {
+        return previousButtonAction == SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT &&
+            currentPosition.value >= SettingsManager.PREVIOUS_REPLAY_THRESHOLD_MS
     }
 
     fun seekTo(positionMs: Long) {
@@ -628,6 +647,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settingsManager.setShuffleMode(mode)
             playerManager.setShuffleMode(mode)
+        }
+    }
+
+    fun setPreviousButtonAction(action: Int) {
+        previousButtonAction = action.coerceIn(
+            SettingsManager.PREVIOUS_BUTTON_PREVIOUS,
+            SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT
+        )
+        viewModelScope.launch {
+            settingsManager.setPreviousButtonAction(previousButtonAction)
         }
     }
 
@@ -723,6 +752,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun getAudioInfo(song: Song) = repository.getAudioInfo(song)
 
+    fun getSongTagInfo(song: Song) = repository.getSongTagInfo(song)
+
     fun toggleLyrics() {
         _showLyrics.value = !_showLyrics.value
     }
@@ -750,6 +781,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
+    }
+
+    fun refreshCurrentSongAfterExternalEdit(updatedFromLibrary: Song?) {
+        val current = currentSong.value ?: return
+        viewModelScope.launch {
+            val updated = updatedFromLibrary
+                ?.takeIf { it.id == current.id || it.path == current.path }
+                ?: repository.refreshSongAfterExternalEdit(current)
+                ?: current
+            repository.clearMetadataCache(current)
+            repository.clearMetadataCache(updated)
+            playerManager.updateCurrentSongMetadata(updated)
+            reloadLyrics(updated, force = true)
+        }
     }
 
     fun toggleCurrentSongFavorite() {
@@ -894,6 +939,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             desktopLyricBridge.setEnabled(enabled)
             if (enabled) resendDesktopLyric()
         }
+    }
+
+    fun applyDesktopLyricSettings() {
+        desktopLyricBridge.applySettings()
+        resendDesktopLyric()
     }
 
     fun setSuperLyricEnabled(enabled: Boolean) {

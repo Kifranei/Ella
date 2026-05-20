@@ -19,10 +19,10 @@
         android:fillColor="#00153F"
         android:pathData="M6,32C16,28 26,30 35,36C39,39 42,40 45,40C41,45 34,47 24,47C15,47 8,42 6,32z" />
     <group
-        android:scaleX="1.8"
-        android:scaleY="1.8"
-        android:translateX="2"
-        android:translateY="-0.9">
+        android:scaleX="1.48"
+        android:scaleY="1.48"
+        android:translateX="8.4"
+        android:translateY="5.0">
         <path
             android:fillColor="#FFFFFF"
             android:pathData="M10.5,6h3.4v9.5c-0.95,-0.5 -2.1,-0.65 -3.35,-0.45C7.9,15.6 5.8,17.45 5.8,19.75C5.8,22 8.15,23.4 10.95,22.85C13.75,22.3 15.8,20.35 15.8,18.1V6h-5.3z" />

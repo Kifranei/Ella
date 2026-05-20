@@ -1,6 +1,7 @@
 package com.ella.music.data.lx
 
 import android.content.Context
+import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.model.Song
 import com.ella.music.data.LxSourceConfig
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ class LxOnlineService(private val context: Context) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .addInterceptor(AppNetworkLoggingInterceptor("LxNetwork"))
         .build()
 
     suspend fun importSource(url: String): Pair<String, String> = withContext(Dispatchers.IO) {

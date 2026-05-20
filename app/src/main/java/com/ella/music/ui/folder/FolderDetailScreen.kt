@@ -1,13 +1,10 @@
 package com.ella.music.ui.folder
 
-import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -35,15 +32,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
@@ -59,7 +54,6 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.floor
 import android.icu.text.Transliterator
 import java.util.Locale
 
@@ -261,8 +255,8 @@ fun FolderDetailScreen(
                     }
                 }
                 if (sortMode == FolderSongSortMode.Title && sortedSongs.size > 30) {
-                    FolderFastIndexBar(
-                        songs = sortedSongs,
+                    FastIndexBar(
+                        letters = sortedSongs.map { it.indexLetter() },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -286,72 +280,6 @@ private enum class FolderSongSortMode(val label: String) {
     FileName("文件名"),
     DateAdded("添加时间"),
     DateModified("修改时间")
-}
-
-@Composable
-private fun FolderFastIndexBar(
-    songs: List<Song>,
-    onLetterClick: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val letters = remember(songs) { songs.map { it.indexLetter() }.distinct() }
-    var heightPx by remember { mutableStateOf(1) }
-    var lastSelectedLetter by remember { mutableStateOf<String?>(null) }
-    var lastDispatchTimeMs by remember { mutableStateOf(0L) }
-
-    fun selectAt(y: Float) {
-        if (letters.isEmpty()) return
-        val now = SystemClock.uptimeMillis()
-        if (now - lastDispatchTimeMs < 80L) return
-        val index = floor((y.coerceIn(0f, heightPx.toFloat() - 1f) / heightPx) * letters.size)
-            .toInt()
-            .coerceIn(0, letters.lastIndex)
-        val letter = letters[index]
-        if (letter != lastSelectedLetter) {
-            lastSelectedLetter = letter
-            lastDispatchTimeMs = now
-            onLetterClick(letter)
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
-            .pointerInput(letters, heightPx) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    selectAt(down.position.y)
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (change.changedToUpIgnoreConsumed()) break
-                        if (change.pressed) {
-                            selectAt(change.position.y)
-                            change.consume()
-                        }
-                    }
-                    lastSelectedLetter = null
-                }
-            },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        letters.forEach { letter ->
-            Text(
-                text = letter,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clickable {
-                        lastSelectedLetter = letter
-                        lastDispatchTimeMs = SystemClock.uptimeMillis()
-                        onLetterClick(letter)
-                    }
-                    .padding(horizontal = 8.dp, vertical = 1.dp)
-            )
-        }
-    }
 }
 
 private fun Song.indexLetter(): String {

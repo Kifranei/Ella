@@ -1,8 +1,11 @@
 package com.ella.music.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ella.music.data.PlaylistExportResult
+import com.ella.music.data.PlaylistImportResult
 import com.ella.music.data.PlaylistStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.PlaybackHistoryEntry
@@ -13,6 +16,7 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.model.toSong
@@ -154,8 +158,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getAudioInfo(song)
     }
 
+    fun getSongTagInfo(song: Song): SongTagInfo {
+        return repository.getSongTagInfo(song)
+    }
+
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
+    }
+
+    fun refreshSongAfterExternalEdit(song: Song, onUpdated: (Song?) -> Unit = {}) {
+        viewModelScope.launch {
+            onUpdated(repository.refreshSongAfterExternalEdit(song))
+        }
     }
 
     fun playlistSongs(playlist: UserPlaylist): List<Song> {
@@ -180,10 +194,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { playlistStore.addSongsToPlaylist(playlistId, songs) }
     }
 
+    fun importLocalPlaylist(uri: Uri, onResult: (Result<PlaylistImportResult>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { playlistStore.importSaltPlayerPlaylist(uri, songs.value) }
+            onResult(result)
+        }
+    }
+
+    fun exportLocalPlaylist(playlist: UserPlaylist, uri: Uri, onResult: (Result<PlaylistExportResult>) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching { playlistStore.exportSaltPlayerPlaylist(playlist, uri) }
+            onResult(result)
+        }
+    }
+
     fun deleteSongs(songs: Collection<Song>) {
         if (songs.isEmpty()) return
         viewModelScope.launch {
             repository.deleteSongs(songs)
+        }
+    }
+
+    fun removeSongsFromLibrary(songs: Collection<Song>) {
+        if (songs.isEmpty()) return
+        viewModelScope.launch {
+            repository.removeSongsFromLibrary(songs)
         }
     }
 

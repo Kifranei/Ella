@@ -136,7 +136,7 @@ fun LogScreen(
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = "日志",
+                title = "日志分析",
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -235,7 +235,7 @@ fun LogScreen(
                 Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                     BasicComponent(
                         title = "运行日志",
-                        summary = "共 ${entries.size} 条，当前显示 ${filteredEntries.size} 条；最多保留最近 $retentionDays 天和 800 条记录"
+                        summary = "共 ${entries.size} 条，当前显示 ${filteredEntries.size} 条；错误 ${entries.count { it.level.equals("ERROR", true) }} 条，警告 ${entries.count { it.level.equals("WARNING", true) || it.level.equals("WARN", true) }} 条；自动抓取本进程 logcat、网络失败和关键播放/歌词/扫描日志，最多保留最近 $retentionDays 天和 3000 条记录"
                     )
                 }
             }
@@ -426,6 +426,9 @@ private fun AppLogDetailSheet(
             DetailRow(label = "级别", value = entry.level)
             DetailRow(label = "类型", value = entry.detectType().label)
             DetailRow(label = "Tag", value = entry.tag)
+            entry.relatedId?.takeIf { it.isNotBlank() }?.let {
+                DetailRow(label = "关联对象", value = it)
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "消息",
@@ -493,20 +496,25 @@ private enum class EllaLogLevelFilter(val label: String, private val aliases: Se
     fun matches(entry: AppLogEntry): Boolean = entry.level.uppercase(Locale.ROOT) in aliases
 }
 
-private enum class EllaLogTypeFilter(val label: String, val keywords: Set<String>) {
-    APP("应用", emptySet()),
-    PLAYBACK("播放", setOf("player", "playback", "play", "exo", "media", "audio", "decoder", "queue", "播放", "播放器", "解码", "队列")),
-    LYRICS("歌词", setOf("lyric", "lyrics", "ticker", "superlyric", "lyricon", "flyme", "samsung", "bluetooth", "词幕", "歌词")),
-    LIBRARY("音乐库", setOf("scan", "scanner", "library", "folder", "album", "artist", "tag", "metadata", "音乐库", "扫描", "文件夹", "专辑", "艺术家", "标签")),
-    ONLINE("在线", setOf("lx", "musicfree", "webdav", "download", "plugin", "api", "network", "http", "在线", "下载", "插件")),
-    DATABASE("数据", setOf("database", "db", "room", "dao", "backup", "restore", "数据库", "备份", "恢复")),
-    CRASH("崩溃", setOf("crash", "exception", "fatal", "崩溃", "闪退"));
+private enum class EllaLogTypeFilter(val label: String, val storageNames: Set<String>, val keywords: Set<String>) {
+    APP("应用", setOf("APP"), emptySet()),
+    PLAYBACK("播放", setOf("PLAYBACK"), setOf("player", "playback", "play", "exo", "media", "audio", "decoder", "queue", "播放", "播放器", "解码", "队列")),
+    LYRICS("歌词", setOf("LYRICS"), setOf("lyric", "lyrics", "ticker", "superlyric", "lyricon", "flyme", "samsung", "bluetooth", "词幕", "歌词")),
+    LIBRARY("音乐库", setOf("LIBRARY"), setOf("scan", "scanner", "library", "folder", "album", "artist", "cover", "音乐库", "扫描", "文件夹", "专辑", "艺术家", "封面")),
+    METADATA("元数据", setOf("METADATA"), setOf("tag", "metadata", "jaudiotagger", "taglib", "wav", "alac", "元数据", "标签")),
+    ONLINE("在线", setOf("ONLINE"), setOf("lx", "musicfree", "download", "plugin", "api", "在线", "下载", "插件")),
+    NETWORK("网络", setOf("NETWORK"), setOf("network", "http", "okhttp", "webdav", "request", "response", "网络")),
+    DATABASE("数据", setOf("DATABASE"), setOf("database", "db", "room", "dao", "backup", "restore", "playlist", "stats", "数据库", "备份", "恢复")),
+    CRASH("崩溃", setOf("CRASH"), setOf("crash", "exception", "fatal", "崩溃", "闪退"));
 
     fun matches(entry: AppLogEntry): Boolean = entry.detectType() == this
 }
 
 private fun AppLogEntry.detectType(): EllaLogTypeFilter {
     if (level.equals("CRASH", ignoreCase = true)) return EllaLogTypeFilter.CRASH
+    EllaLogTypeFilter.entries.firstOrNull { filter ->
+        type.uppercase(Locale.ROOT) in filter.storageNames
+    }?.let { return it }
     val haystack = "$tag $message ${throwable.orEmpty()}".lowercase(Locale.ROOT)
     return EllaLogTypeFilter.entries
         .asSequence()

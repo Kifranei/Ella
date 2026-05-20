@@ -64,7 +64,7 @@ fun SongItem(
     val shouldLoadEmbeddedCover = song.coverUrl.isBlank() &&
         loadCoverArt != null &&
         (albumArtUri == null || preferEmbeddedCover)
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, shouldLoadEmbeddedCover) {
+    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, song.dateModified, song.fileSize, shouldLoadEmbeddedCover) {
         value = if (shouldLoadEmbeddedCover) {
             withContext(Dispatchers.IO) { loadCoverArt.invoke(song) }
         } else {

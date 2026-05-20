@@ -34,7 +34,11 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 class DesktopLyricService : Service() {
@@ -55,6 +59,12 @@ class DesktopLyricService : Service() {
     private var fontScale = 1f
     private var movedDuringTouch = false
     private var lastTapTimeMs = 0L
+    private var translationScale = 1.1f
+    private var opacityPercent = 100
+    private var lyricTextColor = Color.WHITE
+    private var savedX = Int.MIN_VALUE
+    private var savedY = Int.MIN_VALUE
+    private val settingsManager by lazy { SettingsManager(this) }
     private val serviceScope = CoroutineScope(Dispatchers.IO)
     private val hideControlsRunnable = Runnable { hideControls() }
     private val panelBackground by lazy {
@@ -69,6 +79,7 @@ class DesktopLyricService : Service() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        loadSettingsFromStore()
         controllerFuture = MediaController.Builder(
             this,
             SessionToken(this, ComponentName(this, PlaybackService::class.java))
@@ -97,8 +108,9 @@ class DesktopLyricService : Service() {
             ACTION_SHOW, ACTION_UPDATE -> showOrUpdate(intent)
             ACTION_HIDE -> stopSelf()
             ACTION_UNLOCK -> setLocked(false)
-            ACTION_FONT_SMALLER -> updateFontScale(-0.08f)
-            ACTION_FONT_LARGER -> updateFontScale(0.08f)
+            ACTION_APPLY_SETTINGS -> applySettingsFromStore()
+            ACTION_FONT_SMALLER -> updateFontScale(-0.1f)
+            ACTION_FONT_LARGER -> updateFontScale(0.1f)
         }
         return START_STICKY
     }
@@ -147,6 +159,7 @@ class DesktopLyricService : Service() {
     }
 
     private fun addLyricView() {
+        val lyricWidth = max(dp(280), resources.displayMetrics.widthPixels - dp(32)).coerceAtMost(dp(660))
         val lyric = DesktopLyricView(this)
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -170,8 +183,8 @@ class DesktopLyricService : Service() {
             setBackgroundColor(Color.TRANSPARENT)
             elevation = 0f
 
-            // 高度收窄，避免像一整块大卡片
-            addView(lyric, LinearLayout.LayoutParams(dp(620), dp(96)))
+            // Keep the overlay inside the physical screen; fixed dp widths can overflow on high-density phones.
+            addView(lyric, LinearLayout.LayoutParams(lyricWidth, dp(150)))
 
             // 控制按钮仍保留，双击歌词时显示
             addView(
@@ -199,16 +212,19 @@ class DesktopLyricService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = 0
-            y = dp(96)
+            x = savedX.takeIf { it != Int.MIN_VALUE } ?: 0
+            y = savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
         }
 
         rootView = root
         lyricView = lyric
         controlsView = controls
         layoutParams = params
+        applyCurrentSettingsToViews()
         windowManager.addView(root, params)
         clampToScreen(root, params)
+        if (params.x != savedX || params.y != savedY) persistPosition(params.x, params.y)
+        if (locked) setLocked(true) else setPanelVisible(false)
     }
 
     private fun LinearLayout.addControl(label: String, description: String, action: () -> Unit) {
@@ -235,8 +251,9 @@ class DesktopLyricService : Service() {
     }
 
     private fun updateFontScale(delta: Float) {
-        fontScale = (fontScale + delta).coerceIn(0.72f, 1.35f)
-        lyricView?.setFontScale(fontScale)
+        fontScale = (fontScale + delta).coerceIn(0.8f, 2.2f)
+        applyCurrentSettingsToViews()
+        serviceScope.launch { settingsManager.setDesktopLyricFontScale((fontScale * 100f).roundToInt()) }
     }
 
     private fun closeByUser() {
@@ -269,11 +286,16 @@ class DesktopLyricService : Service() {
         }
     }
 
-    private fun setLocked(lock: Boolean) {
+    private fun setLocked(lock: Boolean, revealControls: Boolean = true) {
         locked = lock
-        controlsView?.visibility = if (lock) View.GONE else View.VISIBLE
-        setPanelVisible(!lock)
-        if (!lock) scheduleControlsAutoHide()
+        serviceScope.launch { settingsManager.setDesktopLyricLocked(lock) }
+        controlsView?.visibility = when {
+            lock -> View.GONE
+            revealControls -> View.VISIBLE
+            else -> controlsView?.visibility ?: View.GONE
+        }
+        setPanelVisible(!lock && controlsView?.visibility == View.VISIBLE)
+        if (!lock && revealControls) scheduleControlsAutoHide()
         val params = layoutParams ?: return
         params.flags = if (lock) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -319,6 +341,7 @@ class DesktopLyricService : Service() {
             }
             MotionEvent.ACTION_UP -> {
                 if (!movedDuringTouch) handleTap()
+                persistPosition(params.x, params.y)
                 return true
             }
         }
@@ -342,7 +365,41 @@ class DesktopLyricService : Service() {
         val maxX = (metrics.widthPixels / 2 - halfWidth).coerceAtLeast(0)
         val maxY = (metrics.heightPixels - (view.height.takeIf { it > 0 } ?: dp(112))).coerceAtLeast(0)
         params.x = params.x.coerceIn(-maxX, maxX)
-        params.y = params.y.coerceIn(0, maxY)
+        params.y = params.y.coerceIn(-dp(28), maxY)
+    }
+
+    private fun loadSettingsFromStore() {
+        runBlocking(Dispatchers.IO) {
+            locked = settingsManager.desktopLyricLocked.first()
+            fontScale = settingsManager.desktopLyricFontScale.first().coerceIn(80, 220) / 100f
+            translationScale = settingsManager.desktopLyricTranslationScale.first().coerceIn(80, 220) / 100f
+            opacityPercent = settingsManager.desktopLyricOpacity.first().coerceIn(35, 100)
+            lyricTextColor = settingsManager.desktopLyricTextColor.first()
+            savedX = settingsManager.desktopLyricX.first()
+            savedY = settingsManager.desktopLyricY.first()
+        }
+    }
+
+    private fun applySettingsFromStore() {
+        loadSettingsFromStore()
+        applyCurrentSettingsToViews()
+        setLocked(locked, revealControls = false)
+    }
+
+    private fun applyCurrentSettingsToViews() {
+        lyricView?.setStyle(
+            fontScale = fontScale,
+            translationScale = translationScale,
+            opacityPercent = opacityPercent,
+            textColor = lyricTextColor
+        )
+        rootView?.alpha = 1f
+    }
+
+    private fun persistPosition(x: Int, y: Int) {
+        savedX = x
+        savedY = y
+        serviceScope.launch { settingsManager.setDesktopLyricPosition(x, y) }
     }
 
     private fun postUnlockNotification() {
@@ -425,13 +482,29 @@ class DesktopLyricService : Service() {
         private var backgroundText = ""
         private var backgroundTranslation = ""
         private var fontScale = 1f
+        private var translationScale = 1.1f
+        private var opacity = 1f
+        private var textColor = Color.WHITE
         private var positionMs = 0L
         private var words = emptyList<DesktopWord>()
         private var pronunciationWords = emptyList<DesktopWord>()
         private var backgroundWords = emptyList<DesktopWord>()
 
-        fun setFontScale(scale: Float) {
-            fontScale = scale
+        fun setStyle(fontScale: Float, translationScale: Float, opacityPercent: Int, textColor: Int) {
+            this.fontScale = fontScale.coerceIn(0.8f, 2.2f)
+            this.translationScale = translationScale.coerceIn(0.8f, 2.2f)
+            this.opacity = (opacityPercent.coerceIn(35, 100) / 100f)
+            this.textColor = textColor
+            pendingPaint.color = colorWithAlpha(textColor, 150)
+            activePaint.color = colorWithAlpha(textColor, 255)
+            glowPaint.color = colorWithAlpha(textColor, 150)
+            pronunciationPaint.color = colorWithAlpha(textColor, 155)
+            translationPaint.color = colorWithAlpha(textColor, 180)
+            pendingPaint.setShadowLayer(8f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
+            activePaint.setShadowLayer(10f, 0f, 2f, colorWithAlpha(Color.BLACK, 210))
+            glowPaint.setShadowLayer(18f, 0f, 0f, colorWithAlpha(textColor, 170))
+            pronunciationPaint.setShadowLayer(7f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
+            translationPaint.setShadowLayer(7f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
             invalidate()
         }
 
@@ -486,6 +559,8 @@ class DesktopLyricService : Service() {
             val hasPronunciation = pronunciation.isNotBlank() || pronunciationWords.isNotEmpty()
             val primaryAlign = ttmlAlignForPrimary()
             val backgroundAlign = primaryAlign.opposite()
+            val primaryMaxWidth = maxWidthForAlign(primaryAlign)
+            val backgroundMaxWidth = maxWidthForAlign(backgroundAlign)
             if (hasPronunciation && !hasBackground) {
                 drawSmallLine(
                     canvas = canvas,
@@ -498,33 +573,61 @@ class DesktopLyricService : Service() {
                 )
                 drawLine(canvas, lyricText, words, width / 2f, height * 0.54f, width * 0.9f, AnchorAlign.Center, true)
                 if (translation.isNotBlank()) {
-                    drawFittedText(canvas, translation, width / 2f, height * 0.82f, width * 0.88f, AnchorAlign.Center, translationPaint)
+                    drawTranslationText(canvas, translation, width / 2f, height * 0.82f, width * 0.88f, AnchorAlign.Center)
                 }
             } else if (hasBackground) {
-                val primaryBaseline = height * 0.34f
-                val backgroundBaseline = height * 0.62f
-                drawLine(canvas, lyricText, words, primaryAlign.anchorX(width), primaryBaseline, width * 0.82f, primaryAlign, true)
+                val hasTranslation = translation.isNotBlank() || backgroundTranslation.isNotBlank()
+                val primaryBaseline = height * if (hasTranslation) 0.25f else 0.34f
+                val backgroundBaseline = height * if (hasTranslation) 0.64f else 0.62f
+                drawLine(canvas, lyricText, words, primaryAlign.anchorX(width), primaryBaseline, primaryMaxWidth, primaryAlign, true)
+                if (translation.isNotBlank()) {
+                    drawTranslationText(
+                        canvas = canvas,
+                        value = translation,
+                        anchorX = primaryAlign.anchorX(width),
+                        baseline = height * 0.43f,
+                        maxWidth = primaryMaxWidth,
+                        align = primaryAlign
+                    )
+                }
                 drawLine(
                     canvas = canvas,
                     fallbackText = backgroundText.ifBlank { backgroundWords.joinToString("") { it.text } },
                     lineWords = backgroundWords,
                     anchorX = backgroundAlign.anchorX(width),
                     baseline = backgroundBaseline,
-                    maxWidth = width * 0.82f,
+                    maxWidth = backgroundMaxWidth,
                     align = backgroundAlign,
                     primary = false
                 )
-                val translationText = listOf(translation, backgroundTranslation).firstOrNull { it.isNotBlank() }.orEmpty()
-                if (translationText.isNotBlank()) {
-                    drawFittedText(canvas, translationText, width / 2f, height * 0.86f, width * 0.88f, AnchorAlign.Center, translationPaint)
+                if (backgroundTranslation.isNotBlank()) {
+                    drawTranslationText(
+                        canvas = canvas,
+                        value = backgroundTranslation,
+                        anchorX = backgroundAlign.anchorX(width),
+                        baseline = height * 0.82f,
+                        maxWidth = backgroundMaxWidth,
+                        align = backgroundAlign
+                    )
                 }
             } else {
                 val baseline = height / 2f - if (translation.isBlank()) -5f else 10f
-                drawLine(canvas, lyricText, words, primaryAlign.anchorX(width), baseline, width * 0.9f, primaryAlign, true)
+                drawLine(canvas, lyricText, words, primaryAlign.anchorX(width), baseline, primaryMaxWidth, primaryAlign, true)
                 if (translation.isNotBlank()) {
-                    drawFittedText(canvas, translation, width / 2f, baseline + 25f * resources.displayMetrics.scaledDensity, width * 0.88f, AnchorAlign.Center, translationPaint)
+                    drawTranslationText(
+                        canvas = canvas,
+                        value = translation,
+                        anchorX = primaryAlign.anchorX(width),
+                        baseline = baseline + 25f * resources.displayMetrics.scaledDensity,
+                        maxWidth = primaryMaxWidth,
+                        align = primaryAlign
+                    )
                 }
             }
+        }
+
+        private fun maxWidthForAlign(align: AnchorAlign): Float {
+            return if (isTtml && align != AnchorAlign.Center) width * 0.44f else width * 0.88f
         }
 
         private fun drawLine(canvas: Canvas, fallbackText: String, lineWords: List<DesktopWord>, anchorX: Float, baseline: Float, maxWidth: Float, align: AnchorAlign, primary: Boolean) {
@@ -609,12 +712,12 @@ class DesktopLyricService : Service() {
                 val isPast = positionMs > word.endMs
                 val paint = when {
                     isCurrent && primary -> activePaint
-                    isPast -> Paint(activePaint).apply { color = Color.argb(210, 255, 255, 255) }
+                    isPast -> Paint(activePaint).apply { color = colorWithAlpha(textColor, 210) }
                     else -> pendingPaint
                 }
                 if (isCurrent && word.endMs - word.startMs >= 900L) {
                     val pulse = 0.42f + 0.34f * ((sin(positionMs / 145.0).toFloat() + 1f) / 2f)
-                    glowPaint.alpha = (pulse * 255).toInt().coerceIn(0, 255)
+                    glowPaint.alpha = (pulse * 170f * opacity).roundToInt().coerceIn(0, 255)
                     canvas.drawText(token, x, baseline, glowPaint)
                 }
                 canvas.drawText(token, x, baseline, paint)
@@ -643,6 +746,18 @@ class DesktopLyricService : Service() {
             canvas.drawText(fitted, anchorX, baseline, paint)
             paint.textSize = oldSize
             paint.textAlign = oldAlign
+        }
+
+        private fun drawTranslationText(canvas: Canvas, value: String, anchorX: Float, baseline: Float, maxWidth: Float, align: AnchorAlign) {
+            val oldSize = translationPaint.textSize
+            translationPaint.textSize = 15f * resources.displayMetrics.scaledDensity * fontScale * translationScale
+            drawFittedText(canvas, value, anchorX, baseline, maxWidth, align, translationPaint)
+            translationPaint.textSize = oldSize
+        }
+
+        private fun colorWithAlpha(color: Int, alpha: Int): Int {
+            val appliedAlpha = (alpha * opacity).roundToInt().coerceIn(0, 255)
+            return Color.argb(appliedAlpha, Color.red(color), Color.green(color), Color.blue(color))
         }
 
         private fun Char.isCjkChar(): Boolean =
@@ -697,6 +812,7 @@ class DesktopLyricService : Service() {
         const val ACTION_ENABLE = "com.ella.music.action.ENABLE_DESKTOP_LYRIC"
         const val ACTION_HIDE = "com.ella.music.action.HIDE_DESKTOP_LYRIC"
         const val ACTION_UNLOCK = "com.ella.music.action.UNLOCK_DESKTOP_LYRIC"
+        const val ACTION_APPLY_SETTINGS = "com.ella.music.action.APPLY_DESKTOP_LYRIC_SETTINGS"
         const val ACTION_FONT_SMALLER = "com.ella.music.action.DESKTOP_LYRIC_FONT_SMALLER"
         const val ACTION_FONT_LARGER = "com.ella.music.action.DESKTOP_LYRIC_FONT_LARGER"
         const val EXTRA_TEXT = "text"

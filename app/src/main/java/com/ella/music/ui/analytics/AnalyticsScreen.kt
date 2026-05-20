@@ -19,13 +19,17 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,16 +55,19 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 @Composable
 fun AnalyticsScreen(
     mainViewModel: MainViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToHistory: () -> Unit = {}
 ) {
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
@@ -106,7 +113,11 @@ fun AnalyticsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                HistoryCard(history = playbackHistory.take(20))
+                HistoryCard(
+                    history = playbackHistory.take(20),
+                    totalCount = playbackHistory.size,
+                    onClick = onNavigateToHistory
+                )
             }
 
             item {
@@ -135,6 +146,117 @@ fun AnalyticsScreen(
                         .take(10),
                     valueText = { "${it.playCount} 次" }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun PlaybackHistoryScreen(
+    mainViewModel: MainViewModel,
+    onBack: () -> Unit
+) {
+    val playbackHistory by mainViewModel.playbackHistory.collectAsState()
+    val groupedHistory = remember(playbackHistory) {
+        playbackHistory
+            .sortedByDescending { it.playedAt }
+            .groupBy { historyDateKey(it.playedAt) }
+    }
+    val dateKeys = remember(groupedHistory) { groupedHistory.keys.toList() }
+    var selectedDateKey by remember { mutableStateOf<String?>(null) }
+    val activeDateKey = selectedDateKey.takeIf { it in groupedHistory } ?: dateKeys.firstOrNull()
+    val activeHistory = activeDateKey?.let { groupedHistory[it].orEmpty() }.orEmpty()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ellaPageBackground())
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = MiuixIcons.Regular.Back,
+                    contentDescription = "返回",
+                    tint = MiuixTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Column(modifier = Modifier.padding(start = 8.dp)) {
+                Text(
+                    text = "听歌历史",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = if (playbackHistory.isEmpty()) "暂无记录" else "共 ${playbackHistory.size} 条记录",
+                    fontSize = 12.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
+        }
+
+        if (playbackHistory.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = "播放歌曲后会在这里按日期保存历史记录",
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+        } else {
+            LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(dateKeys, key = { it }) { dateKey ->
+                    DateChip(
+                        dateKey = dateKey,
+                        count = groupedHistory[dateKey].orEmpty().size,
+                        selected = dateKey == activeDateKey,
+                        onClick = { selectedDateKey = dateKey }
+                    )
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item(key = "active-date") {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = activeDateKey?.let(::formatHistoryDateTitle).orEmpty(),
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MiuixTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${activeHistory.size} 次播放",
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(top = 3.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            activeHistory.forEach { entry ->
+                                HistoryRow(entry = entry, timeText = formatHistoryClock(entry.playedAt))
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -299,15 +421,39 @@ private fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
 }
 
 @Composable
-private fun HistoryCard(history: List<PlaybackHistoryEntry>) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun HistoryCard(
+    history: List<PlaybackHistoryEntry>,
+    totalCount: Int,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "听歌历史记录",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "听歌历史记录",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    if (totalCount > history.size) {
+                        Text(
+                            text = "查看全部 $totalCount 条记录",
+                            fontSize = 12.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = MiuixIcons.Basic.ArrowRight,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(10.dp))
             if (history.isEmpty()) {
                 Text(
@@ -324,7 +470,10 @@ private fun HistoryCard(history: List<PlaybackHistoryEntry>) {
 }
 
 @Composable
-private fun HistoryRow(entry: PlaybackHistoryEntry) {
+private fun HistoryRow(
+    entry: PlaybackHistoryEntry,
+    timeText: String = formatHistoryTime(entry.playedAt)
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -348,12 +497,47 @@ private fun HistoryRow(entry: PlaybackHistoryEntry) {
             )
         }
         Text(
-            text = formatHistoryTime(entry.playedAt),
+            text = timeText,
             fontSize = 12.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             textAlign = TextAlign.End,
             modifier = Modifier.widthIn(min = 72.dp)
         )
+    }
+}
+
+@Composable
+private fun DateChip(
+    dateKey: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.widthIn(min = 88.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .background(
+                    if (selected) MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)
+                    else Color.Transparent
+                )
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = formatHistoryDateChip(dateKey),
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "$count 次",
+                fontSize = 11.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+        }
     }
 }
 
@@ -734,6 +918,48 @@ private fun formatHistoryTime(timestampMs: Long): String {
         else -> "yyyy-MM-dd"
     }
     return SimpleDateFormat(pattern, Locale.getDefault()).format(then.time)
+}
+
+private fun historyDateKey(timestampMs: Long): String {
+    if (timestampMs <= 0L) return ""
+    return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(timestampMs))
+}
+
+private fun formatHistoryClock(timestampMs: Long): String {
+    if (timestampMs <= 0L) return ""
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMs))
+}
+
+private fun formatHistoryDateChip(dateKey: String): String {
+    val date = parseHistoryDateKey(dateKey) ?: return dateKey
+    val then = Calendar.getInstance().apply { time = date }
+    return "%02d-%02d".format(
+        then.get(Calendar.MONTH) + 1,
+        then.get(Calendar.DAY_OF_MONTH)
+    )
+}
+
+private fun formatHistoryDateTitle(dateKey: String): String {
+    val date = parseHistoryDateKey(dateKey) ?: return dateKey
+    val today = Calendar.getInstance()
+    val then = Calendar.getInstance().apply { time = date }
+    val label = when {
+        today.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
+            today.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR) -> "今天"
+        today.apply { add(Calendar.DAY_OF_YEAR, -1) }.let {
+            it.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
+                it.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
+        } -> "昨天"
+        else -> SimpleDateFormat("yyyy年M月d日", Locale.getDefault()).format(date)
+    }
+    val week = SimpleDateFormat("EEEE", Locale.getDefault()).format(date)
+    return "$label · $week"
+}
+
+private fun parseHistoryDateKey(dateKey: String): Date? {
+    return runCatching {
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).parse(dateKey)
+    }.getOrNull()
 }
 
 private val qualityOrder = listOf("Dolby", "MQ", "Hi-Res", "无损", "HQ", "LQ", "未知", "其他")

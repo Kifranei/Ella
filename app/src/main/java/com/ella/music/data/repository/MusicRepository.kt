@@ -6,15 +6,18 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import android.util.LruCache
+import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.scanner.MusicScanner
@@ -23,12 +26,15 @@ import com.ella.music.data.webdav.WebDavConfig
 import java.io.File
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -43,6 +49,7 @@ class MusicRepository(private val context: Context) {
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor(AppNetworkLoggingInterceptor("MusicRepoNetwork"))
         .build()
 
     private val _songs = MutableStateFlow<List<Song>>(emptyList())
@@ -59,6 +66,7 @@ class MusicRepository(private val context: Context) {
 
     private val lyricsCache = mutableMapOf<String, List<LyricLine>>()
     private val audioInfoCache = mutableMapOf<Long, AudioInfo>()
+    private val tagInfoCache = mutableMapOf<String, SongTagInfo>()
     private val replayGainCache = mutableMapOf<Long, Float?>()
     private val coverArtCache = object : LruCache<String, ByteArray>(8 * 1024) {
         override fun sizeOf(key: String, value: ByteArray): Int = value.size / 1024
@@ -87,6 +95,28 @@ class MusicRepository(private val context: Context) {
         } finally {
             _isScanning.value = false
         }
+    }
+
+    suspend fun refreshSongAfterExternalEdit(song: Song): Song? = withContext(Dispatchers.IO) {
+        if (song.path.startsWith("http://") || song.path.startsWith("https://")) return@withContext null
+
+        clearMetadataCache(song)
+        scanEditedFile(song)
+        delay(350)
+
+        val updated = querySystemSong(song) ?: song
+        clearMetadataCache(updated)
+
+        val currentSongs = _songs.value
+        if (currentSongs.isNotEmpty()) {
+            val nextSongs = currentSongs.map { existing ->
+                if (existing.id == song.id || existing.path == song.path) updated else existing
+            }
+            _songs.value = nextSongs
+            _albums.value = nextSongs.toAlbums()
+            saveLibraryCache(nextSongs, _albums.value)
+        }
+        updated
     }
 
     suspend fun loadCachedLibrary() = withContext(Dispatchers.IO) {
@@ -278,6 +308,19 @@ class MusicRepository(private val context: Context) {
         return info
     }
 
+    fun getSongTagInfo(song: Song): SongTagInfo {
+        val cacheKey = "${song.id}:${song.dateModified}:${song.fileSize}"
+        tagInfoCache[cacheKey]?.let { return it }
+        val info = runCatching {
+            scanner.extractSongTagInfo(song.effectiveLocalPathForMetadata())
+        }.getOrElse {
+            Log.w("MusicRepo", "Failed to read tag info for ${song.path}", it)
+            SongTagInfo()
+        }
+        tagInfoCache[cacheKey] = info
+        return info
+    }
+
     private fun Song.estimatedBitRate(): Int {
         if (fileSize <= 0L || duration <= 0L) return 0
         return ((fileSize * 8_000L) / duration).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -391,13 +434,40 @@ class MusicRepository(private val context: Context) {
         deleted
     }
 
+    suspend fun removeSongsFromLibrary(songs: Collection<Song>): Unit = withContext(Dispatchers.IO) {
+        if (songs.isEmpty()) return@withContext
+        val deletedIds = songs.map { it.id }.toSet()
+        _songs.value = _songs.value.filterNot { it.id in deletedIds }
+        _albums.value = _songs.value.toAlbums()
+        saveLibraryCache(_songs.value, _albums.value)
+        Unit
+    }
+
     fun clearCache() {
         lyricsCache.clear()
         audioInfoCache.clear()
+        tagInfoCache.clear()
         replayGainCache.clear()
         coverArtCache.evictAll()
         missingCoverKeys.clear()
         coverBitmapCache.evictAll()
+    }
+
+    fun clearMetadataCache(song: Song) {
+        lyricsCache.keys.removeAll { it.startsWith("${song.id}:") }
+        audioInfoCache.remove(song.id)
+        tagInfoCache.keys.removeAll { it.startsWith("${song.id}:") }
+        replayGainCache.remove(song.id)
+        missingCoverKeys.remove(song.coverCacheKey())
+        coverArtCache.remove(song.coverCacheKey())
+        val keyPrefix = "${song.coverCacheKey()}:"
+        val bitmapKeys = mutableListOf<String>()
+        synchronized(coverArtLock) {
+            for (key in coverBitmapCache.snapshot().keys) {
+                if (key.startsWith(keyPrefix)) bitmapKeys += key
+            }
+            bitmapKeys.forEach(coverBitmapCache::remove)
+        }
     }
 
     fun clearRemoteMetadataCache() {
@@ -567,6 +637,71 @@ class MusicRepository(private val context: Context) {
                 songCount = item.optInt("songCount"),
                 year = item.optInt("year"),
                 artAlbumId = item.optLong("artAlbumId", item.optLong("id"))
+            )
+        }
+    }
+
+    private suspend fun scanEditedFile(song: Song) = suspendCoroutine<Unit> { continuation ->
+        val path = song.path.takeIf { it.isNotBlank() }
+        if (path == null || path.startsWith("content://", ignoreCase = true)) {
+            continuation.resume(Unit)
+            return@suspendCoroutine
+        }
+        val mimeTypes = song.mimeType.takeIf { it.isNotBlank() }?.let { arrayOf(it) }
+        MediaScannerConnection.scanFile(
+            context,
+            arrayOf(path),
+            mimeTypes,
+        ) { _, _ ->
+            continuation.resume(Unit)
+        }
+    }
+
+    private fun querySystemSong(song: Song): Song? {
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.TRACK
+        )
+        val uri = if (song.id > 0L) {
+            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
+        } else {
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        }
+        val selection = if (song.id > 0L) null else "${MediaStore.Audio.Media.DATA} = ?"
+        val selectionArgs = if (song.id > 0L) null else arrayOf(song.path)
+
+        return context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (!cursor.moveToFirst()) return@use null
+            Song(
+                id = cursor.getLong(0),
+                title = cursor.getString(1)?.takeUnless { it.isBlank() || it == "<unknown>" } ?: song.title,
+                artist = cursor.getString(2)?.takeUnless { it.isBlank() || it == "<unknown>" } ?: song.artist,
+                album = cursor.getString(3)?.takeUnless { it.isBlank() || it == "<unknown>" } ?: song.album,
+                albumId = cursor.getLong(4),
+                duration = cursor.getLong(5).takeIf { it > 0L } ?: song.duration,
+                path = cursor.getString(6).orEmpty().ifBlank { song.path },
+                fileName = cursor.getString(7).orEmpty().ifBlank { song.fileName },
+                fileSize = cursor.getLong(8),
+                mimeType = cursor.getString(9).orEmpty().ifBlank { song.mimeType },
+                dateAdded = cursor.getLong(10) * 1000L,
+                dateModified = cursor.getLong(11) * 1000L,
+                trackNumber = cursor.getInt(12).let { if (it > 1000) it % 1000 else it },
+                coverUrl = song.coverUrl,
+                onlineSource = song.onlineSource,
+                onlineId = song.onlineId,
+                onlineLyrics = song.onlineLyrics,
+                onlineLyricTranslation = song.onlineLyricTranslation
             )
         }
     }

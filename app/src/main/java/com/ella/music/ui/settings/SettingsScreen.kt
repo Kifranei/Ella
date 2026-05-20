@@ -1,6 +1,8 @@
 package com.ella.music.ui.settings
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -33,6 +35,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.ella.music.BuildConfig
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
@@ -169,12 +172,15 @@ fun AudioSettingsScreen(
     val replayGainEnabled by settingsManager.replayGainEnabled.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
     val shuffleMode by settingsManager.shuffleMode.collectAsState(initial = SettingsManager.SHUFFLE_MODE_PSEUDO)
+    val previousButtonAction by settingsManager.previousButtonAction.collectAsState(initial = SettingsManager.PREVIOUS_BUTTON_PREVIOUS)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 2)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
     val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
     val shuffleModeLabels = listOf("伪随机", "真随机")
     val selectedShuffleMode = shuffleMode.coerceIn(shuffleModeLabels.indices)
+    val previousButtonLabels = listOf("上一曲", "重放当前歌曲")
+    val selectedPreviousButtonAction = previousButtonAction.coerceIn(previousButtonLabels.indices)
     val startupPlayLabels = listOf("关闭", "随机播放", "继续上一次")
     val selectedStartupPlayMode = startupPlayMode.coerceIn(startupPlayLabels.indices)
     val startupPlayEntries = remember {
@@ -208,6 +214,18 @@ fun AudioSettingsScreen(
                 summary = when (index) {
                     SettingsManager.SHUFFLE_MODE_TRUE_RANDOM -> "每次随机抽取，可能连续随机到同一首"
                     else -> "洗牌队列播放，一轮内尽量不重复"
+                }
+            )
+        }
+    }
+    val previousButtonEntries = remember {
+        previousButtonLabels.mapIndexed { index, label ->
+            DropdownItem(
+                title = label,
+                summary = when (index) {
+                    SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT ->
+                        "当前歌曲播放超过 20 秒时重放；20 秒内仍切到上一曲"
+                    else -> "始终切换到播放队列里的上一曲"
                 }
             )
         }
@@ -278,6 +296,16 @@ fun AudioSettingsScreen(
                         onSelectedIndexChange = { index ->
                             scope.launch { settingsManager.setShuffleMode(index) }
                             playerViewModel?.setShuffleMode(index)
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = "上一曲按钮",
+                        summary = "当前：${previousButtonLabels[selectedPreviousButtonAction]}",
+                        items = previousButtonEntries,
+                        selectedIndex = selectedPreviousButtonAction,
+                        onSelectedIndexChange = { index ->
+                            scope.launch { settingsManager.setPreviousButtonAction(index) }
+                            playerViewModel?.setPreviousButtonAction(index)
                         }
                     )
                 }
@@ -435,7 +463,7 @@ fun SettingsDetailScreen(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
 
-    val autoScan by settingsManager.autoScan.collectAsState(initial = false)
+    val autoScan by settingsManager.autoScan.collectAsState(initial = true)
     val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
     val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
@@ -443,6 +471,11 @@ fun SettingsDetailScreen(
     val tickerHideNotification by settingsManager.tickerHideNotification.collectAsState(initial = false)
     val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectAsState(initial = false)
+    val desktopLyricLocked by settingsManager.desktopLyricLocked.collectAsState(initial = false)
+    val desktopLyricFontScale by settingsManager.desktopLyricFontScale.collectAsState(initial = 100)
+    val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectAsState(initial = 110)
+    val desktopLyricOpacity by settingsManager.desktopLyricOpacity.collectAsState(initial = 100)
+    val desktopLyricTextColor by settingsManager.desktopLyricTextColor.collectAsState(initial = -1)
     val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
     val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
     val lyricGetterEnabled by settingsManager.lyricGetterEnabled.collectAsState(initial = false)
@@ -452,9 +485,58 @@ fun SettingsDetailScreen(
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
+    val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val themeEntries = remember { themeLabels.map { DropdownItem(title = it) } }
+    val desktopLyricColorPresets = remember {
+        listOf(
+            "白色" to android.graphics.Color.WHITE,
+            "淡蓝" to android.graphics.Color.rgb(145, 205, 255),
+            "浅粉" to android.graphics.Color.rgb(255, 188, 214),
+            "薄荷绿" to android.graphics.Color.rgb(166, 235, 203),
+            "暖黄色" to android.graphics.Color.rgb(255, 224, 150)
+        )
+    }
+    val desktopLyricColorEntries = remember(desktopLyricColorPresets) {
+        desktopLyricColorPresets.map { DropdownItem(title = it.first) }
+    }
+    val selectedDesktopLyricColorIndex =
+        desktopLyricColorPresets.indexOfFirst { it.second == desktopLyricTextColor }.takeIf { it >= 0 } ?: 0
+    val dynamicCoverPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        scope.launch { settingsManager.setDynamicCoverEnabled(granted) }
+        Toast.makeText(
+            context,
+            if (granted) "已开启动态封面" else "未授予视频权限，动态封面已关闭",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    fun setDynamicCoverEnabled(enabled: Boolean) {
+        if (!enabled) {
+            scope.launch { settingsManager.setDynamicCoverEnabled(false) }
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_MEDIA_VIDEO
+            ) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                scope.launch { settingsManager.setDynamicCoverEnabled(true) }
+            } else {
+                dynamicCoverPermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
+            }
+        } else {
+            scope.launch { settingsManager.setDynamicCoverEnabled(true) }
+        }
+    }
+
+    fun applyDesktopLyricSettings() {
+        playerViewModel?.applyDesktopLyricSettings()
+    }
 
     Column(
         modifier = Modifier
@@ -506,6 +588,12 @@ fun SettingsDetailScreen(
                             onCheckedChange = {
                                 scope.launch { settingsManager.setOpenPlayerOnPlay(it) }
                             }
+                        )
+                        SwitchPreference(
+                            title = "动态封面",
+                            summary = "开启后读取本地视频封面文件；需要时才申请视频/相册权限",
+                            checked = dynamicCoverEnabled,
+                            onCheckedChange = ::setDynamicCoverEnabled
                         )
                         ArrowPreference(
                             title = "歌词字体",
@@ -609,6 +697,127 @@ fun SettingsDetailScreen(
                             } else {
                                 playerViewModel?.setDesktopLyricEnabled(enabled)
                                     ?: scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
+                            }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "锁定桌面歌词",
+                        summary = "锁定后悬浮歌词不可拖动；可在这里或锁定通知中解除",
+                        enabled = desktopLyricEnabled,
+                        checked = desktopLyricLocked,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricLocked(enabled)
+                                applyDesktopLyricSettings()
+                            }
+                        }
+                    )
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = "桌面歌词大小 ${desktopLyricFontScale}%",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "调大主歌词和注音的显示尺寸",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = ((desktopLyricFontScale.coerceIn(80, 220) - 80).toFloat() / 140f).coerceIn(0f, 1f),
+                            onValueChange = { fraction ->
+                                val scale = (80 + fraction * 140f).toInt().coerceIn(80, 220)
+                                scope.launch {
+                                    settingsManager.setDesktopLyricFontScale(scale)
+                                    applyDesktopLyricSettings()
+                                }
+                            },
+                            enabled = desktopLyricEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = "80%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(text = "220%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = "翻译大小 ${desktopLyricTranslationScale}%",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "单独放大桌面歌词的翻译行",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = ((desktopLyricTranslationScale.coerceIn(80, 220) - 80).toFloat() / 140f).coerceIn(0f, 1f),
+                            onValueChange = { fraction ->
+                                val scale = (80 + fraction * 140f).toInt().coerceIn(80, 220)
+                                scope.launch {
+                                    settingsManager.setDesktopLyricTranslationScale(scale)
+                                    applyDesktopLyricSettings()
+                                }
+                            },
+                            enabled = desktopLyricEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = "80%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(text = "220%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = "桌面歌词透明度 ${desktopLyricOpacity}%",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "调低后歌词会更淡，锁定状态也会保留",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = ((desktopLyricOpacity.coerceIn(35, 100) - 35).toFloat() / 65f).coerceIn(0f, 1f),
+                            onValueChange = { fraction ->
+                                val opacity = (35 + fraction * 65f).toInt().coerceIn(35, 100)
+                                scope.launch {
+                                    settingsManager.setDesktopLyricOpacity(opacity)
+                                    applyDesktopLyricSettings()
+                                }
+                            },
+                            enabled = desktopLyricEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = "35%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(text = "100%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+
+                    WindowSpinnerPreference(
+                        title = "桌面歌词颜色",
+                        summary = "当前：${desktopLyricColorPresets[selectedDesktopLyricColorIndex].first}",
+                        enabled = desktopLyricEnabled,
+                        items = desktopLyricColorEntries,
+                        selectedIndex = selectedDesktopLyricColorIndex,
+                        onSelectedIndexChange = { index ->
+                            val color = desktopLyricColorPresets.getOrNull(index)?.second ?: android.graphics.Color.WHITE
+                            scope.launch {
+                                settingsManager.setDesktopLyricTextColor(color)
+                                applyDesktopLyricSettings()
                             }
                         }
                     )

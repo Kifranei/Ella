@@ -1,11 +1,14 @@
 package com.ella.music.ui.components
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +53,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -262,8 +264,8 @@ fun WordLyricView(
             .drawWithCache {
                 val fade = Brush.verticalGradient(
                     0f to Color.Transparent,
-                    0.10f to Color.Black,
-                    0.78f to Color.Black,
+                    0.12f to Color.Black,
+                    0.74f to Color.Black,
                     1f to Color.Transparent
                 )
                 onDrawWithContent {
@@ -287,31 +289,40 @@ fun WordLyricView(
                 else -> index - currentIndex
             }
             val targetAlpha = when {
-                userBrowsing -> 1f
+                userBrowsing -> 0.92f
                 isActive -> 1f
-                distance == 1 -> 0.42f
-                distance == 2 -> 0.24f
-                else -> 0.14f
+                distance == 1 -> 0.54f
+                distance == 2 -> 0.32f
+                else -> 0.18f
             }
             val targetScale = when {
                 userBrowsing -> 1f
-                isActive -> 1.01f
-                distance == 1 -> 0.96f
+                isActive -> 1.018f
+                distance == 1 -> 0.972f
+                distance == 2 -> 0.94f
                 else -> 0.92f
             }
             val lineAlpha by animateFloatAsState(
                 targetValue = targetAlpha,
-                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing),
+                animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
                 label = "lyric_line_alpha"
             )
             val scale by animateFloatAsState(
                 targetValue = targetScale,
-                animationSpec = tween(durationMillis = 300, easing = LinearOutSlowInEasing),
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
                 label = "lyric_line_scale"
             )
             val blur by animateFloatAsState(
-                targetValue = if (userBrowsing || isActive) 0f else distance.coerceAtMost(2) * 0.18f,
-                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing),
+                targetValue = when {
+                    userBrowsing || isActive -> 0f
+                    index < currentIndex -> LYRIC_PLAYED_LINE_BLUR_DP
+                    else -> (distance * LYRIC_UPCOMING_LINE_BLUR_STEP_DP)
+                        .coerceAtMost(LYRIC_UPCOMING_LINE_MAX_BLUR_DP)
+                },
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
                 label = "lyric_line_blur"
             )
 
@@ -374,8 +385,9 @@ fun WordLyricView(
                         fontFamily = fontFamily,
                         fontWeight = fontWeight,
                         currentColor = Color.White,
-                        sungColor = Color.White.copy(alpha = 0.72f),
-                        pendingColor = Color.White.copy(alpha = 0.52f)
+                        sungColor = Color.White.copy(alpha = 0.76f),
+                        pendingColor = Color.White.copy(alpha = 0.46f),
+                        glowColor = Color.White.copy(alpha = 0.36f)
                     )
                 } else {
                     val textColor = when {
@@ -436,6 +448,7 @@ fun WordLyricView(
                             currentColor = Color.White.copy(alpha = 0.78f),
                             sungColor = Color.White.copy(alpha = 0.58f),
                             pendingColor = Color.White.copy(alpha = 0.36f),
+                            glowColor = Color.White.copy(alpha = 0.22f),
                             modifier = Modifier.padding(top = 3.dp)
                         )
                     } else {
@@ -502,12 +515,13 @@ private fun WordLine(
     fontWeight: FontWeight = FontWeight.ExtraBold,
     currentColor: Color = Color.White,
     sungColor: Color = Color.White.copy(alpha = 0.92f),
-    pendingColor: Color = Color.White.copy(alpha = 0.38f)
+    pendingColor: Color = Color.White.copy(alpha = 0.38f),
+    glowColor: Color = Color.White.copy(alpha = 0.28f)
 ) {
     val text = remember(displayText, words) {
         displayText.ifBlank { words.joinToString("") { it.text } }.ifBlank { "♪" }.lineBreakSafeText()
     }
-    val annotatedText = remember(text, words, currentPositionMs, currentColor, sungColor, pendingColor, fontWeight) {
+    val annotatedText = remember(text, words, currentPositionMs, currentColor, sungColor, pendingColor, glowColor, fontWeight) {
         buildAnnotatedString {
             var appended = false
             words.forEach { word ->
@@ -521,6 +535,7 @@ private fun WordLine(
                     currentColor = currentColor,
                     sungColor = sungColor,
                     pendingColor = pendingColor,
+                    glowColor = glowColor,
                     fontWeight = fontWeight,
                     inactiveWeight = fontWeight.softenedLyricWeight()
                 )
@@ -555,6 +570,7 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
     currentColor: Color,
     sungColor: Color,
     pendingColor: Color,
+    glowColor: Color,
     fontWeight: FontWeight,
     inactiveWeight: FontWeight
 ) {
@@ -572,6 +588,10 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
                     progress = progress,
                     activeColor = currentColor,
                     pendingColor = pendingColor
+                ),
+                shadow = Shadow(
+                    color = glowColor.copy(alpha = glowColor.alpha * lyricGlowAlpha(progress)),
+                    blurRadius = lyricGlowRadius(progress)
                 )
             )
         }
@@ -585,23 +605,20 @@ private fun AnnotatedString.Builder.appendStyledLyricText(
     color: Color,
     fontWeight: FontWeight,
     brush: Brush? = null,
-    shadow: Shadow? = null,
-    baselineShift: BaselineShift? = null
+    shadow: Shadow? = null
 ) {
     if (value.isEmpty()) return
     val style = if (brush != null) {
         SpanStyle(
             brush = brush,
             fontWeight = fontWeight,
-            shadow = shadow,
-            baselineShift = baselineShift
+            shadow = shadow
         )
     } else {
         SpanStyle(
             color = color,
             fontWeight = fontWeight,
-            shadow = shadow,
-            baselineShift = baselineShift
+            shadow = shadow
         )
     }
     pushStyle(
@@ -626,6 +643,20 @@ private fun lyricSweepBrush(
             1f to pendingColor
         )
     )
+}
+
+private fun lyricGlowAlpha(progress: Float): Float {
+    val p = progress.coerceIn(0f, 1f)
+    val attack = (p / 0.28f).coerceIn(0f, 1f)
+    val release = ((1f - p) / 0.22f).coerceIn(0f, 1f)
+    return (LYRIC_GLOW_PRE_PLAY_ALPHA + (LYRIC_GLOW_MAX_ALPHA - LYRIC_GLOW_PRE_PLAY_ALPHA) * attack)
+        .coerceAtMost(release)
+        .coerceIn(LYRIC_GLOW_PRE_PLAY_ALPHA, LYRIC_GLOW_MAX_ALPHA)
+}
+
+private fun lyricGlowRadius(progress: Float): Float {
+    val centerWeight = 1f - kotlin.math.abs(progress.coerceIn(0f, 1f) - 0.5f) * 2f
+    return 6f + centerWeight * 8f
 }
 
 @Composable
@@ -672,7 +703,12 @@ private fun rememberSmoothLyricPosition(
 private fun LyricLine.lyricRenderKey(): String =
     "$timeMs|$endMs|$text|$backgroundText"
 
-private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.10f
+private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.16f
+private const val LYRIC_PLAYED_LINE_BLUR_DP = 1.2f
+private const val LYRIC_UPCOMING_LINE_BLUR_STEP_DP = 1.35f
+private const val LYRIC_UPCOMING_LINE_MAX_BLUR_DP = 4.2f
+private const val LYRIC_GLOW_PRE_PLAY_ALPHA = 0.22f
+private const val LYRIC_GLOW_MAX_ALPHA = 1f
 
 private const val USER_BROWSING_TIMEOUT_MS = 3_600L
 

@@ -1,6 +1,7 @@
 package com.ella.music.data.musicfree
 
 import android.content.Context
+import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.async
@@ -32,6 +33,7 @@ class MusicFreePluginService(private val context: Context? = null) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .addInterceptor(AppNetworkLoggingInterceptor("MusicFreeNetwork"))
         .build()
 
     suspend fun importPlugins(url: String): MusicFreeImportResult = withContext(Dispatchers.IO) {

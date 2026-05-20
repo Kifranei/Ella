@@ -71,7 +71,8 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 fun AboutScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToUpdate: () -> Unit = {},
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val lazyListState = rememberLazyListState()
@@ -114,6 +115,7 @@ fun AboutScreen(
             scrollProgress = scrollProgress,
             lazyListState = lazyListState,
             onLogoHeightChanged = { logoHeightPx = it },
+            onNavigateToUpdate = onNavigateToUpdate,
         )
     }
 }
@@ -125,6 +127,7 @@ private fun AboutContent(
     scrollProgress: Float,
     lazyListState: androidx.compose.foundation.lazy.LazyListState,
     onLogoHeightChanged: (Int) -> Unit,
+    onNavigateToUpdate: () -> Unit,
 ) {
     val backdrop = rememberLayerBackdrop()
     val isDark = colorScheme.background.luminance() < 0.5f
@@ -186,13 +189,12 @@ private fun AboutContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.ic_launcher),
+                painter = painterResource(id = R.drawable.ic_flyme_ticker),
                 contentDescription = null,
-                tint = Color.Unspecified,
+                tint = colorScheme.primary.copy(alpha = if (isDark) 0.72f else 0.58f),
                 modifier = Modifier
                     .size(112.dp)
                     .padding(bottom = 18.dp)
-                    .graphicsLayer { alpha = if (isDark) 0.74f else 0.68f },
             )
             Text(
                 modifier = Modifier
@@ -252,13 +254,9 @@ private fun AboutContent(
                 SmallTitle(text = "项目")
                 FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors) {
                     BasicComponent(
-                        title = "版本",
-                        summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                    )
-                    BasicComponent(
-                        title = "Ella Music",
-                        summary = "github.com/Kifranei/Ella",
-                        onClick = { uriHandler.openUri("https://github.com/Kifranei/Ella") },
+                        title = "软件更新",
+                        summary = "检查 GitHub Releases 的最新版本",
+                        onClick = onNavigateToUpdate,
                     )
                     BasicComponent(
                         title = "开源许可证",
@@ -287,7 +285,7 @@ private fun AboutContent(
                     )
                     BasicComponent(
                         title = "光锥音乐",
-                        summary = "外部音乐标签编辑器适配与交互参考",
+                        summary = "部分界面视觉与 UI 效果参考",
                         onClick = { uriHandler.openUri("https://coneplayer.trantor.ink/") },
                     )
                     BasicComponent(

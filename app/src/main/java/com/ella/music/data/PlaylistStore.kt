@@ -1,6 +1,8 @@
 package com.ella.music.data
 
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
@@ -18,6 +20,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+
+data class PlaylistImportResult(
+    val playlist: UserPlaylist?,
+    val importedCount: Int,
+    val matchedCount: Int,
+    val missingCount: Int,
+    val duplicateCount: Int
+)
+
+data class PlaylistExportResult(
+    val exportedCount: Int,
+    val skippedCount: Int
+)
 
 class PlaylistStore private constructor(context: Context) {
     private val appContext = context.applicationContext
@@ -121,6 +136,81 @@ class PlaylistStore private constructor(context: Context) {
         }
     }
 
+    suspend fun importSaltPlayerPlaylist(uri: Uri, librarySongs: List<Song>): PlaylistImportResult =
+        withContext(Dispatchers.IO) {
+            val rawPaths = appContext.contentResolver.openInputStream(uri)
+                ?.bufferedReader(Charsets.UTF_8)
+                ?.useLines { lines ->
+                    lines
+                        .map { it.trim().trimStart('\uFEFF') }
+                        .filter { it.isNotBlank() }
+                        .toList()
+                }
+                .orEmpty()
+
+            val seen = mutableSetOf<String>()
+            val paths = rawPaths.filter { seen.add(it.normalizedPlaylistPath()) }
+            val duplicateCount = rawPaths.size - paths.size
+            if (paths.isEmpty()) {
+                return@withContext PlaylistImportResult(
+                    playlist = null,
+                    importedCount = 0,
+                    matchedCount = 0,
+                    missingCount = 0,
+                    duplicateCount = duplicateCount
+                )
+            }
+
+            val libraryByPath = librarySongs.associateBy { it.path.normalizedPlaylistPath() }
+            var matchedCount = 0
+            val now = System.currentTimeMillis()
+            val playlistSongs = paths.mapIndexed { index, path ->
+                val matched = libraryByPath[path.normalizedPlaylistPath()]
+                if (matched != null) {
+                    matchedCount += 1
+                    matched.toPlaylistSong(now + index)
+                } else {
+                    placeholderSong(path).toPlaylistSong(now + index)
+                }
+            }
+
+            synchronized(lock) {
+                val playlist = UserPlaylist(
+                    id = "playlist-${UUID.randomUUID()}",
+                    name = playlistNameFromUri(uri),
+                    songs = playlistSongs,
+                    createdAt = now,
+                    updatedAt = now
+                )
+                val next = playlists.value + playlist
+                _playlists.value = next
+                saveLocked(next)
+                PlaylistImportResult(
+                    playlist = playlist,
+                    importedCount = playlistSongs.size,
+                    matchedCount = matchedCount,
+                    missingCount = playlistSongs.size - matchedCount,
+                    duplicateCount = duplicateCount
+                )
+            }
+        }
+
+    suspend fun exportSaltPlayerPlaylist(playlist: UserPlaylist, uri: Uri): PlaylistExportResult =
+        withContext(Dispatchers.IO) {
+            val paths = playlist.songs
+                .map { it.path.trim() }
+                .filter { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+                .distinctBy { it.normalizedPlaylistPath() }
+            val content = paths.joinToString(separator = "\n", postfix = if (paths.isNotEmpty()) "\n" else "")
+            appContext.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                output.write(content.toByteArray(Charsets.UTF_8))
+            } ?: error("无法打开导出文件")
+            PlaylistExportResult(
+                exportedCount = paths.size,
+                skippedCount = playlist.songs.size - paths.size
+            )
+        }
+
     suspend fun removeSongFromPlaylist(playlistId: String, songKey: String) = withContext(Dispatchers.IO) {
         synchronized(lock) {
             val now = System.currentTimeMillis()
@@ -185,6 +275,37 @@ class PlaylistStore private constructor(context: Context) {
             Log.w(TAG, "Failed to save playlists", it)
         }
     }
+
+    private fun playlistNameFromUri(uri: Uri): String {
+        val displayName = runCatching {
+            appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+        }.getOrNull()
+            ?.substringBeforeLast('.')
+            ?.trim()
+            .orEmpty()
+        return displayName.ifBlank { "导入歌单" }
+    }
+
+    private fun placeholderSong(path: String): Song {
+        val fileName = path.substringAfterLast('/').ifBlank { path }
+        val title = fileName.substringBeforeLast('.').ifBlank { fileName }
+        return Song(
+            id = 0L,
+            title = title,
+            artist = "Unknown",
+            album = "Unknown",
+            albumId = 0L,
+            duration = 0L,
+            path = path,
+            fileName = fileName
+        )
+    }
+
+    private fun String.normalizedPlaylistPath(): String =
+        trim().replace('\\', '/').lowercase()
 
     companion object {
         private const val TAG = "PlaylistStore"

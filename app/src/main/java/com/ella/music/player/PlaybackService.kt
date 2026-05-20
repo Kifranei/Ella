@@ -11,23 +11,32 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.common.Timeline
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.common.Player
 import androidx.media3.session.CommandButton
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaNotification
 import androidx.media3.session.MediaStyleNotificationHelper
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.ella.music.R
 import com.ella.music.MainActivity
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.webdav.WebDavClient
+import com.ella.music.data.webdav.WebDavConfig
 import com.google.common.collect.ImmutableList
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -36,36 +45,49 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import okhttp3.Credentials
 
-class PlaybackService : MediaSessionService() {
+class PlaybackService : MediaLibraryService() {
 
     companion object {
         private const val TAG = "PlaybackService"
+        private const val LIBRARY_ROOT_ID = "ella_music_root"
+        private const val LIBRARY_QUEUE_ID = "ella_music_current_queue"
     }
 
-    private var mediaSession: MediaSession? = null
+    private var mediaSession: MediaLibrarySession? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    @Volatile
+    private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
         setMediaNotificationProvider(NoArtworkMediaNotificationProvider(this))
         val settingsManager = SettingsManager(this)
-        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
-            .setDefaultRequestProperties(currentWebDavHeaders(settingsManager))
+        var webDavConfig = currentWebDavConfig(settingsManager)
+        previousButtonAction = runBlocking(Dispatchers.IO) {
+            settingsManager.previousButtonAction.first()
+        }
+        val httpDataSourceFactory = OkHttpDataSource.Factory(
+            WebDavClient.newAuthenticatedOkHttpClient { webDavConfig }
+        )
+        serviceScope.launch {
+            settingsManager.previousButtonAction.collect { action ->
+                previousButtonAction = action.coerceIn(
+                    SettingsManager.PREVIOUS_BUTTON_PREVIOUS,
+                    SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT
+                )
+            }
+        }
         serviceScope.launch {
             combine(
+                settingsManager.webDavUrl,
                 settingsManager.webDavUsername,
                 settingsManager.webDavPassword
-            ) { username, password ->
-                if (username.isNotBlank() || password.isNotBlank()) {
-                    mapOf("Authorization" to Credentials.basic(username, password, Charsets.UTF_8))
-                } else {
-                    emptyMap()
-                }
-            }.collect { headers ->
-                httpDataSourceFactory.setDefaultRequestProperties(headers)
+            ) { url, username, password ->
+                WebDavConfig(url = url, username = username, password = password)
+            }.collect { config ->
+                webDavConfig = config
             }
         }
         val dataSourceFactory = DefaultDataSource.Factory(this, httpDataSourceFactory)
@@ -103,6 +125,10 @@ class PlaybackService : MediaSessionService() {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
                 PlaybackAudioSession.update(audioSessionId)
             }
+
+            override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                notifyLibraryChanged(player.mediaItemCount)
+            }
         })
 
         val intent = Intent(this, MainActivity::class.java)
@@ -111,7 +137,11 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaSession.Builder(this, RepeatOneLockingPlayer(player))
+        mediaSession = MediaLibrarySession.Builder(
+            this,
+            RepeatOneLockingPlayer(player) { previousButtonAction },
+            EllaLibrarySessionCallback(this)
+        )
             .setSessionActivity(pendingIntent)
             .build()
 
@@ -119,7 +149,7 @@ class PlaybackService : MediaSessionService() {
         AppLogStore.info(this, TAG, "PlaybackService created")
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
         return mediaSession
     }
 
@@ -141,15 +171,13 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    private fun currentWebDavHeaders(settingsManager: SettingsManager): Map<String, String> {
+    private fun currentWebDavConfig(settingsManager: SettingsManager): WebDavConfig {
         return runBlocking(Dispatchers.IO) {
-            val username = settingsManager.webDavUsername.first()
-            val password = settingsManager.webDavPassword.first()
-            if (username.isNotBlank() || password.isNotBlank()) {
-                mapOf("Authorization" to Credentials.basic(username, password, Charsets.UTF_8))
-            } else {
-                emptyMap()
-            }
+            WebDavConfig(
+                url = settingsManager.webDavUrl.first(),
+                username = settingsManager.webDavUsername.first(),
+                password = settingsManager.webDavPassword.first()
+            )
         }
     }
 
@@ -160,8 +188,125 @@ class PlaybackService : MediaSessionService() {
         else -> "unknown"
     }
 
+    private fun libraryRootItem(): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(LIBRARY_ROOT_ID)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(getString(R.string.app_name))
+                    .setDisplayTitle(getString(R.string.app_name))
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_FOLDER_PLAYLISTS)
+                    .setFolderType(MediaMetadata.FOLDER_TYPE_PLAYLISTS)
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun currentQueueFolderItem(): MediaItem {
+        return MediaItem.Builder()
+            .setMediaId(LIBRARY_QUEUE_ID)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("当前播放")
+                    .setDisplayTitle("当前播放")
+                    .setMediaType(MediaMetadata.MEDIA_TYPE_PLAYLIST)
+                    .setFolderType(MediaMetadata.FOLDER_TYPE_TITLES)
+                    .setIsBrowsable(true)
+                    .setIsPlayable(false)
+                    .build()
+            )
+            .build()
+    }
+
+    private fun currentQueueItems(): List<MediaItem> {
+        val player = mediaSession?.player ?: return emptyList()
+        return List(player.mediaItemCount) { index ->
+            player.getMediaItemAt(index).buildUpon()
+                .setMediaMetadata(
+                    player.getMediaItemAt(index).mediaMetadata.buildUpon()
+                        .setIsBrowsable(false)
+                        .setIsPlayable(true)
+                        .build()
+                )
+                .build()
+        }
+    }
+
+    private fun notifyLibraryChanged(itemCount: Int) {
+        mediaSession?.notifyChildrenChanged(LIBRARY_ROOT_ID, 1, null)
+        mediaSession?.notifyChildrenChanged(LIBRARY_QUEUE_ID, itemCount, null)
+    }
+
+    private class EllaLibrarySessionCallback(
+        private val service: PlaybackService
+    ) : MediaLibrarySession.Callback {
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            return Futures.immediateFuture(LibraryResult.ofItem(service.libraryRootItem(), params))
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            val item = when (mediaId) {
+                LIBRARY_ROOT_ID -> service.libraryRootItem()
+                LIBRARY_QUEUE_ID -> service.currentQueueFolderItem()
+                else -> service.currentQueueItems().firstOrNull { it.mediaId == mediaId }
+            }
+            return Futures.immediateFuture(
+                if (item != null) {
+                    LibraryResult.ofItem(item, null)
+                } else {
+                    LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+                }
+            )
+        }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> {
+            val children = when (parentId) {
+                LIBRARY_ROOT_ID -> listOf(service.currentQueueFolderItem())
+                LIBRARY_QUEUE_ID -> service.currentQueueItems()
+                else -> return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+            }
+            return Futures.immediateFuture(LibraryResult.ofItemList(children.page(page, pageSize), params))
+        }
+
+        override fun onSubscribe(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<Void>> {
+            return Futures.immediateFuture(LibraryResult.ofVoid(params))
+        }
+
+        private fun <T> List<T>.page(page: Int, pageSize: Int): List<T> {
+            if (page < 0 || pageSize <= 0) return this
+            val fromIndex = page * pageSize
+            if (fromIndex >= size) return emptyList()
+            return subList(fromIndex, minOf(fromIndex + pageSize, size))
+        }
+    }
+
     @OptIn(UnstableApi::class)
-    private class RepeatOneLockingPlayer(player: Player) : ForwardingPlayer(player) {
+    private class RepeatOneLockingPlayer(
+        player: Player,
+        private val previousButtonActionProvider: () -> Int
+    ) : ForwardingPlayer(player) {
         override fun seekToNextMediaItem() {
             if (!restartCurrentInRepeatOne()) {
                 super.seekToNextMediaItem()
@@ -175,15 +320,25 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun seekToPreviousMediaItem() {
-            if (!restartCurrentInRepeatOne()) {
+            if (!restartCurrentFromPreviousButton()) {
                 super.seekToPreviousMediaItem()
             }
         }
 
         override fun seekToPrevious() {
-            if (!restartCurrentInRepeatOne()) {
+            if (!restartCurrentFromPreviousButton()) {
                 super.seekToPrevious()
             }
+        }
+
+        private fun restartCurrentFromPreviousButton(): Boolean {
+            if (previousButtonActionProvider() != SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT) return false
+            if (currentPosition < SettingsManager.PREVIOUS_REPLAY_THRESHOLD_MS) return false
+            val index = currentMediaItemIndex
+            if (mediaItemCount <= 0 || index !in 0 until mediaItemCount) return false
+            seekToDefaultPosition(index)
+            play()
+            return true
         }
 
         private fun restartCurrentInRepeatOne(): Boolean {

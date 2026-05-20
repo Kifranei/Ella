@@ -33,21 +33,25 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.BasicText
@@ -80,6 +84,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -96,7 +101,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -108,14 +112,18 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -125,6 +133,7 @@ import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -140,6 +149,7 @@ import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.player.PlaybackAudioSession
@@ -158,6 +168,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.ln
 import kotlin.math.sqrt
 import top.yukonga.miuix.kmp.basic.Icon
@@ -174,7 +185,8 @@ fun PlayerScreen(
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onNavigateToAlbum: (Long) -> Unit = {},
-    onNavigateToArtist: (String) -> Unit = {}
+    onNavigateToArtist: (String) -> Unit = {},
+    onDismissProgressChange: (Float) -> Unit = {}
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -200,12 +212,14 @@ fun PlayerScreen(
     val playbackPitch by playerViewModel.playbackPitch.collectAsState()
     val audioSessionId by PlaybackAudioSession.audioSessionId.collectAsState()
     val audioVisualizerEnabled by settingsManager.audioVisualizerEnabled.collectAsState(initial = false)
+    val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val playlist by playerViewModel.playlist.collectAsState()
     val lyrics by playerViewModel.lyrics.collectAsState()
     val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
     val showLyrics by playerViewModel.showLyrics.collectAsState()
     val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
     val showLyricPronunciation by playerViewModel.showLyricPronunciation.collectAsState()
+    val lyricPageKeepScreenOn by settingsManager.lyricPageKeepScreenOn.collectAsState(initial = false)
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val sleepTimerEndRealtimeMs by playerViewModel.sleepTimerEndRealtimeMs.collectAsState()
     val stopAfterCurrentEnabled by playerViewModel.stopAfterCurrentEnabled.collectAsState()
@@ -240,36 +254,50 @@ fun PlayerScreen(
             }
         }
     }
-    var dragDismissOffset by remember { mutableFloatStateOf(0f) }
+    val dragDismissOffset = remember { Animatable(0f) }
     var dismissingPlayer by remember { mutableStateOf(false) }
-    val animatedDismissOffset by animateFloatAsState(
-        targetValue = dragDismissOffset,
-        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
-        label = "player_dismiss_offset"
-    )
     val topDragLimitPx = with(density) { 132.dp.toPx() }
-    val dismissThresholdPx = with(density) { 112.dp.toPx() }
+    val dismissThresholdPx = with(density) { 240.dp.toPx() }
+    val dismissVelocityThresholdPx = with(density) { 1250.dp.toPx() }
+    val dismissTargetPx = remember(view.height) {
+        view.height.takeIf { it > 0 }?.toFloat() ?: with(density) { 760.dp.toPx() }
+    }
     LaunchedEffect(landscapeExpanded) {
         setPlayerSystemBars(context.findActivity(), view)
     }
-    val dragCornerRadius by animateDpAsState(
-        targetValue = if (dragDismissOffset > 1f || dismissingPlayer) 28.dp else 0.dp,
-        animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing),
-        label = "player_drag_corner_radius"
-    )
+    DisposableEffect(view, showLyrics, lyricPageKeepScreenOn) {
+        val previousKeepScreenOn = view.keepScreenOn
+        view.keepScreenOn = previousKeepScreenOn || (showLyrics && lyricPageKeepScreenOn)
+        onDispose {
+            view.keepScreenOn = previousKeepScreenOn
+        }
+    }
+    val dismissProgress = (dragDismissOffset.value / dismissThresholdPx).coerceIn(0f, 1f)
+    val dragCornerRadius = 30.dp * dismissProgress
+    SideEffect {
+        onDismissProgressChange(dismissProgress)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onDismissProgressChange(0f) }
+    }
     fun dismissWithPlayerMotion() {
         if (dismissingPlayer) return
-        dismissingPlayer = true
-        dragDismissOffset = dismissThresholdPx
         scope.launch {
-            delay(150)
+            if (dismissingPlayer) return@launch
+            dismissingPlayer = true
+            dragDismissOffset.stop()
+            dragDismissOffset.animateTo(
+                targetValue = dismissTargetPx,
+                animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
+            )
+            playerViewModel.setShowLyrics(false)
             onBack()
         }
     }
 
     val song = currentSong
     val isCurrentSongFavorite = song?.playlistIdentityKey()?.let { it in favoriteSongKeys } == true
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, song?.id) {
+    val embeddedCover by produceState<Bitmap?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
         value = if (song?.coverUrl?.isNotBlank() == true) {
             null
         } else {
@@ -283,255 +311,318 @@ fun PlayerScreen(
     val palette by produceState(initialValue = PlayerPalette.Default, embeddedCover) {
         value = withContext(Dispatchers.Default) { PlayerPalette.from(embeddedCover) }
     }
-    val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id) {
+    val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
         value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
     }
+    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
+        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getSongTagInfo) }
+    }
+    val songAnnotation = tagInfo?.displayComment.orEmpty()
     BackHandler { dismissWithPlayerMotion() }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer {
-                translationY = animatedDismissOffset
-                alpha = (1f - animatedDismissOffset / (dismissThresholdPx * 2.8f))
-                    .coerceIn(0.72f, 1f)
-            }
-            .clip(
-                RoundedCornerShape(
-                    topStart = dragCornerRadius,
-                    topEnd = dragCornerRadius
-                )
-            )
-            .pointerInput(showLyrics) {
+            .pointerInput(showLyrics, dismissingPlayer, dismissTargetPx, dismissThresholdPx) {
                 var closeGesture = false
+                var gestureOffset = 0f
+                val velocityTracker = VelocityTracker()
                 detectDragGestures(
                     onDragStart = { offset ->
-                        closeGesture = offset.y <= topDragLimitPx
+                        closeGesture = !dismissingPlayer && offset.y <= topDragLimitPx
+                        gestureOffset = dragDismissOffset.value
+                        velocityTracker.resetTracking()
+                        velocityTracker.addPosition(SystemClock.uptimeMillis(), offset)
+                        if (closeGesture) {
+                            scope.launch { dragDismissOffset.stop() }
+                        }
                     },
                     onDrag = { change, dragAmount ->
-                        if (closeGesture) {
-                            val nextOffset = (dragDismissOffset + dragAmount.y).coerceAtLeast(0f)
-                            dragDismissOffset = nextOffset
-                            if (nextOffset > 0f) change.consume()
-                        }
+                        if (!closeGesture) return@detectDragGestures
+                        gestureOffset = (gestureOffset + if (dragAmount.y > 0f) {
+                            dragAmount.y
+                        } else {
+                            dragAmount.y * 0.36f
+                        }).coerceIn(0f, dismissTargetPx)
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                        scope.launch { dragDismissOffset.snapTo(gestureOffset) }
+                        if (gestureOffset > 0f) change.consume()
                     },
                     onDragCancel = {
                         closeGesture = false
-                        dragDismissOffset = 0f
+                        scope.launch {
+                            dragDismissOffset.animateTo(
+                                targetValue = 0f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
+                        }
                     },
                     onDragEnd = {
+                        if (!closeGesture) return@detectDragGestures
                         closeGesture = false
-                        if (dragDismissOffset >= dismissThresholdPx) {
-                            dismissWithPlayerMotion()
-                        } else {
-                            dragDismissOffset = 0f
+                        val velocityY = velocityTracker.calculateVelocity().y
+                        scope.launch {
+                            if (gestureOffset >= dismissThresholdPx || velocityY >= dismissVelocityThresholdPx) {
+                                if (!dismissingPlayer) {
+                                    dismissingPlayer = true
+                                    dragDismissOffset.animateTo(
+                                        targetValue = dismissTargetPx,
+                                        animationSpec = tween(durationMillis = 260, easing = LinearOutSlowInEasing)
+                                    )
+                                    playerViewModel.setShowLyrics(false)
+                                    onBack()
+                                }
+                            } else {
+                                dragDismissOffset.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                )
+                            }
                         }
                     }
                 )
             }
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        palette.top,
-                        palette.middle,
-                        palette.bottom
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val progress = (dragDismissOffset.value / dismissThresholdPx).coerceIn(0f, 1f)
+                    translationY = dragDismissOffset.value
+                    val pageScale = 1f - progress * 0.06f
+                    scaleX = pageScale
+                    scaleY = pageScale
+                    transformOrigin = TransformOrigin(0.5f, 0f)
+                    alpha = (1f - progress * 0.18f).coerceIn(0.82f, 1f)
+                }
+                .clip(
+                    RoundedCornerShape(
+                        topStart = dragCornerRadius,
+                        topEnd = dragCornerRadius
                     )
                 )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                palette.top,
+                                palette.middle,
+                                palette.bottom
+                            )
+                        )
+                    )
             )
-    ) {
-        PlayerFlowBackground(
-            palette = palette,
-            flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-            modifier = Modifier.fillMaxSize()
-        )
-        ImmersiveCoverBackground(
-            palette = palette,
-            flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-            modifier = Modifier.fillMaxSize()
-        )
+            PlayerFlowBackground(
+                palette = palette,
+                flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+                modifier = Modifier.fillMaxSize()
+            )
+            ImmersiveCoverBackground(
+                palette = palette,
+                flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+                modifier = Modifier.fillMaxSize()
+            )
 
-        AnimatedContent(
-            targetState = showLyrics,
-            transitionSpec = {
-                (fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180)))
-                    .using(SizeTransform(clip = true))
-            },
-            modifier = Modifier.fillMaxSize()
-        ) { showLyric ->
-            if (showLyric) {
-                LyricsPlayerPage(
+            AnimatedContent(
+                targetState = showLyrics,
+                transitionSpec = {
+                    (fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180)))
+                        .using(SizeTransform(clip = true))
+                },
+                modifier = Modifier.fillMaxSize()
+            ) { showLyric ->
+                if (showLyric) {
+                    LyricsPlayerPage(
+                        song = song,
+                        embeddedCover = embeddedCover,
+                        annotation = songAnnotation,
+                        lyrics = lyrics,
+                        currentLyricIndex = currentLyricIndex,
+                        currentPosition = currentPosition,
+                        showTranslation = showLyricTranslation,
+                        showPronunciation = showLyricPronunciation,
+                        keepScreenOn = lyricPageKeepScreenOn,
+                        lyricSourceMode = lyricSourceMode,
+                        fontFamily = lyricFontFamily,
+                        fontWeight = lyricFontWeight,
+                        fontScale = lyricFontScale,
+                        palette = palette,
+                        flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+                        currentPositionMs = currentPosition,
+                        isPlaying = isPlaying,
+                        isFavorite = isCurrentSongFavorite,
+                        audioSessionId = audioSessionId,
+                        visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
+                        onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
+                        onDismissLyrics = { playerViewModel.setShowLyrics(false) },
+                        onTogglePronunciation = {
+                            playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
+                        },
+                        onToggleTranslation = {
+                            playerViewModel.setLyricPageTranslation(!showLyricTranslation)
+                        },
+                        onToggleKeepScreenOn = {
+                            scope.launch { settingsManager.setLyricPageKeepScreenOn(!lyricPageKeepScreenOn) }
+                        },
+                        onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
+                        onFontScale = { scale ->
+                            scope.launch { settingsManager.setLyricFontScale((scale * 100f).toInt()) }
+                        },
+                        onLyricSourceMode = { mode ->
+                            playerViewModel.setLyricSourceMode(mode)
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    CoverPlayerPage(
+                        context = context,
+                        song = song,
+                        embeddedCover = embeddedCover,
+                        annotation = songAnnotation,
+                        dynamicCoverFailedPath = dynamicCoverFailedPath,
+                        dynamicCoverEnabled = dynamicCoverEnabled,
+                        isPlaying = isPlaying,
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        shuffleEnabled = shuffleEnabled,
+                        repeatMode = repeatMode,
+                        audioInfo = audioInfo,
+                        palette = palette,
+                        flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+                        lyrics = lyrics,
+                        currentLyricIndex = currentLyricIndex,
+                        miniLyricLine = miniLyricLine,
+                        showTranslation = showLyricTranslation,
+                        showPronunciation = showLyricPronunciation,
+                        fontFamily = lyricFontFamily,
+                        fontWeight = lyricFontWeight,
+                        menuExpanded = menuExpanded,
+                        queueExpanded = queueExpanded,
+                        playlist = playlist,
+                        sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
+                        stopAfterCurrentEnabled = stopAfterCurrentEnabled,
+                        onDynamicCoverFailed = { dynamicCoverFailedPath = it },
+                        onToggleMenu = { menuExpanded = !menuExpanded },
+                        onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
+                        onDismissMenu = { menuExpanded = false },
+                        onToggleQueue = { queueExpanded = !queueExpanded },
+                        onDismissQueue = { queueExpanded = false },
+                        onShowLyrics = { playerViewModel.setShowLyrics(true) },
+                        onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
+                        onSeek = { fraction -> playerViewModel.seekTo((fraction * duration).toLong()) },
+                        onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+                        onPrevious = { playerViewModel.skipToPrevious() },
+                        onPlayPause = { playerViewModel.togglePlayPause() },
+                        onNext = { playerViewModel.skipToNext() },
+                        onQueueSongClick = { index ->
+                            queueExpanded = false
+                            playerViewModel.playQueueIndex(index)
+                        },
+                        onClearQueue = {
+                            queueExpanded = false
+                            playerViewModel.clearPlaylist()
+                        },
+                        onAlbum = {
+                            menuExpanded = false
+                            val albumId = song?.albumIdentityId() ?: 0L
+                            if (albumId > 0L) onNavigateToAlbum(albumId)
+                            else Toast.makeText(context, "这首歌没有可跳转的专辑信息", Toast.LENGTH_SHORT).show()
+                        },
+                        onArtist = {
+                            menuExpanded = false
+                            val artist = splitArtistNames(song?.artist.orEmpty()).firstOrNull().orEmpty()
+                            if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
+                                onNavigateToArtist(artist)
+                            } else {
+                                Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onDownload = {
+                            menuExpanded = false
+                            val current = song
+                            if (current != null) {
+                                enqueuePlayerDownload(context, current)
+                                Toast.makeText(context, "已开始下载到 Music/Ella", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onLandscape = {
+                            menuExpanded = false
+                            landscapeExpanded = true
+                        },
+                        onStopAfterCurrent = {
+                            playerViewModel.setStopAfterCurrentEnabled(it)
+                            Toast.makeText(
+                                context,
+                                if (it) "当前歌曲播放完后暂停" else "已关闭播完当前暂停",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
+                        onTimer = { minutes ->
+                            playerViewModel.startSleepTimer(minutes)
+                            Toast.makeText(context, "${minutes} 分钟后暂停播放", Toast.LENGTH_SHORT).show()
+                        },
+                        onCancelTimer = {
+                            playerViewModel.cancelSleepTimer()
+                            Toast.makeText(context, "已取消定时播放", Toast.LENGTH_SHORT).show()
+                        },
+                        onSpeed = {
+                            playerViewModel.setPlaybackSpeed(it)
+                        },
+                        onPitch = {
+                            playerViewModel.setPlaybackPitch(it)
+                        },
+                        playbackSpeed = playbackSpeed,
+                        playbackPitch = playbackPitch,
+                        isFavorite = isCurrentSongFavorite,
+                        audioSessionId = audioSessionId,
+                        visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
+                        onVisualizerEnabled = ::setAudioVisualizerEnabled,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            if (landscapeExpanded) {
+                LandscapeLyricsOverlay(
                     song = song,
                     embeddedCover = embeddedCover,
+                    annotation = songAnnotation,
                     lyrics = lyrics,
                     currentLyricIndex = currentLyricIndex,
-                    currentPosition = currentPosition,
-                    showTranslation = showLyricTranslation,
-                    showPronunciation = showLyricPronunciation,
-                    lyricSourceMode = lyricSourceMode,
-                    fontFamily = lyricFontFamily,
-                    fontWeight = lyricFontWeight,
-                    fontScale = lyricFontScale,
-                    palette = palette,
-                    flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-                    currentPositionMs = currentPosition,
-                    isPlaying = isPlaying,
-                    isFavorite = isCurrentSongFavorite,
-                    audioSessionId = audioSessionId,
-                    visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
-                    onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
-                    onDismissLyrics = { playerViewModel.setShowLyrics(false) },
-                    onTogglePronunciation = {
-                        playerViewModel.setLyricPagePronunciation(!showLyricPronunciation)
-                    },
-                    onToggleTranslation = {
-                        playerViewModel.setLyricPageTranslation(!showLyricTranslation)
-                    },
-                    onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
-                    onFontScale = { scale ->
-                        scope.launch { settingsManager.setLyricFontScale((scale * 100f).toInt()) }
-                    },
-                    onLyricSourceMode = { mode ->
-                        playerViewModel.setLyricSourceMode(mode)
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                CoverPlayerPage(
-                    context = context,
-                    song = song,
-                    embeddedCover = embeddedCover,
-                    dynamicCoverFailedPath = dynamicCoverFailedPath,
-                    isPlaying = isPlaying,
                     currentPosition = currentPosition,
                     duration = duration,
                     shuffleEnabled = shuffleEnabled,
                     repeatMode = repeatMode,
-                    audioInfo = audioInfo,
-                    palette = palette,
-                    flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-                    lyrics = lyrics,
-                    currentLyricIndex = currentLyricIndex,
-                    miniLyricLine = miniLyricLine,
                     showTranslation = showLyricTranslation,
                     showPronunciation = showLyricPronunciation,
                     fontFamily = lyricFontFamily,
                     fontWeight = lyricFontWeight,
-                    menuExpanded = menuExpanded,
-                    queueExpanded = queueExpanded,
-                    playlist = playlist,
-                    sleepTimerEndRealtimeMs = sleepTimerEndRealtimeMs,
-                    stopAfterCurrentEnabled = stopAfterCurrentEnabled,
-                    onDynamicCoverFailed = { dynamicCoverFailedPath = it },
-                    onToggleMenu = { menuExpanded = !menuExpanded },
-                    onToggleFavorite = { playerViewModel.toggleCurrentSongFavorite() },
-                    onDismissMenu = { menuExpanded = false },
-                    onToggleQueue = { queueExpanded = !queueExpanded },
-                    onDismissQueue = { queueExpanded = false },
-                    onShowLyrics = { playerViewModel.setShowLyrics(true) },
-                    onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
-                    onSeek = { fraction -> playerViewModel.seekTo((fraction * duration).toLong()) },
+                    palette = palette,
+                    flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
+                    isPlaying = isPlaying,
+                    audioSessionId = audioSessionId,
+                    visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
+                    onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
+                    onSeek = { progress ->
+                        if (duration > 0L) playerViewModel.seekTo((duration * progress).toLong())
+                    },
                     onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
                     onPrevious = { playerViewModel.skipToPrevious() },
                     onPlayPause = { playerViewModel.togglePlayPause() },
                     onNext = { playerViewModel.skipToNext() },
-                    onQueueSongClick = { index ->
-                        queueExpanded = false
-                        playerViewModel.playQueueIndex(index)
-                    },
-                    onClearQueue = {
-                        queueExpanded = false
-                        playerViewModel.clearPlaylist()
-                    },
-                    onAlbum = {
-                        menuExpanded = false
-                        val albumId = song?.albumIdentityId() ?: 0L
-                        if (albumId > 0L) onNavigateToAlbum(albumId)
-                        else Toast.makeText(context, "这首歌没有可跳转的专辑信息", Toast.LENGTH_SHORT).show()
-                    },
-                    onArtist = {
-                        menuExpanded = false
-                        val artist = splitArtistNames(song?.artist.orEmpty()).firstOrNull().orEmpty()
-                        if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
-                            onNavigateToArtist(artist)
-                        } else {
-                            Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onDownload = {
-                        menuExpanded = false
-                        val current = song
-                        if (current != null) {
-                            enqueuePlayerDownload(context, current)
-                            Toast.makeText(context, "已开始下载到 Music/Ella", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    onLandscape = {
-                        menuExpanded = false
-                        landscapeExpanded = true
-                    },
-                    onStopAfterCurrent = {
-                        playerViewModel.setStopAfterCurrentEnabled(it)
-                        Toast.makeText(
-                            context,
-                            if (it) "当前歌曲播放完后暂停" else "已关闭播完当前暂停",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    onTimer = { minutes ->
-                        playerViewModel.startSleepTimer(minutes)
-                        Toast.makeText(context, "${minutes} 分钟后暂停播放", Toast.LENGTH_SHORT).show()
-                    },
-                    onCancelTimer = {
-                        playerViewModel.cancelSleepTimer()
-                        Toast.makeText(context, "已取消定时播放", Toast.LENGTH_SHORT).show()
-                    },
-                    onSpeed = {
-                        playerViewModel.setPlaybackSpeed(it)
-                    },
-                    onPitch = {
-                        playerViewModel.setPlaybackPitch(it)
-                    },
-                    playbackSpeed = playbackSpeed,
-                    playbackPitch = playbackPitch,
-                    isFavorite = isCurrentSongFavorite,
-                    audioSessionId = audioSessionId,
-                    visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
-                    onVisualizerEnabled = ::setAudioVisualizerEnabled,
+                    onDismiss = { landscapeExpanded = false },
                     modifier = Modifier.fillMaxSize()
                 )
             }
-        }
-
-        if (landscapeExpanded) {
-            LandscapeLyricsOverlay(
-                song = song,
-                embeddedCover = embeddedCover,
-                lyrics = lyrics,
-                currentLyricIndex = currentLyricIndex,
-                currentPosition = currentPosition,
-                duration = duration,
-                shuffleEnabled = shuffleEnabled,
-                repeatMode = repeatMode,
-                showTranslation = showLyricTranslation,
-                showPronunciation = showLyricPronunciation,
-                fontFamily = lyricFontFamily,
-                fontWeight = lyricFontWeight,
-                palette = palette,
-                flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-                isPlaying = isPlaying,
-                audioSessionId = audioSessionId,
-                visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
-                onLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
-                onSeek = { progress ->
-                    if (duration > 0L) playerViewModel.seekTo((duration * progress).toLong())
-                },
-                onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
-                onPrevious = { playerViewModel.skipToPrevious() },
-                onPlayPause = { playerViewModel.togglePlayPause() },
-                onNext = { playerViewModel.skipToNext() },
-                onDismiss = { landscapeExpanded = false },
-                modifier = Modifier.fillMaxSize()
-            )
         }
     }
 }
@@ -541,7 +632,9 @@ private fun CoverPlayerPage(
     context: Context,
     song: Song?,
     embeddedCover: Bitmap?,
+    annotation: String,
     dynamicCoverFailedPath: String?,
+    dynamicCoverEnabled: Boolean,
     isPlaying: Boolean,
     currentPosition: Long,
     duration: Long,
@@ -595,9 +688,13 @@ private fun CoverPlayerPage(
     modifier: Modifier = Modifier
 ) {
     val bluetoothDeviceName = rememberBluetoothOutputName()
-    val dynamicCoverFile = song
-        ?.dynamicCoverVideoFile(context)
-        ?.takeUnless { it.absolutePath == dynamicCoverFailedPath }
+    val dynamicCoverFile = if (dynamicCoverEnabled) {
+        song
+            ?.dynamicCoverVideoFile(context)
+            ?.takeUnless { it.absolutePath == dynamicCoverFailedPath }
+    } else {
+        null
+    }
 
     BoxWithConstraints(modifier = modifier) {
         val useWidePlayer = maxWidth > maxHeight && maxWidth >= 700.dp
@@ -605,6 +702,7 @@ private fun CoverPlayerPage(
             LandscapeCoverPlayerPage(
                 song = song,
                 embeddedCover = embeddedCover,
+                annotation = annotation,
                 dynamicCoverFile = dynamicCoverFile,
                 isPlaying = isPlaying,
                 currentPosition = currentPosition,
@@ -707,24 +805,14 @@ private fun CoverPlayerPage(
                         .padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song?.title ?: "未在播放",
-                            fontSize = adaptiveTitleFontSize(song?.title ?: "未在播放", 28.sp),
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White.copy(alpha = 0.96f),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = song?.artist.orEmpty(),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.54f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    PlayerSongMetaText(
+                        song = song,
+                        annotation = annotation,
+                        titleFontSize = 28.sp,
+                        artistFontSize = 20.sp,
+                        artistAlpha = 0.54f,
+                        modifier = Modifier.weight(1f)
+                    )
                     PlayerHeaderAction(
                         kind = PlayerHeaderActionKind.Favorite,
                         selected = isFavorite,
@@ -829,6 +917,7 @@ private fun CoverPlayerPage(
 private fun LandscapeCoverPlayerPage(
     song: Song?,
     embeddedCover: Bitmap?,
+    annotation: String,
     dynamicCoverFile: File?,
     isPlaying: Boolean,
     currentPosition: Long,
@@ -926,24 +1015,14 @@ private fun LandscapeCoverPlayerPage(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song?.title ?: "未在播放",
-                            fontSize = adaptiveTitleFontSize(song?.title ?: "未在播放", 24.sp),
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White.copy(alpha = 0.96f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = song?.artist.orEmpty(),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White.copy(alpha = 0.56f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    PlayerSongMetaText(
+                        song = song,
+                        annotation = annotation,
+                        titleFontSize = 24.sp,
+                        artistFontSize = 14.sp,
+                        artistAlpha = 0.56f,
+                        modifier = Modifier.weight(1f)
+                    )
                     PlayerHeaderAction(kind = PlayerHeaderActionKind.More, onClick = onToggleMenu)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1012,11 +1091,13 @@ private fun LandscapeCoverPlayerPage(
 private fun LyricsPlayerPage(
     song: Song?,
     embeddedCover: Bitmap?,
+    annotation: String,
     lyrics: List<com.ella.music.data.model.LyricLine>,
     currentLyricIndex: Int,
     currentPosition: Long,
     showTranslation: Boolean,
     showPronunciation: Boolean,
+    keepScreenOn: Boolean,
     lyricSourceMode: Int,
     fontFamily: FontFamily?,
     fontWeight: FontWeight,
@@ -1032,6 +1113,7 @@ private fun LyricsPlayerPage(
     onDismissLyrics: () -> Unit,
     onTogglePronunciation: () -> Unit,
     onToggleTranslation: () -> Unit,
+    onToggleKeepScreenOn: () -> Unit,
     onToggleFavorite: () -> Unit,
     onFontScale: (Float) -> Unit,
     onLyricSourceMode: (Int) -> Unit,
@@ -1039,13 +1121,35 @@ private fun LyricsPlayerPage(
 ) {
     var lyricMenuExpanded by remember { mutableStateOf(false) }
 
+    val lyricBackgroundMotion = remember(currentPositionMs, isPlaying) {
+        if (isPlaying) {
+            0.5f + 0.5f * kotlin.math.sin(currentPositionMs / 2_400.0).toFloat()
+        } else {
+            0.42f
+        }
+    }
+
     Box(modifier = modifier.background(palette.middle)) {
-        FluidLyricBackground(
+        PlayerBlurBackground(
+            song = song,
+            embeddedCover = embeddedCover,
             palette = palette,
-            positionMs = currentPositionMs,
+            motion = lyricBackgroundMotion,
             isPlaying = isPlaying,
-            flowEffectMode = flowEffectMode,
             modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to palette.top.copy(alpha = 0.34f),
+                            0.36f to palette.middle.copy(alpha = 0.18f),
+                            1f to Color.Black.copy(alpha = 0.48f)
+                        )
+                    )
+                )
         )
 
         Column(
@@ -1069,25 +1173,14 @@ private fun LyricsPlayerPage(
                         .clickable(onClick = onDismissLyrics)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = song?.title ?: "未在播放",
-                        fontSize = adaptiveTitleFontSize(song?.title ?: "未在播放", 28.sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color.White.copy(alpha = 0.96f),
-                        maxLines = 2,
-                        lineHeight = adaptiveTitleFontSize(song?.title ?: "未在播放", 28.sp) * 1.06f,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = song?.artist.orEmpty(),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White.copy(alpha = 0.72f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                PlayerSongMetaText(
+                    song = song,
+                    annotation = annotation,
+                    titleFontSize = 28.sp,
+                    artistFontSize = 20.sp,
+                    artistAlpha = 0.72f,
+                    modifier = Modifier.weight(1f)
+                )
                 PlayerHeaderAction(
                     kind = PlayerHeaderActionKind.Favorite,
                     selected = isFavorite,
@@ -1155,6 +1248,7 @@ private fun LyricsPlayerPage(
                 LyricActionMenu(
                     showPronunciation = showPronunciation,
                     showTranslation = showTranslation,
+                    keepScreenOn = keepScreenOn,
                     lyricSourceMode = lyricSourceMode,
                     fontScale = fontScale,
                     onTogglePronunciation = {
@@ -1164,6 +1258,10 @@ private fun LyricsPlayerPage(
                     onToggleTranslation = {
                         lyricMenuExpanded = false
                         onToggleTranslation()
+                    },
+                    onToggleKeepScreenOn = {
+                        lyricMenuExpanded = false
+                        onToggleKeepScreenOn()
                     },
                     onLyricSourceMode = { mode ->
                         lyricMenuExpanded = false
@@ -1181,6 +1279,7 @@ private fun LyricsPlayerPage(
 private fun LandscapeLyricsOverlay(
     song: Song?,
     embeddedCover: Bitmap?,
+    annotation: String,
     lyrics: List<com.ella.music.data.model.LyricLine>,
     currentLyricIndex: Int,
     currentPosition: Long,
@@ -1261,6 +1360,7 @@ private fun LandscapeLyricsOverlay(
                 Column(modifier = Modifier.fillMaxSize()) {
                     LandscapeSongTitle(
                         song = song,
+                        annotation = annotation,
                         modifier = Modifier.fillMaxWidth()
                     )
                     LandscapeLyricShowcase(
@@ -1311,18 +1411,6 @@ private fun LandscapeLyricsOverlay(
                 modifier = Modifier.size(26.dp)
             )
         }
-        AudioVisualizer(
-            enabled = visualizerEnabled,
-            audioSessionId = audioSessionId,
-            isPlaying = isPlaying,
-            positionMs = currentPosition,
-            accent = Color.White.copy(alpha = 0.82f),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .fillMaxWidth()
-                .height(74.dp)
-        )
     }
 
 }
@@ -1330,26 +1418,202 @@ private fun LandscapeLyricsOverlay(
 @Composable
 private fun LandscapeSongTitle(
     song: Song?,
+    annotation: String,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.padding(end = 16.dp)) {
-        Text(
-            text = song?.title ?: "Ella Music",
-            fontSize = adaptiveTitleFontSize(song?.title ?: "Ella Music", 28.sp),
+    PlayerSongMetaText(
+        song = song,
+        annotation = annotation,
+        titleFontSize = 28.sp,
+        artistFontSize = 16.sp,
+        artistAlpha = 0.50f,
+        fallbackTitle = "Ella Music",
+        modifier = modifier.padding(end = 16.dp)
+    )
+}
+
+@Composable
+private fun PlayerSongMetaText(
+    song: Song?,
+    annotation: String,
+    titleFontSize: TextUnit,
+    artistFontSize: TextUnit,
+    artistAlpha: Float,
+    modifier: Modifier = Modifier,
+    fallbackTitle: String = "未在播放"
+) {
+    Column(modifier = modifier) {
+        PlayerSongTitleText(
+            text = song?.title ?: fallbackTitle,
+            fontSize = titleFontSize,
             fontWeight = FontWeight.ExtraBold,
             color = Color.White.copy(alpha = 0.96f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.fillMaxWidth()
         )
-        Text(
+        if (annotation.isNotBlank()) {
+            PlayerMarqueeText(
+                text = "《$annotation》",
+                fontSize = (artistFontSize.value * 0.82f).sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = (artistAlpha + 0.16f).coerceAtMost(0.82f)),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        PlayerMarqueeText(
             text = song?.artist.orEmpty(),
-            fontSize = 16.sp,
+            fontSize = artistFontSize,
             fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.50f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            color = Color.White.copy(alpha = artistAlpha),
+            modifier = Modifier.fillMaxWidth()
         )
     }
+}
+
+@Composable
+private fun PlayerSongTitleText(
+    text: String,
+    fontSize: TextUnit,
+    fontWeight: FontWeight,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        modifier = modifier.basicMarquee(iterations = Int.MAX_VALUE)
+    )
+}
+
+@Composable
+private fun PlayerMarqueeText(
+    text: String,
+    fontSize: TextUnit,
+    fontWeight: FontWeight,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    LyriconStyleMarqueeText(
+        text = AnnotatedString(text),
+        style = TextStyle(
+            fontSize = fontSize,
+            fontWeight = fontWeight,
+            color = color
+        ),
+        enabled = true,
+        textAlign = TextAlign.Start,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun LyriconStyleMarqueeText(
+    text: AnnotatedString,
+    style: TextStyle,
+    enabled: Boolean,
+    textAlign: TextAlign,
+    modifier: Modifier = Modifier,
+    ghostSpacing: androidx.compose.ui.unit.Dp = 70.dp,
+    speedDpPerSecond: Float = 40f,
+    initialDelayMs: Long = 300L,
+    loopDelayMs: Long = 700L
+) {
+    val density = LocalDensity.current
+    val spacingPx = with(density) { ghostSpacing.toPx() }
+    val speedPxPerMs = with(density) { speedDpPerSecond.dp.toPx() } / 1000f
+    var elapsedMs by remember(text, enabled) { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(text, enabled) {
+        elapsedMs = 0f
+        if (!enabled) return@LaunchedEffect
+        var lastFrameNanos = 0L
+        while (isActive) {
+            withFrameNanos { frameNanos ->
+                if (lastFrameNanos != 0L) {
+                    elapsedMs += (frameNanos - lastFrameNanos) / 1_000_000f
+                }
+                lastFrameNanos = frameNanos
+            }
+        }
+    }
+
+    Layout(
+        content = {
+            BasicText(
+                text = text,
+                style = style.copy(textAlign = TextAlign.Start),
+                maxLines = 1,
+                overflow = TextOverflow.Visible
+            )
+            BasicText(
+                text = text,
+                style = style.copy(textAlign = TextAlign.Start),
+                maxLines = 1,
+                overflow = TextOverflow.Visible
+            )
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            .clipToBounds()
+    ) { measurables, constraints ->
+        val textConstraints = constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity)
+        val primary = measurables[0].measure(textConstraints)
+        val ghost = measurables[1].measure(textConstraints)
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else primary.width
+        val height = primary.height
+        val overflowPx = (primary.width - width).coerceAtLeast(0)
+        val shouldScroll = enabled && overflowPx > 0
+        val x = if (shouldScroll) {
+            -lyriconMarqueeOffsetPx(
+                elapsedMs = elapsedMs,
+                textWidthPx = primary.width.toFloat(),
+                spacingPx = spacingPx,
+                speedPxPerMs = speedPxPerMs,
+                initialDelayMs = initialDelayMs,
+                loopDelayMs = loopDelayMs
+            )
+        } else {
+            when (textAlign) {
+                TextAlign.Center -> ((width - primary.width) / 2).coerceAtLeast(0).toFloat()
+                TextAlign.End, TextAlign.Right -> (width - primary.width).coerceAtLeast(0).toFloat()
+                else -> 0f
+            }
+        }
+        val unit = primary.width + spacingPx
+
+        layout(width, height) {
+            primary.placeRelativeWithLayer(0, 0) {
+                translationX = x
+            }
+            if (shouldScroll) {
+                ghost.placeRelativeWithLayer(0, 0) {
+                    translationX = x + unit
+                }
+            }
+        }
+    }
+}
+
+private fun lyriconMarqueeOffsetPx(
+    elapsedMs: Float,
+    textWidthPx: Float,
+    spacingPx: Float,
+    speedPxPerMs: Float,
+    initialDelayMs: Long,
+    loopDelayMs: Long
+): Float {
+    val activeMs = (elapsedMs - initialDelayMs).coerceAtLeast(0f)
+    if (activeMs <= 0f) return 0f
+    val unit = textWidthPx + spacingPx
+    val travelMs = unit / speedPxPerMs.coerceAtLeast(0.001f)
+    val cycleMs = travelMs + loopDelayMs
+    val cycleTime = activeMs % cycleMs
+    if (cycleTime >= travelMs) return 0f
+    return (cycleTime * speedPxPerMs).coerceIn(0f, unit)
 }
 
 @Composable
@@ -1943,10 +2207,12 @@ private fun QueueListIcon(
 private fun LyricActionMenu(
     showPronunciation: Boolean,
     showTranslation: Boolean,
+    keepScreenOn: Boolean,
     lyricSourceMode: Int,
     fontScale: Float,
     onTogglePronunciation: () -> Unit,
     onToggleTranslation: () -> Unit,
+    onToggleKeepScreenOn: () -> Unit,
     onLyricSourceMode: (Int) -> Unit,
     onFontScale: (Float) -> Unit,
     modifier: Modifier = Modifier
@@ -1981,6 +2247,10 @@ private fun LyricActionMenu(
         PlayerActionMenuItem(
             text = if (showTranslation) "隐藏翻译" else "显示翻译",
             onClick = onToggleTranslation
+        )
+        PlayerActionMenuItem(
+            text = if (keepScreenOn) "关闭歌词页常亮" else "开启歌词页常亮",
+            onClick = onToggleKeepScreenOn
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
@@ -2569,6 +2839,7 @@ private fun MiniLyricsPreview(
                 showPronunciation = showPronunciation,
                 currentPositionMs = smoothPositionMs,
                 active = isActive,
+                isPlaying = isPlaying,
                 fontFamily = fontFamily,
                 fontWeight = fontWeight,
                 modifier = Modifier
@@ -2593,6 +2864,7 @@ private fun MiniLyricBlock(
     showPronunciation: Boolean,
     currentPositionMs: Long = 0L,
     active: Boolean = true,
+    isPlaying: Boolean = true,
     fontFamily: FontFamily? = null,
     fontWeight: FontWeight = FontWeight.ExtraBold,
     modifier: Modifier = Modifier
@@ -2634,6 +2906,7 @@ private fun MiniLyricBlock(
                     text = pronunciation,
                     words = line.pronunciationWords,
                     currentPositionMs = currentPositionMs,
+                    isPlaying = isPlaying,
                     fontSize = if (secondarySize.value <= 10f) 9.sp else 11.sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight.softenedPlayerLyricWeight(),
@@ -2643,13 +2916,15 @@ private fun MiniLyricBlock(
                     currentAlpha = 0.82f
                 )
             } else {
-                Text(
+                MiniPlainLyricText(
                     text = pronunciation,
                     fontSize = if (secondarySize.value <= 10f) 9.sp else 11.sp,
                     fontFamily = fontFamily,
+                    fontWeight = fontWeight.softenedPlayerLyricWeight(),
                     color = Color.White.copy(alpha = if (active) 0.48f else 0.34f),
                     textAlign = line.previewTextAlign(),
-                    maxLines = 2,
+                    active = active,
+                    isPlaying = isPlaying,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -2660,6 +2935,7 @@ private fun MiniLyricBlock(
                     text = main,
                     words = line.words,
                     currentPositionMs = currentPositionMs,
+                    isPlaying = isPlaying,
                     fontSize = (mainSize.value + 1f).sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight,
@@ -2667,26 +2943,29 @@ private fun MiniLyricBlock(
                     maxLines = 3
                 )
             } else {
-                Text(
+                MiniPlainLyricText(
                     text = main,
                     fontSize = if (active) (mainSize.value + 1f).sp else mainSize,
                     fontFamily = fontFamily,
                     fontWeight = if (active) fontWeight else fontWeight.softenedPlayerLyricWeight(),
                     color = Color.White.copy(alpha = if (active) 0.90f else 0.70f),
                     textAlign = line.previewTextAlign(),
-                    maxLines = if (active) 3 else 2,
+                    active = active,
+                    isPlaying = isPlaying,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
         if (translation != null) {
-            Text(
+            MiniPlainLyricText(
                 text = translation,
                 fontSize = secondarySize,
                 fontFamily = fontFamily,
+                fontWeight = fontWeight.softenedPlayerLyricWeight(),
                 color = Color.White.copy(alpha = if (active) 0.58f else 0.38f),
                 textAlign = line.previewTextAlign(),
-                maxLines = 2,
+                active = active,
+                isPlaying = isPlaying,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -2696,6 +2975,7 @@ private fun MiniLyricBlock(
                     text = background,
                     words = line.backgroundWords,
                     currentPositionMs = currentPositionMs,
+                    isPlaying = isPlaying,
                     fontSize = if (mainSize.value <= 12f) 10.sp else 13.sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight.softenedPlayerLyricWeight(),
@@ -2705,26 +2985,29 @@ private fun MiniLyricBlock(
                     currentAlpha = 0.78f
                 )
             } else {
-                Text(
+                MiniPlainLyricText(
                     text = background,
                     fontSize = if (mainSize.value <= 12f) 10.sp else 13.sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight.softenedPlayerLyricWeight(),
                     color = Color.White.copy(alpha = if (active) 0.68f else 0.44f),
                     textAlign = line.previewBackgroundTextAlign(),
-                    maxLines = 2,
+                    active = active,
+                    isPlaying = isPlaying,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
         if (backgroundTranslation != null) {
-            Text(
+            MiniPlainLyricText(
                 text = backgroundTranslation,
                 fontSize = if (secondarySize.value <= 10f) 9.sp else 11.sp,
                 fontFamily = fontFamily,
+                fontWeight = fontWeight.softenedPlayerLyricWeight(),
                 color = Color.White.copy(alpha = 0.48f),
                 textAlign = line.previewBackgroundTextAlign(),
-                maxLines = 2,
+                active = active,
+                isPlaying = isPlaying,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -2732,10 +3015,37 @@ private fun MiniLyricBlock(
 }
 
 @Composable
+private fun MiniPlainLyricText(
+    text: String,
+    fontSize: TextUnit,
+    fontFamily: FontFamily?,
+    fontWeight: FontWeight,
+    color: Color,
+    textAlign: TextAlign,
+    active: Boolean,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    LyriconStyleMarqueeText(
+        text = AnnotatedString(text),
+        style = TextStyle(
+            fontSize = fontSize,
+            fontFamily = fontFamily,
+            fontWeight = fontWeight,
+            color = color
+        ),
+        enabled = active && isPlaying,
+        textAlign = textAlign,
+        modifier = modifier
+    )
+}
+
+@Composable
 private fun MiniWordText(
     text: String,
     words: List<com.ella.music.data.model.LyricWord>,
     currentPositionMs: Long,
+    isPlaying: Boolean,
     fontSize: TextUnit,
     fontFamily: FontFamily?,
     fontWeight: FontWeight,
@@ -2764,17 +3074,17 @@ private fun MiniWordText(
             if (length == 0) append(text)
         }
     }
-    BasicText(
+    LyriconStyleMarqueeText(
         text = annotated,
-        modifier = modifier.fillMaxWidth(),
         style = TextStyle(
             fontSize = fontSize,
             fontFamily = fontFamily,
             fontWeight = fontWeight,
             textAlign = textAlign
         ),
-        maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis
+        enabled = isPlaying,
+        textAlign = textAlign,
+        modifier = modifier.fillMaxWidth()
     )
 }
 
@@ -3282,11 +3592,6 @@ private fun TagEditorSheetContent(
         return
     }
 
-    if (song.id <= 0L) {
-        TagEditorEmptyState("无法获取歌曲媒体库 Uri")
-        return
-    }
-
     if (options.isEmpty()) {
         TagEditorEmptyState("未找到 Lyrico、LunaBeat 或音乐标签，请先安装后再试")
         return
@@ -3304,7 +3609,7 @@ private fun TagEditorSheetContent(
     }
 
     Text(
-        text = "会把当前歌曲路径和 content Uri 传给所选应用。",
+        text = "会把当前歌曲路径传给所选应用，并在返回后刷新这首歌。",
         fontSize = 13.sp,
         color = Color.White.copy(alpha = 0.48f),
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
@@ -3572,31 +3877,41 @@ private fun AudioVisualizer(
     LaunchedEffect(fftData, enabled, visualizerFailed) {
         val fft = fftData
         levels = if (enabled && !visualizerFailed && fft != null && fft.size > 8) {
-            mapFftToLogBars(fft, levels, barCount = 58)
+            mapFftToLogBars(fft, levels, barCount = 84)
         } else {
             emptyList()
         }
     }
 
     Canvas(modifier = modifier.graphicsLayer { alpha = if (isPlaying) 1f else 0.42f }) {
-        val barCount = 58
-        val bottom = size.height - 2.dp.toPx()
-        val gap = size.width / barCount
-        val barWidth = (gap * 0.58f).coerceIn(3.dp.toPx(), 7.dp.toPx())
+        val barCount = 84
+        val horizontalPadding = size.width * 0.065f
+        val usableWidth = (size.width - horizontalPadding * 2f).coerceAtLeast(1f)
+        val gap = usableWidth / barCount
+        val barWidth = (gap * 0.34f).coerceIn(2.dp.toPx(), 3.8.dp.toPx())
+        val minHeight = 3.5.dp.toPx()
+        val visualHeight = min(size.height * 0.42f, 30.dp.toPx())
+        val centerY = size.height - 18.dp.toPx()
+        val glowWidth = (barWidth * 2.7f).coerceAtLeast(5.dp.toPx())
+        val halfCount = (barCount - 1) / 2f
         for (index in 0 until barCount) {
-            val x = gap * index + gap / 2f
-            val normalized = (levels.getOrNull(index) ?: 0.10f).coerceAtLeast(0.10f)
-            val edgeScale = if (index < 6 || index > barCount - 7) 0.70f else 1f
-            val height = (size.height * (0.18f + normalized * 0.92f) * edgeScale).coerceAtLeast(8.dp.toPx())
+            val x = horizontalPadding + gap * index + gap / 2f
+            val normalized = (levels.getOrNull(index) ?: 0.06f).coerceIn(0.04f, 1f)
+            val distance = abs(index - halfCount) / halfCount
+            val edgeFade = (1f - distance * distance * 0.48f).coerceIn(0.48f, 1f)
+            val height = (minHeight + visualHeight * normalized).coerceAtMost(visualHeight + minHeight)
+            val top = centerY - height / 2f
+            val alpha = (0.18f + normalized * 0.54f) * edgeFade
+
             drawRoundRect(
-                color = accent.copy(alpha = 0.10f + normalized * 0.26f),
-                topLeft = Offset(x - barWidth, bottom - height - 6.dp.toPx()),
-                size = Size(barWidth * 2f, height + 6.dp.toPx()),
-                cornerRadius = CornerRadius(barWidth * 1.2f, barWidth * 1.2f)
+                color = accent.copy(alpha = alpha * 0.18f),
+                topLeft = Offset(x - glowWidth / 2f, top - 1.5.dp.toPx()),
+                size = Size(glowWidth, height + 3.dp.toPx()),
+                cornerRadius = CornerRadius(glowWidth, glowWidth)
             )
             drawRoundRect(
-                color = accent.copy(alpha = 0.36f + normalized * 0.56f),
-                topLeft = Offset(x - barWidth / 2f, bottom - height),
+                color = accent.copy(alpha = alpha),
+                topLeft = Offset(x - barWidth / 2f, top),
                 size = Size(barWidth, height),
                 cornerRadius = CornerRadius(barWidth, barWidth)
             )
@@ -3610,7 +3925,7 @@ private fun mapFftToLogBars(
     barCount: Int
 ): List<Float> {
     val binCount = fft.size / 2
-    if (binCount <= 2) return List(barCount) { 0.10f }
+    if (binCount <= 2) return List(barCount) { 0.06f }
 
     return List(barCount) { index ->
         val startRatio = index.toFloat() / barCount
@@ -3630,10 +3945,14 @@ private fun mapFftToLogBars(
         }
 
         val db = 20f * (ln(peak.coerceAtLeast(1f)) / ln(10f))
-        val normalized = ((db - 14f) / 34f).coerceIn(0f, 1f)
-        val shaped = 0.10f + normalized * normalized * 0.90f
-        val old = previous.getOrNull(index) ?: 0.10f
-        old * 0.54f + shaped * 0.46f
+        val normalized = ((db - 16f) / 36f).coerceIn(0f, 1f)
+        val shaped = 0.06f + sqrt(normalized) * 0.94f
+        val old = previous.getOrNull(index) ?: 0.06f
+        if (shaped > old) {
+            old * 0.42f + shaped * 0.58f
+        } else {
+            old * 0.84f + shaped * 0.16f
+        }
     }
 }
 
@@ -3745,9 +4064,11 @@ private fun GlowSeekBar(
     modifier: Modifier = Modifier
 ) {
     val safeProgress = value.coerceIn(0f, 1f)
+    var draggingProgress by remember { mutableStateOf<Float?>(null) }
+    val displayProgress = draggingProgress ?: safeProgress
 
-    fun seek(width: Float, x: Float) {
-        onSeek((x / width.coerceAtLeast(1f)).coerceIn(0f, 1f))
+    fun progressAt(width: Float, x: Float): Float {
+        return (x / width.coerceAtLeast(1f)).coerceIn(0f, 1f)
     }
 
     Box(
@@ -3764,7 +4085,7 @@ private fun GlowSeekBar(
                 }
             },
             update = { view ->
-                view.progressFraction = safeProgress
+                view.progressFraction = displayProgress
                 view.fallbackProgressColor = accent.copy(alpha = 0.82f).toArgb()
             },
             modifier = Modifier.fillMaxSize()
@@ -3773,12 +4094,26 @@ private fun GlowSeekBar(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
-                    detectTapGestures { offset -> seek(size.width.toFloat(), offset.x) }
+                    detectTapGestures { offset ->
+                        onSeek(progressAt(size.width.toFloat(), offset.x))
+                    }
                 }
                 .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        seek(size.width.toFloat(), change.position.x)
-                    }
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            draggingProgress = progressAt(size.width.toFloat(), offset.x)
+                        },
+                        onDragEnd = {
+                            draggingProgress?.let(onSeek)
+                            draggingProgress = null
+                        },
+                        onDragCancel = {
+                            draggingProgress = null
+                        },
+                        onDrag = { change, _ ->
+                            draggingProgress = progressAt(size.width.toFloat(), change.position.x)
+                        }
+                    )
                 }
         )
     }

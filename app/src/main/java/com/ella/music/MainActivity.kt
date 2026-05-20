@@ -34,27 +34,34 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.flow.first
 import com.ella.music.ui.components.LiquidGlassBottomBar
 import com.ella.music.ui.components.LiquidGlassBottomBarItem
 import com.ella.music.ui.components.MiniPlayer
+import com.ella.music.ui.components.TagEditorEditTracker
 import com.ella.music.ui.navigation.AppNavigation
 import com.ella.music.ui.navigation.Screen
+import com.ella.music.ui.player.PlayerScreen
 import com.ella.music.ui.theme.EllaTheme
 import com.ella.music.ui.theme.THEME_DARK
 import com.ella.music.ui.theme.THEME_FOLLOW_SYSTEM
@@ -78,12 +85,6 @@ class MainActivity : ComponentActivity() {
         if (isGranted) {
             mainViewModel?.scanMusicIfAutoEnabled()
         }
-        requestVideoPermissionIfNeeded()
-    }
-
-    private val requestVideoPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {
         requestNotificationPermissionIfNeeded()
     }
 
@@ -170,24 +171,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun requestVideoPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            requestNotificationPermissionIfNeeded()
-            return
-        }
-
-        if (
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.READ_MEDIA_VIDEO
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestVideoPermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
-        } else {
-            requestNotificationPermissionIfNeeded()
-        }
-    }
-
     private fun checkAndRequestPermissions(): Boolean {
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
@@ -199,7 +182,7 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(permission)
             false
         } else {
-            requestVideoPermissionIfNeeded()
+            requestNotificationPermissionIfNeeded()
             true
         }
     }
@@ -232,10 +215,13 @@ fun EllaApp(
     val currentRoute = navBackStackEntry?.destination?.route
     val view = LocalView.current
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val settingsManager = remember { SettingsManager(context) }
-    val isPlayerRoute = currentRoute == Screen.Player.route
+    var showPlayerOverlay by remember { mutableStateOf(false) }
+    var playerDismissProgress by remember { mutableFloatStateOf(0f) }
+    val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
 
-    LaunchedEffect(isPlayerRoute, isDarkTheme) {
+    LaunchedEffect(isPlayerVisible, isDarkTheme) {
         val window = (view.context as ComponentActivity).window
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -243,8 +229,8 @@ fun EllaApp(
             window.isNavigationBarContrastEnforced = false
         }
         WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = if (isPlayerRoute) false else !isDarkTheme
-            isAppearanceLightNavigationBars = if (isPlayerRoute) false else !isDarkTheme
+            isAppearanceLightStatusBars = if (isPlayerVisible) false else !isDarkTheme
+            isAppearanceLightNavigationBars = if (isPlayerVisible) false else !isDarkTheme
         }
     }
 
@@ -257,6 +243,22 @@ fun EllaApp(
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+
+    DisposableEffect(lifecycleOwner, mainViewModel, playerViewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                TagEditorEditTracker.consume()?.let { editedSong ->
+                    mainViewModel.refreshSongAfterExternalEdit(editedSong) { updatedSong ->
+                        playerViewModel.refreshCurrentSongAfterExternalEdit(updatedSong)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
     val currentPosition by playerViewModel.currentPosition.collectAsState()
     val duration by playerViewModel.duration.collectAsState()
     val lyrics by playerViewModel.lyrics.collectAsState()
@@ -303,51 +305,98 @@ fun EllaApp(
         .fillMaxSize()
         .background(MiuixTheme.colorScheme.background)
         .layerBackdrop(backdrop)
+    val previousContentBlur = if (
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        showPlayerOverlay
+    ) {
+        8.dp * playerDismissProgress.coerceIn(0f, 1f)
+    } else {
+        0.dp
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MiuixTheme.colorScheme.background)
     ) {
-        AppNavigation(
-            navController = navController,
-            mainViewModel = mainViewModel,
-            playerViewModel = playerViewModel,
-            modifier = contentModifier
-        )
-        FloatingBottomControls(
-            showMiniPlayer = showMiniPlayer,
-            showBottomBar = showBottomBar,
-            currentSong = currentSong,
-            isPlaying = isPlaying,
-            currentPosition = currentPosition,
-            duration = duration,
-            lyricText = miniPlayerLyricText,
-            lyricTranslation = miniPlayerLyricTranslation,
-            tabs = tabs,
-            currentRoute = currentRoute,
-            backdrop = backdrop,
-            lyricProgress = miniPlayerLyricProgress,
-            mainViewModel = mainViewModel,
-            playerViewModel = playerViewModel,
-            onNavigate = { route ->
-                AppLogStore.debug(context, "BottomNav", "click route=$route current=$currentRoute")
-                if (currentRoute != route) {
-                    navController.navigate(route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = false
-                        }
-                        launchSingleTop = true
-                        restoreState = false
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (previousContentBlur.value > 0f) {
+                        Modifier.blur(radius = previousContentBlur)
+                    } else {
+                        Modifier
                     }
-                    AppLogStore.debug(context, "BottomNav", "navigate route=$route")
-                } else {
-                    AppLogStore.debug(context, "BottomNav", "ignored same route=$route")
+                )
+        ) {
+            AppNavigation(
+                navController = navController,
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                modifier = contentModifier,
+                onNavigateToPlayer = { showPlayerOverlay = true }
+            )
+            FloatingBottomControls(
+                showMiniPlayer = showMiniPlayer,
+                showBottomBar = showBottomBar,
+                currentSong = currentSong,
+                isPlaying = isPlaying,
+                currentPosition = currentPosition,
+                duration = duration,
+                lyricText = miniPlayerLyricText,
+                lyricTranslation = miniPlayerLyricTranslation,
+                tabs = tabs,
+                currentRoute = currentRoute,
+                backdrop = backdrop,
+                lyricProgress = miniPlayerLyricProgress,
+                mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
+                onNavigate = { route ->
+                    if (currentRoute != route) {
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = false
+                            }
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                    }
+                },
+                onNavigatePlayer = { showPlayerOverlay = true },
+                modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
+            )
+        }
+        AnimatedVisibility(
+            visible = showPlayerOverlay,
+            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            PlayerScreen(
+                playerViewModel = playerViewModel,
+                onBack = {
+                    playerViewModel.setShowLyrics(false)
+                    showPlayerOverlay = false
+                    playerDismissProgress = 0f
+                },
+                onNavigateToAlbum = { albumId ->
+                    playerViewModel.setShowLyrics(false)
+                    showPlayerOverlay = false
+                    playerDismissProgress = 0f
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistName ->
+                    playerViewModel.setShowLyrics(false)
+                    showPlayerOverlay = false
+                    playerDismissProgress = 0f
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                },
+                onDismissProgressChange = { progress ->
+                    playerDismissProgress = progress
                 }
-            },
-            onNavigatePlayer = { navController.navigate(Screen.Player.route) },
-            modifier = Modifier.align(androidx.compose.ui.Alignment.BottomCenter)
-        )
+            )
+        }
     }
 }
 

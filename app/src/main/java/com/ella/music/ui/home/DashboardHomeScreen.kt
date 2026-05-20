@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
@@ -228,7 +229,12 @@ private fun DailyMixCard(
                     text = currentSongTitle?.let { "正在播放：$it" } ?: "${songs.size} 首歌曲随机播放",
                     fontSize = 14.sp,
                     color = Color(0xFF33333A),
-                    modifier = Modifier.padding(top = 6.dp)
+                    lineHeight = 19.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .padding(top = 6.dp)
                 )
                 Spacer(modifier = Modifier.height(18.dp))
                 IconButton(onClick = onPlay) {

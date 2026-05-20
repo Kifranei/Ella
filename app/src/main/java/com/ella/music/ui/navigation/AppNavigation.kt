@@ -13,8 +13,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.ella.music.ui.about.AboutScreen
+import com.ella.music.ui.about.UpdateScreen
 import com.ella.music.ui.analytics.AnalyticsScreen
 import com.ella.music.ui.analytics.LibraryAnalysisScreen
+import com.ella.music.ui.analytics.PlaybackHistoryScreen
 import com.ella.music.ui.album.AlbumDetailScreen
 import com.ella.music.ui.album.AlbumScreen
 import com.ella.music.ui.artist.ArtistListScreen
@@ -26,7 +28,6 @@ import com.ella.music.ui.home.HomeScreen
 import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
 import com.ella.music.ui.online.MusicFreeOnlineScreen
-import com.ella.music.ui.player.PlayerScreen
 import com.ella.music.ui.playlist.PlaylistDetailScreen
 import com.ella.music.ui.playlist.PlaylistScreen
 import com.ella.music.ui.settings.AudioSettingsScreen
@@ -69,7 +70,9 @@ sealed class Screen(val route: String) {
     data object LxOnline : Screen("lx_online")
     data object MusicFreeOnline : Screen("musicfree_online")
     data object Analytics : Screen("analytics")
+    data object PlaybackHistory : Screen("playback_history")
     data object About : Screen("about")
+    data object Update : Screen("update")
     data object Player : Screen("player")
 }
 
@@ -78,7 +81,8 @@ fun AppNavigation(
     navController: NavHostController,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToPlayer: () -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -110,7 +114,7 @@ fun AppNavigation(
                 onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
                 onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -118,7 +122,7 @@ fun AppNavigation(
             LibraryScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
+                onNavigateToPlayer = onNavigateToPlayer,
                 onNavigateToAbout = { navController.navigate(Screen.About.route) },
                 onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
                 onNavigateToArtist = { artistName -> navController.navigate(Screen.ArtistDetail.createRoute(artistName)) }
@@ -156,7 +160,7 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -165,7 +169,7 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
+                onNavigateToPlayer = onNavigateToPlayer,
                 onNavigateToLibraryAnalysis = { navController.navigate(Screen.LibraryAnalysis.route) },
                 onFolderClick = { folderPath ->
                     navController.navigate(Screen.FolderDetail.createRoute(folderPath))
@@ -196,7 +200,7 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -205,7 +209,7 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -223,7 +227,7 @@ fun AppNavigation(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
                 onAlbumClick = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -240,7 +244,7 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -302,7 +306,7 @@ fun AppNavigation(
             LxOnlineScreen(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
@@ -310,12 +314,20 @@ fun AppNavigation(
             MusicFreeOnlineScreen(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.Player.route) }
+                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 
         composable(Screen.Analytics.route) {
             AnalyticsScreen(
+                mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() },
+                onNavigateToHistory = { navController.navigate(Screen.PlaybackHistory.route) }
+            )
+        }
+
+        composable(Screen.PlaybackHistory.route) {
+            PlaybackHistoryScreen(
                 mainViewModel = mainViewModel,
                 onBack = { navController.popBackStack() }
             )
@@ -330,46 +342,16 @@ fun AppNavigation(
 
         composable(Screen.About.route) {
             AboutScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToUpdate = { navController.navigate(Screen.Update.route) }
+            )
+        }
+
+        composable(Screen.Update.route) {
+            UpdateScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        composable(
-            route = Screen.Player.route,
-            enterTransition = {
-                fadeIn(animationSpec = tween(180)) + slideIntoContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Up,
-                    tween(320)
-                )
-            },
-            exitTransition = { fadeOut(animationSpec = tween(180)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(180)) },
-            popExitTransition = {
-                fadeOut(animationSpec = tween(220)) + slideOutOfContainer(
-                    AnimatedContentTransitionScope.SlideDirection.Down,
-                    tween(320)
-                )
-            }
-        ) {
-            PlayerScreen(
-                playerViewModel = playerViewModel,
-                onBack = {
-                    if (!navController.popBackStack()) {
-                        navController.navigate(Screen.Home.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                inclusive = false
-                            }
-                            launchSingleTop = true
-                        }
-                    }
-                },
-                onNavigateToAlbum = { albumId ->
-                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
-                },
-                onNavigateToArtist = { artistName ->
-                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
-                }
-            )
-        }
     }
 }

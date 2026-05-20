@@ -3,15 +3,22 @@ package com.ella.music.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import android.app.Activity
 import android.content.ClipData
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.icu.text.Transliterator
+import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -33,8 +40,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,28 +53,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.FileProvider
-import android.os.SystemClock
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.detailedAudioInfo
+import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.splitArtistNames
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.TagEditorOption
 import com.ella.music.ui.components.buildTagEditorOptions
@@ -92,7 +97,6 @@ import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlinx.coroutines.Job
-import kotlin.math.floor
 import java.util.Locale
 
 @Composable
@@ -123,8 +127,49 @@ fun LibraryScreen(
     var actionSong by remember { mutableStateOf<Song?>(null) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
+    var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
     var listCoversEnabled by remember { mutableStateOf(false) }
+    var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val deleteRequestLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val songsToDelete = pendingSystemDeleteSongs
+        pendingSystemDeleteSongs = emptyList()
+        if (result.resultCode == Activity.RESULT_OK && songsToDelete.isNotEmpty()) {
+            mainViewModel.removeSongsFromLibrary(songsToDelete)
+            Toast.makeText(context, "已删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+        } else if (songsToDelete.isNotEmpty()) {
+            Toast.makeText(context, "已取消删除", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun requestDeleteSongs(songsToDelete: List<Song>) {
+        if (songsToDelete.isEmpty()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val uris = songsToDelete
+                .filter { it.id > 0L }
+                .map { song ->
+                    ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, song.id)
+                }
+            if (uris.isNotEmpty()) {
+                runCatching {
+                    pendingSystemDeleteSongs = songsToDelete
+                    val request = MediaStore.createDeleteRequest(context.contentResolver, uris)
+                    deleteRequestLauncher.launch(
+                        IntentSenderRequest.Builder(request.intentSender).build()
+                    )
+                }.onFailure {
+                    pendingSystemDeleteSongs = emptyList()
+                    mainViewModel.deleteSongs(songsToDelete)
+                    Toast.makeText(context, "正在删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+        mainViewModel.deleteSongs(songsToDelete)
+        Toast.makeText(context, "正在删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+    }
 
     LaunchedEffect(Unit) {
         delay(260L)
@@ -179,7 +224,7 @@ fun LibraryScreen(
                     }
                     IconButton(onClick = {
                         val selectedSongs = sortedSongs.filter { it.id in selectedIds }
-                        mainViewModel.deleteSongs(selectedSongs)
+                        requestDeleteSongs(selectedSongs)
                         selectedIds = emptySet()
                         selectionMode = false
                     }) {
@@ -382,8 +427,7 @@ fun LibraryScreen(
 
                 if (sortMode == HomeSortMode.Title && sortedSongs.size > 30) {
                     FastIndexBar(
-                        songs = sortedSongs,
-                        sortKeysBySongId = sortKeysBySongId,
+                        letters = sortedSongs.map { it.indexLetter(sortKeysBySongId[it.id]) },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight()
@@ -424,6 +468,10 @@ fun LibraryScreen(
                         actionSong = null
                         shareSong(context, song)
                     },
+                    onInfo = {
+                        actionSong = null
+                        songInfoSheetSong = song
+                    },
                     onArtist = {
                         actionSong = null
                         val artist = splitArtistNames(song.artist).firstOrNull().orEmpty()
@@ -448,8 +496,7 @@ fun LibraryScreen(
                     },
                     onDelete = {
                         actionSong = null
-                        mainViewModel.deleteSongs(listOf(song))
-                        Toast.makeText(context, "已删除 ${song.title}", Toast.LENGTH_SHORT).show()
+                        requestDeleteSongs(listOf(song))
                     }
                 )
             }
@@ -493,6 +540,21 @@ fun LibraryScreen(
                 )
             }
         }
+
+        songInfoSheetSong?.let { song ->
+            Popup(
+                alignment = Alignment.BottomCenter,
+                onDismissRequest = { songInfoSheetSong = null },
+                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
+            ) {
+                SongInfoMenu(
+                    song = song,
+                    audioInfoLoader = mainViewModel::getAudioInfo,
+                    tagInfoLoader = mainViewModel::getSongTagInfo,
+                    onDismiss = { songInfoSheetSong = null }
+                )
+            }
+        }
     }
 }
 
@@ -504,6 +566,7 @@ private fun SongActionMenu(
     onAddToPlaylist: () -> Unit,
     onPlayNext: () -> Unit,
     onShare: () -> Unit,
+    onInfo: () -> Unit,
     onArtist: () -> Unit,
     onAlbum: () -> Unit,
     onEditTag: () -> Unit,
@@ -512,8 +575,10 @@ private fun SongActionMenu(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .fillMaxHeight(0.88f)
             .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             .background(MiuixTheme.colorScheme.background.copy(alpha = 0.98f))
+            .verticalScroll(rememberScrollState())
             .navigationBarsPadding()
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -531,11 +596,84 @@ private fun SongActionMenu(
         LibraryMenuItem("添加到歌单", onAddToPlaylist)
         LibraryMenuItem("下一首播放", onPlayNext)
         LibraryMenuItem("分享", onShare)
+        LibraryMenuItem("查看歌曲信息", onInfo)
         LibraryMenuItem("艺术家：${song.artist.ifBlank { "未知艺术家" }}", onArtist)
         LibraryMenuItem("专辑：${song.album.ifBlank { "未知专辑" }}", onAlbum)
         LibraryMenuItem("编辑歌曲标签信息", onEditTag)
         LibraryMenuItem("永久删除", onDelete, danger = true)
         LibraryMenuItem("取消", onDismiss)
+    }
+}
+
+@Composable
+private fun SongInfoMenu(
+    song: Song,
+    audioInfoLoader: (Song) -> AudioInfo,
+    tagInfoLoader: (Song) -> SongTagInfo,
+    onDismiss: () -> Unit
+) {
+    val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
+        value = withContext(Dispatchers.IO) { audioInfoLoader(song) }
+    }
+    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song.id, song.dateModified, song.fileSize) {
+        value = withContext(Dispatchers.IO) { tagInfoLoader(song) }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(MiuixTheme.colorScheme.background.copy(alpha = 0.98f))
+            .navigationBarsPadding()
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SheetHandle()
+        Text(
+            text = "歌曲信息",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+        )
+        SongInfoRow("标题", tagInfo?.title?.ifBlank { song.title } ?: song.title)
+        SongInfoRow("艺术家", tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
+        SongInfoRow("专辑", tagInfo?.album?.ifBlank { song.album } ?: song.album)
+        SongInfoRow("专辑艺术家", tagInfo?.albumArtist.orEmpty())
+        SongInfoRow("注释", tagInfo?.comment.orEmpty())
+        SongInfoRow("163 key", tagInfo?.neteaseKey.orEmpty())
+        SongInfoRow("格式", audioInfo?.let { detailedAudioInfo(it) }.orEmpty())
+        SongInfoRow("时长", song.durationText)
+        SongInfoRow("大小", formatLibraryFileSize(song.fileSize))
+        SongInfoRow("文件名", song.fileName.ifBlank { song.path.substringAfterLast('/') })
+        SongInfoRow("路径", song.path)
+        LibraryMenuItem("关闭", onDismiss)
+    }
+}
+
+@Composable
+private fun SongInfoRow(label: String, value: String) {
+    if (value.isBlank()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.62f))
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = MiuixTheme.colorScheme.onSurface,
+            maxLines = if (label == "路径") 3 else 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 }
 
@@ -726,80 +864,21 @@ private fun shareSong(context: Context, song: Song) {
     }
 }
 
+private fun formatLibraryFileSize(bytes: Long): String {
+    if (bytes <= 0L) return ""
+    val mb = bytes / 1024.0 / 1024.0
+    return if (mb >= 1024.0) {
+        "%.2f GB".format(mb / 1024.0)
+    } else {
+        "%.1f MB".format(mb)
+    }
+}
+
 private enum class HomeSortMode(val label: String) {
     Title("歌曲名称"),
     FileName("文件名"),
     DateAdded("添加时间"),
     DateModified("修改时间")
-}
-
-@Composable
-private fun FastIndexBar(
-    songs: List<Song>,
-    sortKeysBySongId: Map<Long, String>,
-    onLetterClick: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val letters = remember(songs, sortKeysBySongId) {
-        songs.map { it.indexLetter(sortKeysBySongId[it.id]) }.distinct()
-    }
-    var heightPx by remember { mutableStateOf(1) }
-    var lastSelectedLetter by remember { mutableStateOf<String?>(null) }
-    var lastDispatchTimeMs by remember { mutableStateOf(0L) }
-
-    fun selectAt(y: Float, force: Boolean = false) {
-        if (letters.isEmpty()) return
-        val now = SystemClock.uptimeMillis()
-        if (!force && now - lastDispatchTimeMs < 80L) return
-        val index = floor((y.coerceIn(0f, heightPx.toFloat() - 1f) / heightPx) * letters.size)
-            .toInt()
-            .coerceIn(0, letters.lastIndex)
-        val letter = letters[index]
-        if (letter != lastSelectedLetter) {
-            lastSelectedLetter = letter
-            lastDispatchTimeMs = now
-            onLetterClick(letter)
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .onSizeChanged { heightPx = it.height.coerceAtLeast(1) }
-            .pointerInput(letters, heightPx) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    selectAt(down.position.y)
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (change.changedToUpIgnoreConsumed()) break
-                        if (change.pressed) {
-                            selectAt(change.position.y)
-                            change.consume()
-                        }
-                    }
-                    lastSelectedLetter = null
-                }
-            },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
-    ) {
-        letters.forEach { letter ->
-            Text(
-                text = letter,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clickable {
-                        lastSelectedLetter = letter
-                        lastDispatchTimeMs = SystemClock.uptimeMillis()
-                        onLetterClick(letter)
-                    }
-                    .padding(horizontal = 8.dp, vertical = 1.dp)
-            )
-        }
-    }
 }
 
 private fun Song.indexLetter(sortKey: String? = null): String {

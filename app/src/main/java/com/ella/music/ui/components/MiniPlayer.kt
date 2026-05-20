@@ -97,7 +97,7 @@ fun MiniPlayer(
     val shouldLoadEmbeddedCover = song.coverUrl.isBlank() &&
         loadCoverArt != null &&
         (albumArtUri == null || preferEmbeddedCover)
-    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, shouldLoadEmbeddedCover) {
+    val embeddedCover by produceState<Bitmap?>(initialValue = null, song.id, song.dateModified, song.fileSize, shouldLoadEmbeddedCover) {
         value = if (!shouldLoadEmbeddedCover) {
             null
         } else {
@@ -386,6 +386,21 @@ private fun AutoScrollingMiniText(
     modifier: Modifier = Modifier
 ) {
     val safeProgress = progress.coerceIn(0f, 1f)
+    var autoScrollElapsedMs by remember(text, enabled) { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(text, enabled) {
+        autoScrollElapsedMs = 0f
+        if (!enabled) return@LaunchedEffect
+        var lastFrameNanos = 0L
+        while (isActive) {
+            withFrameNanos { frameNanos ->
+                if (lastFrameNanos != 0L) {
+                    autoScrollElapsedMs += (frameNanos - lastFrameNanos) / 1_000_000f
+                }
+                lastFrameNanos = frameNanos
+            }
+        }
+    }
 
     Layout(
         content = {
@@ -411,7 +426,8 @@ private fun AutoScrollingMiniText(
             miniMarqueeProgress(
                 progress = safeProgress,
                 overflowPx = overflowPx.toFloat(),
-                viewportPx = width
+                viewportPx = width,
+                autoScrollElapsedMs = autoScrollElapsedMs
             )
         } else {
             0f
@@ -429,7 +445,8 @@ private fun AutoScrollingMiniText(
 private fun miniMarqueeProgress(
     progress: Float,
     overflowPx: Float,
-    viewportPx: Int
+    viewportPx: Int,
+    autoScrollElapsedMs: Float
 ): Float {
     val overflowRatio = overflowPx / viewportPx.coerceAtLeast(1).toFloat()
     val startAt = 0.04f
@@ -438,7 +455,15 @@ private fun miniMarqueeProgress(
         overflowRatio >= 0.55f -> 0.82f
         else -> 0.9f
     }
-    return ((progress - startAt) / (endAt - startAt)).coerceIn(0f, 1f)
+    val lyricDrivenProgress = ((progress - startAt) / (endAt - startAt)).coerceIn(0f, 1f)
+    val autoDelayMs = 420f
+    val autoScrollSpeedPxPerSecond = (viewportPx * 0.12f).coerceIn(22f, 42f)
+    val autoDrivenProgress = (
+        ((autoScrollElapsedMs - autoDelayMs).coerceAtLeast(0f) / 1000f) *
+            autoScrollSpeedPxPerSecond /
+            overflowPx.coerceAtLeast(1f)
+        ).coerceIn(0f, 1f)
+    return maxOf(lyricDrivenProgress, autoDrivenProgress)
 }
 
 private fun Color.luminance(): Float {
