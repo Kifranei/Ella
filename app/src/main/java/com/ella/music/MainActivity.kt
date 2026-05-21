@@ -1,12 +1,17 @@
 package com.ella.music
 
 import android.Manifest
+import android.content.Intent
 import android.graphics.Color
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.DocumentsContract
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,14 +24,18 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -37,7 +46,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.platform.LocalContext
@@ -49,12 +60,14 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import com.ella.music.ui.components.LiquidGlassBottomBar
 import com.ella.music.ui.components.LiquidGlassBottomBarItem
 import com.ella.music.ui.components.MiniPlayer
@@ -71,11 +84,13 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Music
 import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowDialog
 
 class MainActivity : ComponentActivity() {
 
@@ -83,7 +98,11 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            mainViewModel?.scanMusicIfAutoEnabled()
+            lifecycleScope.launch {
+                if (SettingsManager(this@MainActivity).initialScanPromptHandled.first()) {
+                    mainViewModel?.scanMusicIfAutoEnabled()
+                }
+            }
         }
         requestNotificationPermissionIfNeeded()
     }
@@ -162,7 +181,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                if (canScanNow) mainVm.scanMusicIfAutoEnabled()
+                if (canScanNow && settingsManager.initialScanPromptHandled.first()) {
+                    mainVm.scanMusicIfAutoEnabled()
+                }
             }
 
             EllaTheme(themeMode = themeMode) {
@@ -217,9 +238,39 @@ fun EllaApp(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val settingsManager = remember { SettingsManager(context) }
+    val scope = rememberCoroutineScope()
     var showPlayerOverlay by remember { mutableStateOf(false) }
     var playerDismissProgress by remember { mutableFloatStateOf(0f) }
     val isPlayerVisible = showPlayerOverlay || currentRoute == Screen.Player.route
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
+    val initialScanPromptHandled by settingsManager.initialScanPromptHandled.collectAsState(initial = true)
+    val isScanning by mainViewModel.isScanning.collectAsState()
+    var showInitialScanPrompt by remember { mutableStateOf(false) }
+
+    val initialScanFolderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, readWrite)
+        }.recoverCatching {
+            context.contentResolver.takePersistableUriPermission(uri, readOnly)
+        }
+        val folderPath = uri.toPrimaryStoragePath()
+        if (folderPath == null) {
+            Toast.makeText(context, "暂不支持该系统目录路径", Toast.LENGTH_SHORT).show()
+        } else {
+            scope.launch {
+                settingsManager.setUseAndroidMediaLibrary(false)
+                settingsManager.setScanIncludeFolders(folderPath)
+                settingsManager.setAutoScan(true)
+                mainViewModel.scanMusic()
+            }
+            Toast.makeText(context, "已添加扫描文件夹", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     LaunchedEffect(isPlayerVisible, isDarkTheme) {
         val window = (view.context as ComponentActivity).window
@@ -243,6 +294,17 @@ fun EllaApp(
 
     val currentSong by playerViewModel.currentSong.collectAsState()
     val isPlaying by playerViewModel.isPlaying.collectAsState()
+    val librarySongs by mainViewModel.songs.collectAsState()
+
+    LaunchedEffect(libraryCacheLoaded, initialScanPromptHandled, isScanning, librarySongs) {
+        if (!libraryCacheLoaded || initialScanPromptHandled) return@LaunchedEffect
+        if (librarySongs.isNotEmpty()) {
+            settingsManager.setInitialScanPromptHandled(true)
+            mainViewModel.scanMusicIfAutoEnabled()
+        } else if (!isScanning) {
+            showInitialScanPrompt = true
+        }
+    }
 
     DisposableEffect(lifecycleOwner, mainViewModel, playerViewModel) {
         val observer = LifecycleEventObserver { _, event ->
@@ -397,6 +459,92 @@ fun EllaApp(
                 }
             )
         }
+
+        InitialScanPromptDialog(
+            show = showInitialScanPrompt,
+            onDismiss = {
+                showInitialScanPrompt = false
+                scope.launch {
+                    settingsManager.setInitialScanPromptHandled(true)
+                    settingsManager.setAutoScan(false)
+                }
+            },
+            onCustomFolderScan = {
+                showInitialScanPrompt = false
+                scope.launch {
+                    settingsManager.setInitialScanPromptHandled(true)
+                    settingsManager.setUseAndroidMediaLibrary(false)
+                    settingsManager.setAutoScan(false)
+                }
+                initialScanFolderPicker.launch(null)
+            },
+            onMediaLibraryScan = {
+                showInitialScanPrompt = false
+                scope.launch {
+                    settingsManager.setInitialScanPromptHandled(true)
+                    settingsManager.setUseAndroidMediaLibrary(true)
+                    settingsManager.setAutoScan(true)
+                    mainViewModel.scanMusic()
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun InitialScanPromptDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onCustomFolderScan: () -> Unit,
+    onMediaLibraryScan: () -> Unit
+) {
+    WindowDialog(
+        show = show,
+        title = "无歌曲",
+        onDismissRequest = onDismiss
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "当前没有歌曲，是否现在扫描歌曲？",
+                color = MiuixTheme.colorScheme.onSurface,
+                fontSize = 15.sp
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(
+                        text = "取消",
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(
+                        text = "自定义",
+                        onClick = onCustomFolderScan,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    TextButton(
+                        text = "确定",
+                        onClick = onMediaLibraryScan,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -495,5 +643,17 @@ private fun String.isMusicSymbolOnly(): Boolean {
         char.isWhitespace() ||
                 char in setOf('♪', '♫', '♬', '♩', '♭', '♯', '♮') ||
                 Character.UnicodeBlock.of(char) == Character.UnicodeBlock.MUSICAL_SYMBOLS
+    }
+}
+
+private fun Uri.toPrimaryStoragePath(): String? {
+    val documentId = runCatching { DocumentsContract.getTreeDocumentId(this) }.getOrNull() ?: return null
+    val parts = documentId.split(':', limit = 2)
+    val volume = parts.firstOrNull().orEmpty()
+    val path = parts.getOrNull(1).orEmpty().trim('/')
+    return when {
+        volume.equals("primary", ignoreCase = true) && path.isBlank() -> "/storage/emulated/0"
+        volume.equals("primary", ignoreCase = true) -> "/storage/emulated/0/$path"
+        else -> null
     }
 }

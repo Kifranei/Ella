@@ -6,15 +6,9 @@ import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,8 +24,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.musicfree.MusicFreeOnlineSong
 import com.ella.music.data.musicfree.MusicFreePluginService
@@ -48,9 +42,7 @@ import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MusicFreeOnlineViewModel
 import com.ella.music.viewmodel.PlayerViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -60,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -67,6 +60,7 @@ fun MusicFreeOnlineScreen(
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit,
+    onNavigateToPluginSettings: () -> Unit,
     state: MusicFreeOnlineViewModel = viewModel()
 ) {
     BackHandler(onBack = onBack)
@@ -83,9 +77,16 @@ fun MusicFreeOnlineScreen(
         plugins.firstOrNull { it.id == selectedPluginId } ?: plugins.firstOrNull()
     }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
-
-    LaunchedEffect(loadedPlugins) {
-        if (loadedPlugins != null && plugins.isEmpty()) state.importExpanded = true
+    val currentPluginId = selectedPlugin?.id.orEmpty()
+    var observedPluginId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentPluginId) {
+        val previousPluginId = observedPluginId
+        if (previousPluginId != null && previousPluginId != currentPluginId) {
+            state.clearResults(
+                selectedPlugin?.let { "已切换到 ${it.name}" } ?: "请先导入或选择一个插件来源"
+            )
+        }
+        observedPluginId = currentPluginId
     }
 
     fun showToast(text: String) {
@@ -109,34 +110,6 @@ fun MusicFreeOnlineScreen(
         state.message = "已获取 ${songs.size} 首队列歌曲，将在播放到对应歌曲时解析"
     }
 
-    val localPluginLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            state.isBusy = true
-            state.message = "正在导入 MusicFree 插件..."
-            try {
-                runCatching {
-                    val script = withContext(Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            input.bufferedReader(Charsets.UTF_8).readText()
-                        }.orEmpty()
-                    }
-                    val (name, normalizedScript) = service.importPluginScript(script, allowRuntimeInspect = false)
-                    settingsManager.setMusicFreePlugin(uri.toString(), name, normalizedScript)
-                    state.message = "已导入 $name"
-                    state.importExpanded = false
-                }.onFailure {
-                    state.message = it.localizedMessage ?: "本地导入失败"
-                    showToast(state.message)
-                }
-            } finally {
-                state.isBusy = false
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -155,6 +128,16 @@ fun MusicFreeOnlineScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            },
+            actions = {
+                IconButton(onClick = onNavigateToPluginSettings) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Settings,
+                        contentDescription = "插件管理",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         )
 
@@ -168,104 +151,12 @@ fun MusicFreeOnlineScreen(
 
             Card(
                 modifier = Modifier.padding(vertical = 4.dp),
-                onClick = { state.importExpanded = !state.importExpanded }
+                onClick = onNavigateToPluginSettings
             ) {
-                Column {
-                    BasicComponent(
-                        title = selectedPlugin?.name ?: "导入 MusicFree 插件",
-                        summary = selectedPlugin?.url ?: "从本地 JS 文件或网络链接导入 MusicFree 插件"
-                    )
-                    AnimatedVisibility(
-                        visible = state.importExpanded,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                            OnlineTextField(
-                                value = state.importUrl,
-                                onValueChange = { state.importUrl = it },
-                                onSearch = {},
-                                placeholder = "https://.../plugin.js"
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Button(
-                                    enabled = !state.isBusy,
-                                    onClick = {
-                                        localPluginLauncher.launch(
-                                            arrayOf(
-                                                "text/javascript",
-                                                "application/javascript",
-                                                "application/x-javascript",
-                                                "text/*",
-                                                "application/octet-stream"
-                                            )
-                                        )
-                                    }
-                                ) {
-                                    Text(text = "本地 JS")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    enabled = !state.isBusy && state.importUrl.isNotBlank(),
-                                    onClick = {
-                                        scope.launch {
-                                            state.isBusy = true
-                                            state.message = "正在导入 MusicFree 插件..."
-                                            try {
-                                                runCatching {
-                                                    val result = service.importPlugins(state.importUrl)
-                                                    settingsManager.setMusicFreePlugins(result.plugins)
-                                                    state.importUrl = ""
-                                                    state.message = if (result.plugins.size == 1 && result.skippedCount == 0) {
-                                                        "已导入 ${result.plugins.first().name}"
-                                                    } else {
-                                                        "已导入 ${result.plugins.size} 个插件，跳过 ${result.skippedCount} 个"
-                                                    }
-                                                    state.importExpanded = false
-                                                }.onFailure {
-                                                    state.message = it.localizedMessage ?: "导入失败"
-                                                    showToast(state.message)
-                                                }
-                                            } finally {
-                                                state.isBusy = false
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Text(text = if (state.isBusy) "导入中" else "URL 导入")
-                                }
-                            }
-                            if (plugins.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = "已导入来源",
-                                    fontSize = 13.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                                plugins.forEach { plugin ->
-                                    MusicFreePluginRow(
-                                        plugin = plugin,
-                                        selected = plugin.id == selectedPlugin?.id,
-                                        enabled = !state.isBusy,
-                                        onSelect = {
-                                            scope.launch {
-                                                settingsManager.selectMusicFreePlugin(plugin.id)
-                                                state.clearResults("已切换到 ${plugin.name}")
-                                            }
-                                        },
-                                        onRemove = {
-                                            scope.launch {
-                                                settingsManager.removeMusicFreePlugin(plugin.id)
-                                                state.clearResults("已移除 ${plugin.name}")
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                BasicComponent(
+                    title = selectedPlugin?.name ?: "未选择 MusicFree 插件",
+                    summary = selectedPlugin?.url ?: "点右上角齿轮导入或选择插件"
+                )
             }
 
             Text(
@@ -419,49 +310,3 @@ private fun String.sanitizeMusicFreeFileName(): String {
         .ifBlank { "Ella Music.mp3" }
 }
 
-@Composable
-private fun MusicFreePluginRow(
-    plugin: MusicFreePluginConfig,
-    selected: Boolean,
-    enabled: Boolean,
-    onSelect: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (selected) "${plugin.name}（当前）" else plugin.name,
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = plugin.url,
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Button(
-            enabled = enabled && !selected,
-            onClick = onSelect
-        ) {
-            Text("使用")
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Button(
-            enabled = enabled,
-            onClick = onRemove
-        ) {
-            Text("移除")
-        }
-    }
-}

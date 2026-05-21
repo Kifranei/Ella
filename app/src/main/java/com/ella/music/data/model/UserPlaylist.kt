@@ -4,6 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 const val FAVORITES_PLAYLIST_ID = "favorites"
+const val FIVE_STAR_PLAYLIST_ID = "five_star_rating"
 
 data class UserPlaylist(
     val id: String,
@@ -13,6 +14,7 @@ data class UserPlaylist(
     val updatedAt: Long
 ) {
     val isFavorites: Boolean get() = id == FAVORITES_PLAYLIST_ID
+    val isFiveStarRating: Boolean get() = id == FIVE_STAR_PLAYLIST_ID
 }
 
 data class PlaylistSong(

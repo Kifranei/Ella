@@ -422,13 +422,13 @@ private fun FrostedCard(
             ),
         colors = CardDefaults.defaultColors(
             if (isDark) {
-                Color(0xFF222224)
+                colorScheme.surfaceContainer
             } else if (blurEnable) {
                 Color.Transparent
             } else {
                 colorScheme.surfaceContainer
             },
-            if (isDark) Color.White else colorScheme.onSurface,
+            colorScheme.onSurface,
         ),
     ) {
         content()

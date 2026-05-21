@@ -10,7 +10,6 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,9 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
@@ -62,6 +59,7 @@ import top.yukonga.miuix.kmp.basic.Slider
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -494,13 +492,30 @@ fun SettingsDetailScreen(
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
+    val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = true)
+    val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
+    val openAiBaseUrl by settingsManager.openAiBaseUrl.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_BASE_URL)
+    val openAiModel by settingsManager.openAiModel.collectAsState(initial = SettingsManager.DEFAULT_OPENAI_MODEL)
     val artistSeparators by settingsManager.artistSeparators.collectAsState(initial = "")
     val artistProtectedNames by settingsManager.artistProtectedNames.collectAsState(initial = "")
     val genreSeparators by settingsManager.genreSeparators.collectAsState(initial = "")
     val genreProtectedNames by settingsManager.genreProtectedNames.collectAsState(initial = "")
+    val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val themeEntries = remember { themeLabels.map { DropdownItem(title = it) } }
+    val categoryGridEntries = remember {
+        (1..4).map { columns ->
+            DropdownItem(
+                title = "${columns}列",
+                summary = when (columns) {
+                    1 -> "列表式大卡片"
+                    4 -> "最紧凑的网格"
+                    else -> "适合多数屏幕"
+                }
+            )
+        }
+    }
     val desktopLyricColorPresets = remember {
         listOf(
             "白色" to android.graphics.Color.WHITE,
@@ -612,12 +627,29 @@ fun SettingsDetailScreen(
                                 scope.launch { settingsManager.setThemeMode(index) }
                             }
                         )
+                        WindowSpinnerPreference(
+                            title = "分类网格列数",
+                            summary = "专辑、流派、年份等分类页面显示为 ${categoryGridColumns.coerceIn(1, 4)} 列",
+                            items = categoryGridEntries,
+                            selectedIndex = (categoryGridColumns - 1).coerceIn(categoryGridEntries.indices),
+                            onSelectedIndexChange = { index ->
+                                scope.launch { settingsManager.setCategoryGridColumns(index + 1) }
+                            }
+                        )
                         SwitchPreference(
                             title = "播放后进入播放页",
                             summary = "本地、WebDAV 和在线歌曲点播放后自动打开播放界面",
                             checked = openPlayerOnPlay,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setOpenPlayerOnPlay(it) }
+                            }
+                        )
+                        SwitchPreference(
+                            title = "列表中显示下一首播放",
+                            summary = "在歌曲列表的时长左侧显示快捷按钮；关闭后仍可从歌曲菜单操作",
+                            checked = showPlayNextInLists,
+                            onCheckedChange = {
+                                scope.launch { settingsManager.setShowPlayNextInLists(it) }
                             }
                         )
                         SwitchPreference(
@@ -630,6 +662,31 @@ fun SettingsDetailScreen(
                             title = "歌词字体",
                             summary = lyricFontName.ifBlank { "系统默认" },
                             onClick = onNavigateToLyricFont
+                        )
+                    }
+                }
+
+                SmallTitle(text = "AI 解读")
+
+                SettingsCardGroup {
+                    Column {
+                        SplitSettingTextField(
+                            label = "OpenAI API Key",
+                            value = openAiApiKey,
+                            summary = "用于歌曲 AI 解读；只保存在本机",
+                            onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
+                        )
+                        SplitSettingTextField(
+                            label = "OpenAI Base URL",
+                            value = openAiBaseUrl,
+                            summary = "OpenAI 兼容 Chat Completions 地址；会自动补全 /chat/completions",
+                            onValueChange = { value -> scope.launch { settingsManager.setOpenAiBaseUrl(value) } }
+                        )
+                        SplitSettingTextField(
+                            label = "OpenAI 模型",
+                            value = openAiModel,
+                            summary = "例如 ${SettingsManager.DEFAULT_OPENAI_MODEL}；可按账号可用模型自行修改",
+                            onValueChange = { value -> scope.launch { settingsManager.setOpenAiModel(value) } }
                         )
                     }
                 }
@@ -984,15 +1041,6 @@ private fun SplitSettingTextField(
     summary: String,
     onValueChange: (String) -> Unit
 ) {
-    var fieldValue by remember {
-        mutableStateOf(TextFieldValue(value, selection = TextRange(value.length)))
-    }
-    LaunchedEffect(value) {
-        if (value != fieldValue.text) {
-            fieldValue = TextFieldValue(value, selection = TextRange(value.length))
-        }
-    }
-
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text(
             text = label,
@@ -1005,36 +1053,20 @@ private fun SplitSettingTextField(
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
         )
-        BasicTextField(
-            value = fieldValue,
-            onValueChange = { next ->
-                fieldValue = next
-                onValueChange(next.text)
-            },
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = label,
+            useLabelAsPlaceholder = true,
+            singleLine = false,
+            insideMargin = DpSize(12.dp, 10.dp),
+            backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
+            cornerRadius = 12.dp,
             textStyle = TextStyle(
                 color = MiuixTheme.colorScheme.onSurface,
                 fontSize = 14.sp
             ),
-            modifier = Modifier.fillMaxWidth(),
-            minLines = 1,
-            maxLines = 5,
-            decorationBox = { innerTextField ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MiuixTheme.colorScheme.surfaceContainer, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp)
-                ) {
-                    if (fieldValue.text.isBlank()) {
-                        Text(
-                            text = label,
-                            fontSize = 14.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
-                    }
-                    innerTextField()
-                }
-            }
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }

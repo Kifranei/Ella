@@ -1,5 +1,6 @@
 package com.ella.music.ui.folder
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -15,15 +16,18 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,18 +41,22 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
+import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FastIndexBar
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.ArrowRight
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Folder
@@ -63,10 +71,12 @@ fun FolderDetailScreen(
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
+    onFolderClick: (String) -> Unit,
     onNavigateToPlayer: () -> Unit
 ) {
     val songs by mainViewModel.songs.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
@@ -74,13 +84,22 @@ fun FolderDetailScreen(
     var sortExpanded by remember { mutableStateOf(false) }
     val sortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.folderDetailSongSortIndex)
     val sortMode = FolderSongSortMode.entries.getOrElse(sortIndex) { FolderSongSortMode.Title }
+    val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
+    var scrollToTopRequest by remember { mutableStateOf(0) }
 
-    val folderSongs = remember(songs, folderPath) {
-        songs.filter { it.path.startsWith(folderPath, ignoreCase = true) }
+    val childFolders = remember(songs, normalizedFolderPath) {
+        songs.childFoldersOf(normalizedFolderPath).sortedBy { it.name.lowercase(Locale.ROOT) }
     }
-    val filteredSongs = remember(folderSongs, searchQuery) {
-        if (searchQuery.isBlank()) folderSongs
-        else folderSongs.filter {
+    val directSongs = remember(songs, normalizedFolderPath) {
+        songs.directSongsInFolder(normalizedFolderPath)
+    }
+    val recursiveSongs = remember(songs, normalizedFolderPath) {
+        songs.recursiveSongsInFolder(normalizedFolderPath)
+    }
+    val filteredSongs = remember(directSongs, recursiveSongs, searchQuery) {
+        val sourceSongs = if (searchQuery.isBlank()) directSongs else recursiveSongs
+        if (searchQuery.isBlank()) sourceSongs
+        else sourceSongs.filter {
             it.title.contains(searchQuery, ignoreCase = true) ||
                 it.artist.contains(searchQuery, ignoreCase = true) ||
                 it.album.contains(searchQuery, ignoreCase = true) ||
@@ -101,7 +120,17 @@ fun FolderDetailScreen(
         }
     }
 
-    val folderName = folderPath.substringAfterLast('/')
+    val folderName = normalizedFolderPath.substringAfterLast('/')
+
+    BackHandler(enabled = searchExpanded || sortExpanded) {
+        when {
+            searchExpanded -> {
+                searchExpanded = false
+                searchQuery = ""
+            }
+            sortExpanded -> sortExpanded = false
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -109,58 +138,68 @@ fun FolderDetailScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
+        Box {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
-                    imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp)
+                    imageVector = MiuixIcons.Regular.Folder,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = folderName.ifEmpty { "根目录" },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${childFolders.size} 个子目录 · ${recursiveSongs.size} 首歌曲",
+                        fontSize = 12.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Sort,
+                        contentDescription = "排序",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                    Icon(
+                        imageVector = MiuixIcons.Basic.Search,
+                        contentDescription = "搜索",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = MiuixIcons.Regular.Folder,
-                contentDescription = null,
-                tint = MiuixTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                startPadding = 64.dp,
+                endPadding = 104.dp
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = folderName.ifEmpty { "根目录" },
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "${folderSongs.size} 首歌曲",
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = { sortExpanded = !sortExpanded }) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Sort,
-                    contentDescription = "排序",
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                Icon(
-                    imageVector = MiuixIcons.Basic.Search,
-                    contentDescription = "搜索",
-                    tint = MiuixTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
 
         AnimatedVisibility(
@@ -180,6 +219,7 @@ fun FolderDetailScreen(
                             .clickable {
                                 LibrarySortUiState.folderDetailSongSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setFolderDetailSongSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),
@@ -208,7 +248,7 @@ fun FolderDetailScreen(
             )
         }
 
-        if (folderSongs.isEmpty()) {
+        if (childFolders.isEmpty() && sortedSongs.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -221,6 +261,16 @@ fun FolderDetailScreen(
         } else {
             val listState = rememberLazyListState()
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
+            LaunchedEffect(scrollToTopRequest) {
+                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+            }
+            val visibleFolderCount = if (searchQuery.isBlank()) childFolders.size else 0
+            val currentSongItemIndex = remember(sortedSongs, currentSong?.id, visibleFolderCount) {
+                sortedSongs.indexOfFirst { it.id == currentSong?.id }
+                    .takeIf { it >= 0 }
+                    ?.plus(1 + visibleFolderCount)
+                    ?: -1
+            }
             val fastIndexTargets = remember(sortedSongs) {
                 sortedSongs
                     .mapIndexed { index, song -> song.indexLetter() to index }
@@ -230,7 +280,11 @@ fun FolderDetailScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
-                        text = "${sortedSongs.size} 首歌曲 · ${sortMode.label}",
+                        text = if (searchQuery.isBlank()) {
+                            "${childFolders.size} 个子目录 · ${sortedSongs.size} 首当前目录歌曲"
+                        } else {
+                            "${sortedSongs.size} 首匹配歌曲 · 含子目录"
+                        },
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -240,6 +294,14 @@ fun FolderDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
+                        if (searchQuery.isBlank()) {
+                            items(childFolders, key = { it.path }) { folder ->
+                                ChildFolderRow(
+                                    folder = folder,
+                                    onClick = { onFolderClick(folder.path) }
+                                )
+                            }
+                        }
                         itemsIndexed(
                             items = sortedSongs,
                             key = { _, song -> song.id }
@@ -275,6 +337,14 @@ fun FolderDetailScreen(
                         }
                     )
                 }
+                LocateCurrentSongFloatingButton(
+                    listState = listState,
+                    currentItemIndex = currentSongItemIndex,
+                    locateRequest = locateCurrentSongRequest,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 22.dp, bottom = 118.dp)
+                )
             }
         }
     }
@@ -290,9 +360,63 @@ private enum class FolderSongSortMode(val label: String) {
     DateModifiedAsc("修改时间升序")
 }
 
+@Composable
+private fun ChildFolderRow(
+    folder: FolderTreeEntry,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = MiuixIcons.Regular.Folder,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = folder.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MiuixTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${folder.songCount} 首歌曲 · ${folder.duration.formatFolderDuration()}",
+                    fontSize = 13.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                )
+            }
+            Icon(
+                imageVector = MiuixIcons.Basic.ArrowRight,
+                contentDescription = null,
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
 private fun Song.indexLetter(): String {
     val first = title.musicSortKey().firstOrNull()?.uppercaseChar()
     return if (first != null && first in 'A'..'Z') first.toString() else "#"
+}
+
+private fun Long.formatFolderDuration(): String {
+    val totalMinutes = this / 60_000L
+    val hours = totalMinutes / 60L
+    val minutes = totalMinutes % 60L
+    return if (hours > 0) "${hours}小时${minutes}分钟" else "${minutes}分钟"
 }
 
 private fun String.musicSortKey(): String {

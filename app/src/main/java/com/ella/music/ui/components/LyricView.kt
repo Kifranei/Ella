@@ -600,20 +600,29 @@ private fun AnnotatedString.Builder.appendTimedLyricWord(
     when {
         isCurrent -> {
             val progress = ((currentPositionMs - startMs).toFloat() / durationMs).coerceIn(0f, 1f)
+            val useSweep = text.trim().length > 2
             appendStyledLyricText(
                 value = text,
                 color = currentColor,
                 fontWeight = fontWeight,
-                brush = lyricSweepBrush(
-                    progress = progress,
-                    activeColor = currentColor,
-                pendingColor = pendingColor
-                ),
+                brush = if (useSweep) {
+                    lyricSweepBrush(
+                        progress = progress,
+                        activeColor = currentColor,
+                        pendingColor = pendingColor
+                    )
+                } else {
+                    null
+                },
                 fontFamily = fontFamily,
-                shadow = Shadow(
-                    color = glowColor.copy(alpha = glowColor.alpha * lyricGlowAlpha(progress)),
-                    blurRadius = lyricGlowRadius(progress)
-                )
+                shadow = if (useSweep) {
+                    Shadow(
+                        color = glowColor.copy(alpha = glowColor.alpha * 0.42f * lyricGlowAlpha(progress)),
+                        blurRadius = lyricGlowRadius(progress)
+                    )
+                } else {
+                    null
+                }
             )
         }
         isSung -> appendStyledLyricText(text, sungColor, inactiveWeight, fontFamily)
@@ -680,7 +689,7 @@ private fun lyricGlowAlpha(progress: Float): Float {
 
 private fun lyricGlowRadius(progress: Float): Float {
     val centerWeight = 1f - kotlin.math.abs(progress.coerceIn(0f, 1f) - 0.5f) * 2f
-    return 6f + centerWeight * 8f
+    return 1.4f + centerWeight * 2.2f
 }
 
 @Composable
@@ -727,7 +736,7 @@ private fun rememberSmoothLyricPosition(
 private fun LyricLine.lyricRenderKey(): String =
     "$timeMs|$endMs|$text|$backgroundText"
 
-private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.16f
+private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.045f
 private const val LYRIC_PLAYED_LINE_BLUR_DP = 1.2f
 private const val LYRIC_UPCOMING_LINE_BLUR_STEP_DP = 1.35f
 private const val LYRIC_UPCOMING_LINE_MAX_BLUR_DP = 4.2f

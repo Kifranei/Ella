@@ -11,6 +11,8 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import android.util.LruCache
+import com.ella.music.data.AppLogStore
+import com.ella.music.data.AppLogType
 import com.ella.music.data.AppNetworkLoggingInterceptor
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Album
@@ -83,18 +85,42 @@ class MusicRepository(private val context: Context) {
         minDurationMs: Long = 0,
         includeFolders: List<String> = emptyList(),
         excludeFolders: List<String> = emptyList()
-    ) {
+    ): Int {
         _isScanning.value = true
         _scanProgress.value = 0
         try {
-            _songs.value = scanner.scanAllSongs(
+            val mode = if (includeFolders.isEmpty()) "media_library" else "custom_folders"
+            AppLogStore.info(
+                context,
+                "MusicScanner",
+                "Start scan mode=$mode minDuration=${minDurationMs}ms include=${includeFolders.size} exclude=${excludeFolders.size}",
+                AppLogType.LIBRARY
+            )
+            val scannedSongs = scanner.scanAllSongs(
                 minDurationMs = minDurationMs,
                 includeFolders = includeFolders,
                 excludeFolders = excludeFolders,
                 deepMetadata = true
             ) { count -> _scanProgress.value = count }
-            _albums.value = _songs.value.toAlbums()
-            saveLibraryCache(_songs.value, _albums.value)
+            _songs.value = scannedSongs
+            _albums.value = scannedSongs.toAlbums()
+            saveLibraryCache(scannedSongs, _albums.value)
+            AppLogStore.info(
+                context,
+                "MusicScanner",
+                "Scan finished mode=$mode songs=${scannedSongs.size} albums=${_albums.value.size}",
+                AppLogType.LIBRARY
+            )
+            return scannedSongs.size
+        } catch (error: Throwable) {
+            AppLogStore.error(
+                context,
+                "MusicScanner",
+                "Scan failed: ${error.message ?: error.javaClass.name}",
+                error,
+                AppLogType.LIBRARY
+            )
+            throw error
         } finally {
             _isScanning.value = false
         }
@@ -322,6 +348,10 @@ class MusicRepository(private val context: Context) {
         }
         tagInfoCache[cacheKey] = info
         return info
+    }
+
+    fun getSongRating(song: Song): Int {
+        return getSongTagInfo(song).rating
     }
 
     private fun Song.estimatedBitRate(): Int {

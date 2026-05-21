@@ -154,6 +154,7 @@ import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.player.PlaybackAudioSession
+import com.ella.music.ui.components.ArtistPickerSheet
 import com.ella.music.ui.components.WordLyricView
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.CoverLoadLimiter
@@ -231,6 +232,7 @@ fun PlayerScreen(
         ?: lyrics.firstOrNull { it.hasMiniLyric() }
     var menuExpanded by remember { mutableStateOf(false) }
     var queueExpanded by remember { mutableStateOf(false) }
+    var artistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var landscapeExpanded by rememberSaveable { mutableStateOf(false) }
     var dynamicCoverFailedPath by remember { mutableStateOf<String?>(null) }
     var hasVisualizerPermission by remember {
@@ -321,6 +323,16 @@ fun PlayerScreen(
         value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getSongTagInfo) }
     }
     val songAnnotation = tagInfo?.displayComment.orEmpty()
+    fun navigateToArtistOrChoose(artistText: String) {
+        val artists = splitArtistNames(artistText)
+            .filterNot { it.equals("Unknown", ignoreCase = true) }
+            .distinctBy { it.lowercase() }
+        when (artists.size) {
+            0 -> Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
+            1 -> onNavigateToArtist(artists.first())
+            else -> artistChoices = artists
+        }
+    }
     BackHandler { dismissWithPlayerMotion() }
 
     Box(
@@ -543,12 +555,7 @@ fun PlayerScreen(
                         },
                         onArtist = {
                             menuExpanded = false
-                            val artist = splitArtistNames(song?.artist.orEmpty()).firstOrNull().orEmpty()
-                            if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
-                                onNavigateToArtist(artist)
-                            } else {
-                                Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
-                            }
+                            navigateToArtistOrChoose(song?.artist.orEmpty())
                         },
                         onDownload = {
                             menuExpanded = false
@@ -591,6 +598,23 @@ fun PlayerScreen(
                         visualizerEnabled = audioVisualizerEnabled && hasVisualizerPermission,
                         onVisualizerEnabled = ::setAudioVisualizerEnabled,
                         modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            if (artistChoices.isNotEmpty()) {
+                Popup(
+                    alignment = Alignment.BottomCenter,
+                    onDismissRequest = { artistChoices = emptyList() },
+                    properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
+                ) {
+                    ArtistPickerSheet(
+                        artists = artistChoices,
+                        onArtistSelected = { artist ->
+                            artistChoices = emptyList()
+                            onNavigateToArtist(artist)
+                        },
+                        onDismiss = { artistChoices = emptyList() }
                     )
                 }
             }
@@ -1458,7 +1482,7 @@ private fun PlayerSongMetaText(
         )
         if (annotation.isNotBlank()) {
             PlayerMarqueeText(
-                text = "《$annotation》",
+                text = annotation,
                 fontSize = (artistFontSize.value * 0.82f).sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = (artistAlpha + 0.16f).coerceAtMost(0.82f)),
@@ -3168,15 +3192,20 @@ private fun androidx.compose.ui.text.AnnotatedString.Builder.appendMiniTimedWord
     when {
         isCurrent -> {
             val progress = ((currentPositionMs - startMs).toFloat() / durationMs).coerceIn(0f, 1f)
+            val useSweep = text.trim().length > 2
             appendMiniStyledText(
                 value = text,
                 color = currentColor,
                 fontWeight = fontWeight,
-                brush = miniLyricSweepBrush(
-                    progress = progress,
-                    activeColor = currentColor,
-                    pendingColor = pendingColor
-                )
+                brush = if (useSweep) {
+                    miniLyricSweepBrush(
+                        progress = progress,
+                        activeColor = currentColor,
+                        pendingColor = pendingColor
+                    )
+                } else {
+                    null
+                }
             )
         }
         isSung -> appendMiniStyledText(text, sungColor, inactiveWeight)
@@ -3276,7 +3305,7 @@ private fun rememberSmoothMiniLyricPosition(
 private fun com.ella.music.data.model.LyricLine.miniLyricRenderKey(): String =
     "$timeMs|$endMs|$text|$backgroundText"
 
-private const val MINI_LYRIC_SWEEP_FEATHER_FRACTION = 0.10f
+private const val MINI_LYRIC_SWEEP_FEATHER_FRACTION = 0.04f
 
 @Composable
 private fun PlayerActionMenu(
@@ -4098,20 +4127,22 @@ private fun DynamicCoverVideo(
         modifier = modifier,
         factory = { viewContext ->
             PlayerView(viewContext).apply {
-                player = exoPlayer
                 useController = false
                 controllerAutoShow = false
                 controllerHideOnTouch = false
                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                 setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+                player = exoPlayer
                 hideController()
             }
         },
         update = { view ->
-            view.player = exoPlayer
             view.useController = false
             view.controllerAutoShow = false
             view.controllerHideOnTouch = false
+            view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
+            view.player = exoPlayer
             view.hideController()
             exoPlayer.playWhenReady = isPlaying
         }
@@ -4458,10 +4489,22 @@ private fun Song.dynamicCoverVideoFile(context: Context): File? {
         .joinToString(" - ")
         .toSafeDynamicCoverName()
 
+    val songNameCandidates = listOf(
+        songFile?.nameWithoutExtension.orEmpty(),
+        title,
+        songKey,
+        listOf(artist, title).filter { it.isNotBlank() }.joinToString("-"),
+        listOf(artist, title).filter { it.isNotBlank() }.joinToString(" -")
+    )
+        .filter { it.isNotBlank() }
+        .map { it.toSafeDynamicCoverName() }
+        .filter { it.isNotBlank() }
+        .distinct()
+
     val folderCandidates = songFolder
         ?.takeIf { it.exists() && it.isDirectory }
         ?.let { folder ->
-            listOf(
+            songNameCandidates.map { File(folder, "$it.mp4") } + listOf(
                 File(folder, "cover.mp4"),               // 专辑内文件夹统一视频
                 File(folder, "${folder.name}.mp4"),      // 例s: Music/÷(Deluxe)/÷(Deluxe).mp4
                 File(folder, "$albumName.mp4"),          // 按专辑 tag
@@ -4494,7 +4537,18 @@ private fun Song.dynamicCoverVideoFile(context: Context): File? {
 
     val candidates = folderCandidates + libraryCandidates
 
-    return candidates.firstOrNull { it.exists() && it.isFile && it.length() > 0L }
+    candidates.firstOrNull { it.exists() && it.isFile && it.length() > 0L }?.let { return it }
+
+    val fuzzySongTokens = songNameCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+    return songFolder
+        ?.takeIf { it.exists() && it.isDirectory }
+        ?.listFiles { file ->
+            file.isFile &&
+                file.extension.equals("mp4", ignoreCase = true) &&
+                file.length() > 0L &&
+                file.nameWithoutExtension.toDynamicCoverMatchToken() in fuzzySongTokens
+        }
+        ?.firstOrNull()
 }
 
 private fun String.toSafeDynamicCoverName(): String {
@@ -4503,3 +4557,8 @@ private fun String.toSafeDynamicCoverName(): String {
         .replace("\\s+".toRegex(), " ")
         .ifBlank { "Unknown" }
 }
+
+private fun String.toDynamicCoverMatchToken(): String =
+    lowercase()
+        .replace(Regex("""[\s_\-–—]+"""), "")
+        .replace(Regex("""[\\/:*?"<>|.,，。'’`~!！()\[\]{}]+"""), "")

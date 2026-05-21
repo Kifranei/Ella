@@ -32,10 +32,12 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 
 ### 🎵 Local Music Playback
 
-* Supports local music scanning, searching, playback, and folder browsing.
+* Supports local music scanning, searching, playback, and folder browsing, with a switch between Android MediaStore and custom-folder scanning.
 * Dashboard, albums, folders, and artists pages support searching, sorting, fast indexing, and multi-selection management.
 * Includes album pages, artist pages, song lists, playback queue, mini player, and immersive playback page.
-* Album recognition considers both album name and artist to avoid merging same-name albums from different artists.
+* Album recognition considers album name and album artist, falling back to album name only when album artist is missing; album pages sort by disc number and track number by default.
+* Artist pages provide songs, participated albums, and release albums tabs, with album artists included in the artist system.
+* Supports library browsing by genre, year, composer, and lyricist, with configurable artist/genre separators and protected names.
 * CJK titles (Chinese / Japanese / Korean) can participate in A-Z sorting through Latinized sort keys with caching to reduce homepage lag.
 * Includes music library analytics such as play count ranking, listening duration ranking, format distribution, and quality distribution.
 
@@ -46,7 +48,7 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 * Long titles automatically scale down to preserve full information.
 * Dynamic video covers can be matched from album folders, public Movies directories, and app-specific directories.
 * Supports album-level video reuse across multiple tracks.
-* Pull-down gesture and back navigation both include rounded corner transition animations.
+* Pull-down dismissal follows the finger and includes offset, scaling, background blur, and rounded corner animations.
 * Provides cover page, lyric page, and landscape lyric page.
 * Mini lyrics display previous, current, and next lines to reduce false "end-of-lyrics" situations.
 * Includes bottom action menu, playback queue panel, playback mode switching, and progress controls.
@@ -57,7 +59,8 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 * Supports word-by-word lyrics, translations, romanization / pronunciation, background vocals, `x-bg` background vocals, and TTML duet layouts.
 * Supports external LRC files and embedded lyrics.
 * Provides fallback compatibility for common Chinese lyric encodings.
-* Supports sustained glow effects, continuous word-by-word sweep animations, line progress animations, and lyric-click seeking.
+* Supports sustained glow effects, continuous word-by-word sweep animations, line progress animations, lyric-click seeking, and double-tap play/pause on lyric lines.
+* Word-by-word lyrics keep the current character crisp; short words avoid wide feathered sweep effects that can look blurry.
 * Improves TTML / Lyricify handling for trailing words, spaces, translations, original text, and pronunciation alignment.
 * Lyric fonts can be selected from system font previews or imported via TTF / OTF / TTC files.
 
@@ -74,8 +77,8 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 
 ### 🌐 WebDAV, LX & MusicFree Online Music
 
-* Supports WebDAV configuration, connection testing, remote directory browsing, and remote audio playback.
-* WebDAV入口 is integrated into the homepage online music section alongside LX Music and MusicFree.
+* Supports WebDAV configuration, Digest authentication, connection testing, remote directory browsing, and remote audio playback.
+* The WebDAV entry is integrated into the homepage online music section alongside LX Music and MusicFree.
 * Supports importing and managing multiple LX Music API sources.
 * Supports importing sources from URLs or local JS files.
 * Supports online search, streaming playback, cover display, lyric retrieval, and downloads to `Music/Ella/`.
@@ -84,12 +87,12 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 
 ### 🎚 Playback, Decoding & Audio Quality
 
-* Supports WAV, FLAC, M4A, OGG, OPUS, and other metadata parsing.
+* Supports WAV, FLAC, M4A, OGG, OPUS, and other metadata parsing, with fallbacks for garbled tags.
 * Provides system decoder, FFmpeg decoder, and automatic decoding modes.
 * FFmpeg extended decoder improves compatibility for ALAC / AAC M4A formats.
 * Supports ReplayGain volume normalization.
 * Supports sleep timer, stop-after-current-track, playback speed, pitch control, queue clearing, audio focus, and shuffle settings.
-* Supports audio output switching and listening history.
+* Supports audio output switching, previous-button replay-current behavior, and date-based listening history.
 * Displays Dolby Atmos, Master, Apple Lossless, Hi-Res, Lossless, HQ, and LQ quality badges.
 * *24-bit / 96 kHz specifications are unified under the Hi-Res (MQ) category.*
 * Improves metadata fallback and quality recognition for WAV, ALAC / M4A, 24-bit / 96 kHz, and related formats.
@@ -98,10 +101,12 @@ The overall UI and interaction design are heavily inspired by **MIUI / HyperOS**
 
 * Built with Miuix components inspired by MIUI / HyperOS.
 * Uses a floating bottom navigation bar by default.
+* Search, sort, and multi-selection states in the music library are dismissed by Back before leaving the page.
 * MiniPlayer cover rotates automatically during playback and supports circular progress and song/lyric transition animations.
 * Album and artist pages feature large headers, gradient backgrounds, and unified layouts.
 * Supports theme switching and playback, lyric, scanning, and decoder settings.
-* Includes application log viewer, detailed log sharing, automatic log retention, backup & restore, and richer diagnostics.
+* Includes a GitHub-based software update page, application log viewer, Logcat / network log collection, detailed log sharing, automatic log retention, backup & restore, and richer diagnostics.
+* Song info pages can display audio tags and decoded 163 key information, with shortcuts to NetEase Music songs, albums, and artists.
 
 ---
 
@@ -219,16 +224,16 @@ The script uses WSL and the Android NDK to build FFmpeg.
 
 | Category       | Capability                                                                                               |
 | :------------- | :------------------------------------------------------------------------------------------------------- |
-| Local Music    | Scanning, searching, playback, folders, album / artist management                                        |
-| Remote Music   | WebDAV browsing and playback                                                                             |
+| Local Music    | Scanning, searching, playback, custom folders, folder browsing, album / artist management                |
+| Remote Music   | WebDAV Digest authentication, browsing, and playback                                                      |
 | Online Music   | LX Music API / MusicFree import, search, streaming, downloads                                            |
 | Dynamic Covers | Album folder videos, album videos, song videos, fallback videos                                          |
 | Lyrics         | LRC, Enhanced LRC, TTML, Lyricify, word-by-word lyrics, translation, romanization, background vocals     |
 | System Lyrics  | Floating lyrics, lyric barrage, SuperLyric, Lyric Getter, Flyme ticker lyrics, Bluetooth lyrics          |
 | Decoding       | Media3, system decoder, FFmpeg extended decoder                                                          |
-| Metadata       | TagLib, Jaudiotagger, embedded/external lyrics, quality badges                                           |
-| Analytics      | Format distribution, quality distribution, play count ranking, listening duration ranking                |
-| UI             | Jetpack Compose, Miuix, floating bottom navigation, dashboard, immersive playback page, landscape lyrics |
+| Metadata       | TagLib, Jaudiotagger, embedded/external lyrics, 163 key decoding, quality badges                         |
+| Analytics      | Format distribution, quality distribution, play count ranking, listening duration ranking, history       |
+| UI             | Jetpack Compose, Miuix, floating bottom navigation, dashboard, update page, immersive playback page, landscape lyrics |
 
 ---
 

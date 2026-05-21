@@ -6,15 +6,9 @@ import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,8 +24,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -41,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ella.music.data.SettingsManager
-import com.ella.music.data.LxSourceConfig
 import com.ella.music.data.lx.LxOnlineService
 import com.ella.music.data.lx.LxOnlineSong
 import com.ella.music.ui.components.SongItem
@@ -49,8 +43,6 @@ import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.LxOnlineViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Card
@@ -60,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -67,6 +60,7 @@ fun LxOnlineScreen(
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit,
+    onNavigateToSourceSettings: () -> Unit,
     state: LxOnlineViewModel = viewModel()
 ) {
     BackHandler(onBack = onBack)
@@ -83,10 +77,16 @@ fun LxOnlineScreen(
         sources.firstOrNull { it.id == selectedSourceId } ?: sources.firstOrNull()
     }
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
-    LaunchedEffect(loadedSources) {
-        if (loadedSources != null && sources.isEmpty() && state.results.isEmpty()) {
-            state.importExpanded = true
+    val currentSourceId = selectedSource?.id.orEmpty()
+    var observedSourceId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentSourceId) {
+        val previousSourceId = observedSourceId
+        if (previousSourceId != null && previousSourceId != currentSourceId) {
+            state.clearResults(
+                selectedSource?.let { "已切换到 ${it.name}" } ?: "请先导入或选择一个源"
+            )
         }
+        observedSourceId = currentSourceId
     }
 
     fun showToast(text: String) {
@@ -111,34 +111,6 @@ fun LxOnlineScreen(
         state.message = "已获取 ${songs.size} 首队列歌曲，将在播放到对应歌曲时解析"
     }
 
-    val localSourceLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            state.isBusy = true
-            try {
-                runCatching {
-                    val script = withContext(Dispatchers.IO) {
-                        context.contentResolver.openInputStream(uri)?.use { input ->
-                            input.bufferedReader(Charsets.UTF_8).readText()
-                        }.orEmpty()
-                    }
-                    val (name, normalizedScript) = service.importSourceScript(script, allowRuntimeInspect = false)
-                    settingsManager.setLxSource(uri.toString(), name, normalizedScript)
-                    state.importUrl = ""
-                    state.message = "已导入 $name"
-                    state.importExpanded = false
-                }.onFailure {
-                    state.message = it.localizedMessage ?: "本地导入失败"
-                    showToast(state.message)
-                }
-            } finally {
-                state.isBusy = false
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -157,6 +129,16 @@ fun LxOnlineScreen(
                         modifier = Modifier.size(24.dp)
                     )
                 }
+            },
+            actions = {
+                IconButton(onClick = onNavigateToSourceSettings) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Settings,
+                        contentDescription = "源管理",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         )
 
@@ -165,99 +147,12 @@ fun LxOnlineScreen(
 
             Card(
                 modifier = Modifier.padding(vertical = 4.dp),
-                onClick = { state.importExpanded = !state.importExpanded }
+                onClick = onNavigateToSourceSettings
             ) {
-                Column {
-                    BasicComponent(
-                        title = selectedSource?.name ?: "导入 LX 源",
-                        summary = selectedSource?.url ?: "从本地 JS 文件或网络链接导入 Music API 脚本",
-                    )
-                    AnimatedVisibility(
-                        visible = state.importExpanded,
-                        enter = expandVertically(),
-                        exit = shrinkVertically()
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                            OnlineTextField(
-                                value = state.importUrl,
-                                onValueChange = { state.importUrl = it },
-                                onSearch = {},
-                                placeholder = "https://.../source.js"
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Button(
-                                    enabled = !state.isBusy,
-                                    onClick = {
-                                        localSourceLauncher.launch(
-                                            arrayOf(
-                                                "text/javascript",
-                                                "application/javascript",
-                                                "application/x-javascript",
-                                                "text/*",
-                                                "application/octet-stream"
-                                            )
-                                        )
-                                    }
-                                ) {
-                                    Text(text = "本地 JS")
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    enabled = !state.isBusy,
-                                    onClick = {
-                                        scope.launch {
-                                            state.isBusy = true
-                                            try {
-                                                runCatching {
-                                                    val (name, script) = service.importSource(state.importUrl)
-                                                    settingsManager.setLxSource(state.importUrl, name, script)
-                                                    state.importUrl = ""
-                                                    state.message = "已导入 $name"
-                                                    state.importExpanded = false
-                                                }.onFailure {
-                                                    state.message = it.localizedMessage ?: "导入失败"
-                                                    showToast(state.message)
-                                                }
-                                            } finally {
-                                                state.isBusy = false
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Text(text = if (state.isBusy) "导入中" else "URL 导入")
-                                }
-                            }
-                            if (sources.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = "已导入源",
-                                    fontSize = 13.sp,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                )
-                                sources.forEach { source ->
-                                    LxSourceRow(
-                                        source = source,
-                                        selected = source.id == selectedSource?.id,
-                                        enabled = !state.isBusy,
-                                        onSelect = {
-                                            scope.launch {
-                                                settingsManager.selectLxSource(source.id)
-                                                state.clearResults("已切换到 ${source.name}")
-                                            }
-                                        },
-                                        onRemove = {
-                                            scope.launch {
-                                                settingsManager.removeLxSource(source.id)
-                                                state.clearResults("已移除 ${source.name}")
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                BasicComponent(
+                    title = selectedSource?.name ?: "未选择 LX 源",
+                    summary = selectedSource?.url ?: "点右上角齿轮导入或选择 LX 源",
+                )
             }
 
             OnlineTextField(
@@ -372,53 +267,6 @@ fun LxOnlineScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun LxSourceRow(
-    source: LxSourceConfig,
-    selected: Boolean,
-    enabled: Boolean,
-    onSelect: () -> Unit,
-    onRemove: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (selected) "${source.name}（当前）" else source.name,
-                fontSize = 14.sp,
-                color = MiuixTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = source.url,
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Button(
-            enabled = enabled && !selected,
-            onClick = onSelect
-        ) {
-            Text("使用")
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Button(
-            enabled = enabled,
-            onClick = onRemove
-        ) {
-            Text("移除")
         }
     }
 }

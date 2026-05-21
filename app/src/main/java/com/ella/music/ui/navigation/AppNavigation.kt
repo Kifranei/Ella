@@ -25,10 +25,13 @@ import com.ella.music.ui.category.MetadataCategoryDetailScreen
 import com.ella.music.ui.category.MetadataCategoryScreen
 import com.ella.music.ui.folder.FolderDetailScreen
 import com.ella.music.ui.folder.FolderScreen
+import com.ella.music.ui.folder.ScanSettingsScreen
 import com.ella.music.ui.folder.WebDavScreen
 import com.ella.music.ui.home.HomeScreen
 import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
+import com.ella.music.ui.online.LxSourceSettingsScreen
+import com.ella.music.ui.online.MusicFreePluginSettingsScreen
 import com.ella.music.ui.online.MusicFreeOnlineScreen
 import com.ella.music.ui.playlist.PlaylistDetailScreen
 import com.ella.music.ui.playlist.PlaylistScreen
@@ -53,6 +56,7 @@ sealed class Screen(val route: String) {
         fun createRoute(artistName: String) = "artist/${java.net.URLEncoder.encode(artistName, "UTF-8")}"
     }
     data object Folder : Screen("folder")
+    data object ScanSettings : Screen("scan_settings")
     data object MetadataCategory : Screen("category/{type}") {
         fun createRoute(type: String) = "category/${java.net.URLEncoder.encode(type, "UTF-8")}"
     }
@@ -77,7 +81,9 @@ sealed class Screen(val route: String) {
     data object LyricFont : Screen("lyric_font")
     data object Logs : Screen("logs")
     data object LxOnline : Screen("lx_online")
+    data object LxSourceSettings : Screen("lx_source_settings")
     data object MusicFreeOnline : Screen("musicfree_online")
+    data object MusicFreePluginSettings : Screen("musicfree_plugin_settings")
     data object Analytics : Screen("analytics")
     data object PlaybackHistory : Screen("playback_history")
     data object About : Screen("about")
@@ -181,9 +187,17 @@ fun AppNavigation(
                 onBack = { navController.popBackStack() },
                 onNavigateToPlayer = onNavigateToPlayer,
                 onNavigateToLibraryAnalysis = { navController.navigate(Screen.LibraryAnalysis.route) },
+                onNavigateToScanSettings = { navController.navigate(Screen.ScanSettings.route) },
                 onFolderClick = { folderPath ->
                     navController.navigate(Screen.FolderDetail.createRoute(folderPath))
                 }
+            )
+        }
+
+        composable(Screen.ScanSettings.route) {
+            ScanSettingsScreen(
+                mainViewModel = mainViewModel,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -297,6 +311,9 @@ fun AppNavigation(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
+                onFolderClick = { childFolderPath ->
+                    navController.navigate(Screen.FolderDetail.createRoute(childFolderPath))
+                },
                 onNavigateToPlayer = onNavigateToPlayer
             )
         }
@@ -359,7 +376,14 @@ fun AppNavigation(
             LxOnlineScreen(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                onNavigateToSourceSettings = { navController.navigate(Screen.LxSourceSettings.route) }
+            )
+        }
+
+        composable(Screen.LxSourceSettings.route) {
+            LxSourceSettingsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -367,7 +391,14 @@ fun AppNavigation(
             MusicFreeOnlineScreen(
                 playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
-                onNavigateToPlayer = onNavigateToPlayer
+                onNavigateToPlayer = onNavigateToPlayer,
+                onNavigateToPluginSettings = { navController.navigate(Screen.MusicFreePluginSettings.route) }
+            )
+        }
+
+        composable(Screen.MusicFreePluginSettings.route) {
+            MusicFreePluginSettingsScreen(
+                onBack = { navController.popBackStack() }
             )
         }
 

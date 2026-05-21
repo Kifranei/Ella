@@ -64,6 +64,7 @@ class SettingsManager(private val context: Context) {
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
+        val KEY_SHOW_PLAY_NEXT_IN_LISTS = booleanPreferencesKey("show_play_next_in_lists")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
         val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
         val KEY_WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
@@ -75,6 +76,9 @@ class SettingsManager(private val context: Context) {
         val KEY_LX_SELECTED_SOURCE_ID = stringPreferencesKey("lx_selected_source_id")
         val KEY_MUSICFREE_PLUGINS_JSON = stringPreferencesKey("musicfree_plugins_json")
         val KEY_MUSICFREE_SELECTED_PLUGIN_ID = stringPreferencesKey("musicfree_selected_plugin_id")
+        val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
+        val KEY_OPENAI_BASE_URL = stringPreferencesKey("openai_base_url")
+        val KEY_OPENAI_MODEL = stringPreferencesKey("openai_model")
         val KEY_OPEN_PLAYER_ON_PLAY = booleanPreferencesKey("online_auto_open_player")
         val KEY_STARTUP_AUTO_PLAY = booleanPreferencesKey("startup_auto_play")
         val KEY_STARTUP_PLAY_MODE = intPreferencesKey("startup_play_mode")
@@ -85,6 +89,7 @@ class SettingsManager(private val context: Context) {
         val KEY_SCAN_INCLUDE_FOLDERS = stringPreferencesKey("scan_include_folders")
         val KEY_SCAN_EXCLUDE_FOLDERS = stringPreferencesKey("scan_exclude_folders")
         val KEY_USE_ANDROID_MEDIA_LIBRARY = booleanPreferencesKey("use_android_media_library")
+        val KEY_INITIAL_SCAN_PROMPT_HANDLED = booleanPreferencesKey("initial_scan_prompt_handled")
         val KEY_ARTIST_SEPARATORS = stringPreferencesKey("artist_separators")
         val KEY_ARTIST_PROTECTED_NAMES = stringPreferencesKey("artist_protected_names")
         val KEY_GENRE_SEPARATORS = stringPreferencesKey("genre_separators")
@@ -97,6 +102,7 @@ class SettingsManager(private val context: Context) {
         val KEY_SORT_ARTIST_DETAIL_SONG = intPreferencesKey("sort_artist_detail_song")
         val KEY_SORT_FOLDER_LIST = intPreferencesKey("sort_folder_list")
         val KEY_SORT_FOLDER_DETAIL_SONG = intPreferencesKey("sort_folder_detail_song")
+        val KEY_CATEGORY_GRID_COLUMNS = intPreferencesKey("category_grid_columns")
 
         val KEY_BLUETOOTH_LYRIC_ENABLED = booleanPreferencesKey("bluetooth_lyric_enabled")
         val KEY_BLUETOOTH_LYRIC_TRANSLATION = booleanPreferencesKey("bluetooth_lyric_translation")
@@ -117,6 +123,9 @@ class SettingsManager(private val context: Context) {
         const val LYRIC_SOURCE_EMBEDDED = 2
 
         const val PLAYER_FLOW_EFFECT_DARK = 0
+
+        const val DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1"
+        const val DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
     }
 
     val lyriconEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRICON_ENABLED] ?: false }
@@ -159,6 +168,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_AUDIO_VISUALIZER_ENABLED] ?: false }
     val dynamicCoverEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DYNAMIC_COVER_ENABLED] ?: false }
+    val showPlayNextInLists: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] ?: true }
     val webDavUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_URL] ?: "" }
     val webDavUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_USERNAME] ?: "" }
     val webDavPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_PASSWORD] ?: "" }
@@ -182,6 +193,11 @@ class SettingsManager(private val context: Context) {
         val selectedId = prefs[KEY_MUSICFREE_SELECTED_PLUGIN_ID].orEmpty()
         plugins.firstOrNull { it.id == selectedId } ?: plugins.firstOrNull()
     }
+    val openAiApiKey: Flow<String> = context.dataStore.data.map { it[KEY_OPENAI_API_KEY] ?: "" }
+    val openAiBaseUrl: Flow<String> =
+        context.dataStore.data.map { it[KEY_OPENAI_BASE_URL] ?: DEFAULT_OPENAI_BASE_URL }
+    val openAiModel: Flow<String> =
+        context.dataStore.data.map { it[KEY_OPENAI_MODEL] ?: DEFAULT_OPENAI_MODEL }
     val openPlayerOnPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_OPEN_PLAYER_ON_PLAY] ?: true }
     val startupAutoPlay: Flow<Boolean> = context.dataStore.data.map { it[KEY_STARTUP_AUTO_PLAY] ?: false }
     val startupPlayMode: Flow<Int> = context.dataStore.data.map {
@@ -196,6 +212,8 @@ class SettingsManager(private val context: Context) {
     val scanExcludeFolders: Flow<String> = context.dataStore.data.map { it[KEY_SCAN_EXCLUDE_FOLDERS] ?: "" }
     val useAndroidMediaLibrary: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_USE_ANDROID_MEDIA_LIBRARY] ?: true }
+    val initialScanPromptHandled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_INITIAL_SCAN_PROMPT_HANDLED] ?: false }
     val artistSeparators: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_SEPARATORS] ?: "" }
     val artistProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_ARTIST_PROTECTED_NAMES] ?: "" }
     val genreSeparators: Flow<String> = context.dataStore.data.map { it[KEY_GENRE_SEPARATORS] ?: "" }
@@ -208,6 +226,9 @@ class SettingsManager(private val context: Context) {
     val artistDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ARTIST_DETAIL_SONG] ?: 0 }
     val folderListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_LIST] ?: 0 }
     val folderDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_DETAIL_SONG] ?: 0 }
+    val categoryGridColumns: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_CATEGORY_GRID_COLUMNS] ?: 2).coerceIn(1, 4)
+    }
 
     val bluetoothLyricEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_BLUETOOTH_LYRIC_ENABLED] ?: false }
@@ -346,6 +367,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_DYNAMIC_COVER_ENABLED] = enabled }
     }
 
+    suspend fun setShowPlayNextInLists(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_SHOW_PLAY_NEXT_IN_LISTS] = enabled }
+    }
+
     suspend fun setWebDavConfig(url: String, username: String, password: String) {
         context.dataStore.edit {
             it[KEY_WEBDAV_URL] = url.trim()
@@ -482,6 +507,25 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setOpenAiApiKey(apiKey: String) {
+        context.dataStore.edit {
+            val trimmed = apiKey.trim()
+            if (trimmed.isBlank()) it.remove(KEY_OPENAI_API_KEY) else it[KEY_OPENAI_API_KEY] = trimmed
+        }
+    }
+
+    suspend fun setOpenAiBaseUrl(baseUrl: String) {
+        context.dataStore.edit {
+            it[KEY_OPENAI_BASE_URL] = baseUrl.trim().ifBlank { DEFAULT_OPENAI_BASE_URL }
+        }
+    }
+
+    suspend fun setOpenAiModel(model: String) {
+        context.dataStore.edit {
+            it[KEY_OPENAI_MODEL] = model.trim().ifBlank { DEFAULT_OPENAI_MODEL }
+        }
+    }
+
     suspend fun setOpenPlayerOnPlay(enabled: Boolean) {
         context.dataStore.edit { it[KEY_OPEN_PLAYER_ON_PLAY] = enabled }
     }
@@ -548,12 +592,20 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_SORT_FOLDER_DETAIL_SONG] = index.coerceAtLeast(0) }
     }
 
+    suspend fun setCategoryGridColumns(columns: Int) {
+        context.dataStore.edit { it[KEY_CATEGORY_GRID_COLUMNS] = columns.coerceIn(1, 4) }
+    }
+
     suspend fun setScanIncludeFolders(folders: String) {
         context.dataStore.edit { it[KEY_SCAN_INCLUDE_FOLDERS] = folders.trim() }
     }
 
     suspend fun setUseAndroidMediaLibrary(enabled: Boolean) {
         context.dataStore.edit { it[KEY_USE_ANDROID_MEDIA_LIBRARY] = enabled }
+    }
+
+    suspend fun setInitialScanPromptHandled(handled: Boolean) {
+        context.dataStore.edit { it[KEY_INITIAL_SCAN_PROMPT_HANDLED] = handled }
     }
 
     suspend fun setArtistSeparators(separators: String) {
@@ -617,7 +669,9 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
+            setBoolean(KEY_SHOW_PLAY_NEXT_IN_LISTS)
             setBoolean(KEY_USE_ANDROID_MEDIA_LIBRARY)
+            setBoolean(KEY_INITIAL_SCAN_PROMPT_HANDLED)
             setBoolean(KEY_BLUETOOTH_LYRIC_ENABLED)
             setBoolean(KEY_BLUETOOTH_LYRIC_TRANSLATION)
             setBoolean(KEY_OPEN_PLAYER_ON_PLAY)
@@ -645,6 +699,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_SORT_ARTIST_DETAIL_SONG)
             setInt(KEY_SORT_FOLDER_LIST)
             setInt(KEY_SORT_FOLDER_DETAIL_SONG)
+            setInt(KEY_CATEGORY_GRID_COLUMNS)
 
             setString(KEY_WEBDAV_URL)
             setString(KEY_WEBDAV_USERNAME)
@@ -657,6 +712,9 @@ class SettingsManager(private val context: Context) {
             setString(KEY_LX_SELECTED_SOURCE_ID)
             setString(KEY_MUSICFREE_PLUGINS_JSON)
             setString(KEY_MUSICFREE_SELECTED_PLUGIN_ID)
+            setString(KEY_OPENAI_API_KEY)
+            setString(KEY_OPENAI_BASE_URL)
+            setString(KEY_OPENAI_MODEL)
             setString(KEY_LYRIC_FONT_NAME)
             setString(KEY_LYRIC_FONT_PATH)
             setString(KEY_SCAN_INCLUDE_FOLDERS)

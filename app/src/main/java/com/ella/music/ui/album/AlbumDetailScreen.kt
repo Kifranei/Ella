@@ -1,6 +1,7 @@
 package com.ella.music.ui.album
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -20,8 +21,10 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +41,8 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
+import com.ella.music.ui.components.DoubleTapScrollOverlay
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.ellaPageBackground
@@ -65,6 +70,7 @@ fun AlbumDetailScreen(
 ) {
     val albums by mainViewModel.albums.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val sortIndex by mainViewModel.settingsManager.albumDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.albumDetailSongSortIndex)
     val sortMode = AlbumDetailSongSortMode.entries.getOrElse(sortIndex) { AlbumDetailSongSortMode.Track }
@@ -74,6 +80,22 @@ fun AlbumDetailScreen(
     val albumSongs = mainViewModel.getSongsForAlbum(albumId)
     val sortedAlbumSongs = remember(albumSongs, sortMode) { albumSongs.sortedForAlbumDetail(sortMode) }
     val albumArtUri = mainViewModel.getAlbumArtUri(album?.artAlbumId ?: albumSongs.firstOrNull()?.albumId ?: 0L)
+    val listState = rememberLazyListState()
+    var scrollToTopRequest by remember { mutableStateOf(0) }
+    val currentSongItemIndex = remember(sortedAlbumSongs, currentSong?.id) {
+        sortedAlbumSongs.indexOfFirst { it.id == currentSong?.id }
+            .takeIf { it >= 0 }
+            ?.plus(2)
+            ?: -1
+    }
+
+    BackHandler(enabled = sortExpanded) {
+        sortExpanded = false
+    }
+
+    LaunchedEffect(scrollToTopRequest) {
+        if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+    }
 
     Box(
         modifier = Modifier
@@ -81,6 +103,7 @@ fun AlbumDetailScreen(
             .background(ellaPageBackground())
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {
@@ -155,6 +178,17 @@ fun AlbumDetailScreen(
             )
         }
 
+        DoubleTapScrollOverlay(
+            onDoubleTap = { scrollToTopRequest++ },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .fillMaxWidth()
+                .height(56.dp),
+            startPadding = 64.dp,
+            endPadding = 64.dp
+        )
+
         AnimatedVisibility(
             visible = sortExpanded,
             enter = expandVertically(),
@@ -180,6 +214,7 @@ fun AlbumDetailScreen(
                             .clickable {
                                 LibrarySortUiState.albumDetailSongSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setAlbumDetailSongSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp)
@@ -187,6 +222,15 @@ fun AlbumDetailScreen(
                 }
             }
         }
+
+        LocateCurrentSongFloatingButton(
+            listState = listState,
+            currentItemIndex = currentSongItemIndex,
+            locateRequest = locateCurrentSongRequest,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 22.dp, bottom = 118.dp)
+        )
     }
 }
 

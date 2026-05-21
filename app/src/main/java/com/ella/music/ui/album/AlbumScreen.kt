@@ -1,5 +1,6 @@
 package com.ella.music.ui.album
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Album
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AlbumCard
+import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.ellaPageBackground
@@ -71,7 +75,10 @@ fun AlbumScreen(
     var sortExpanded by remember { mutableStateOf(false) }
     val sortIndex by mainViewModel.settingsManager.albumListSortIndex.collectAsState(initial = LibrarySortUiState.albumListSortIndex)
     val sortMode = AlbumSortMode.entries.getOrElse(sortIndex) { AlbumSortMode.Name }
+    val gridColumns by mainViewModel.settingsManager.categoryGridColumns.collectAsState(initial = 2)
+    val safeGridColumns = gridColumns.coerceIn(1, 4)
     val scope = rememberCoroutineScope()
+    var scrollToTopRequest by remember { mutableStateOf(0) }
     val albumDurations = remember(songs) {
         songs.groupBy { it.albumIdentityId() }.mapValues { (_, albumSongs) -> albumSongs.sumOf { it.duration } }
     }
@@ -97,44 +104,62 @@ fun AlbumScreen(
         }
     }
 
+    BackHandler(enabled = searchExpanded || sortExpanded) {
+        when {
+            searchExpanded -> {
+                searchExpanded = false
+                searchQuery = ""
+            }
+            sortExpanded -> sortExpanded = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = "专辑",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
+        Box {
+            SmallTopAppBar(
+                title = "专辑",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Sort,
+                            contentDescription = "排序",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = "搜索",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-            },
-            actions = {
-                IconButton(onClick = { sortExpanded = !sortExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Sort,
-                        contentDescription = "排序",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Search,
-                        contentDescription = "搜索",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         AnimatedVisibility(
             visible = sortExpanded,
@@ -153,6 +178,7 @@ fun AlbumScreen(
                             .clickable {
                                 LibrarySortUiState.albumListSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setAlbumListSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),
@@ -194,6 +220,9 @@ fun AlbumScreen(
         } else {
             val gridState = rememberLazyGridState()
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
+            LaunchedEffect(scrollToTopRequest) {
+                if (scrollToTopRequest > 0) gridState.animateScrollToItem(0)
+            }
             val fastIndexTargets = remember(sortedAlbums) {
                 sortedAlbums
                     .mapIndexed { index, album -> album.indexLetter() to index }
@@ -211,7 +240,7 @@ fun AlbumScreen(
                     )
 
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                        columns = GridCells.Fixed(safeGridColumns),
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 160.dp)

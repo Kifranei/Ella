@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
@@ -342,12 +343,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun observeCurrentSong() {
         viewModelScope.launch {
-            playerManager.currentSong.collect { song ->
+            playerManager.currentSong.collectLatest { song ->
                 if (song != null) {
                     val songKey = song.lyricIdentityKey()
                     if (loadedLyricSongKey == songKey) {
                         updateCurrentLyricIndex()
-                        return@collect
+                        return@collectLatest
                     }
                     lastTickerPayload = null
                     lastBluetoothLyricPayload = null
@@ -603,16 +604,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun togglePlayPause() = playerManager.togglePlayPause()
     fun skipToNext() {
-        if (repeatMode.value == Player.REPEAT_MODE_ONE) {
-            playerManager.restartSong(currentSong.value)
-            return
-        }
         if (!playLazyOnlineOffset(1)) playerManager.skipToNext()
     }
 
     fun skipToPrevious() {
         if (shouldReplayCurrentFromPreviousButton()) {
-            playerManager.restartSong(currentSong.value)
+            playerManager.restartCurrent()
             return
         }
         if (!playLazyOnlineOffset(-1)) playerManager.skipToPrevious()

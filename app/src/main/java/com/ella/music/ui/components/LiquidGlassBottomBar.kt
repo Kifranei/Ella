@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,6 +87,7 @@ fun RowScope.LiquidGlassBottomBarItem(
     label: @Composable () -> Unit
 ) {
     var isPressed by remember { mutableStateOf(false) }
+    val currentOnClick by rememberUpdatedState(onClick)
     val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
     val selectedColor = if (isLight) {
         MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
@@ -111,9 +113,11 @@ fun RowScope.LiquidGlassBottomBarItem(
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
-                    waitForUpOrCancellation()
+                    val up = waitForUpOrCancellation()
                     isPressed = false
-                    onClick()
+                    if (up != null) {
+                        currentOnClick()
+                    }
                 }
             }
             .padding(vertical = 4.dp),

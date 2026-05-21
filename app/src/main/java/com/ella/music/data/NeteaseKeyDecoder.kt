@@ -15,13 +15,15 @@ data class NeteaseKeyInfo(
     val albumName: String = "",
     val artists: List<NeteaseArtist> = emptyList(),
     val format: String = "",
-    val bitrate: String = ""
+    val bitrate: String = "",
+    val comment: String = ""
 ) {
     val hasDecodedContent: Boolean
         get() = decodedJson.isNotBlank() ||
             musicId.isNotBlank() ||
             albumId.isNotBlank() ||
-            artists.any { it.id.isNotBlank() }
+            artists.any { it.id.isNotBlank() } ||
+            comment.isNotBlank()
 }
 
 data class NeteaseArtist(
@@ -55,7 +57,8 @@ fun decodeNeteaseKey(value: String): NeteaseKeyInfo? {
             albumName = json.optStringCompat("album", "albumName"),
             artists = json.optArtists(),
             format = json.optStringCompat("format", "fileFormat"),
-            bitrate = json.optId("bitrate", "bitRate")
+            bitrate = json.optId("bitrate", "bitRate"),
+            comment = json.optStringCompat("comment", "description", "desc", "remark", "note", "subtitle", "subTitle")
         )
     }.getOrElse {
         NeteaseKeyInfo(raw = raw, decodedJson = decodedJson)

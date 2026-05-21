@@ -308,25 +308,25 @@ class PlaybackService : MediaLibraryService() {
         private val previousButtonActionProvider: () -> Int
     ) : ForwardingPlayer(player) {
         override fun seekToNextMediaItem() {
-            if (!restartCurrentInRepeatOne()) {
+            if (!seekAdjacentMediaItemInRepeatOne(1)) {
                 super.seekToNextMediaItem()
             }
         }
 
         override fun seekToNext() {
-            if (!restartCurrentInRepeatOne()) {
+            if (!seekAdjacentMediaItemInRepeatOne(1)) {
                 super.seekToNext()
             }
         }
 
         override fun seekToPreviousMediaItem() {
-            if (!restartCurrentFromPreviousButton()) {
+            if (!restartCurrentFromPreviousButton() && !seekAdjacentMediaItemInRepeatOne(-1)) {
                 super.seekToPreviousMediaItem()
             }
         }
 
         override fun seekToPrevious() {
-            if (!restartCurrentFromPreviousButton()) {
+            if (!restartCurrentFromPreviousButton() && !seekAdjacentMediaItemInRepeatOne(-1)) {
                 super.seekToPrevious()
             }
         }
@@ -346,6 +346,20 @@ class PlaybackService : MediaLibraryService() {
             val index = currentMediaItemIndex
             if (mediaItemCount <= 0 || index !in 0 until mediaItemCount) return false
             seekToDefaultPosition(index)
+            play()
+            return true
+        }
+
+        private fun seekAdjacentMediaItemInRepeatOne(offset: Int): Boolean {
+            if (repeatMode != Player.REPEAT_MODE_ONE) return false
+            val index = currentMediaItemIndex
+            if (mediaItemCount <= 0 || index !in 0 until mediaItemCount) return false
+            val targetIndex = if (mediaItemCount == 1) {
+                index
+            } else {
+                Math.floorMod(index + offset, mediaItemCount)
+            }
+            seekToDefaultPosition(targetIndex)
             play()
             return true
         }

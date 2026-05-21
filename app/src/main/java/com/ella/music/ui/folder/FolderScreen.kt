@@ -4,6 +4,7 @@ import android.content.Intent
 import android.provider.DocumentsContract
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -32,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +53,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavItem
+import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -71,6 +74,7 @@ import top.yukonga.miuix.kmp.icon.extended.Close
 import top.yukonga.miuix.kmp.icon.extended.Folder
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Settings
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -85,56 +89,30 @@ fun FolderScreen(
     onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit,
     onNavigateToLibraryAnalysis: () -> Unit,
+    onNavigateToScanSettings: () -> Unit,
     onFolderClick: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
-    val scanIncludeFolders by mainViewModel.settingsManager.scanIncludeFolders.collectAsState(initial = "")
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
-    val useAndroidMediaLibrary by mainViewModel.settingsManager.useAndroidMediaLibrary.collectAsState(initial = true)
-    val savedFolders = remember(scanIncludeFolders) { scanIncludeFolders.toFolderSettingList() }
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     val folderSortIndex by mainViewModel.settingsManager.folderListSortIndex.collectAsState(initial = LibrarySortUiState.folderListSortIndex)
     val folderSortMode = FolderListSortMode.entries.getOrElse(folderSortIndex) { FolderListSortMode.Name }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
-    var showBlockedDialog by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
+    var scrollToTopRequest by remember { mutableStateOf(0) }
 
-    val folderPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, readWrite)
-            }.recoverCatching {
-                context.contentResolver.takePersistableUriPermission(uri, readOnly)
-            }
-            val folderPath = uri.toPrimaryStoragePath()
-            if (folderPath == null) {
-                Toast.makeText(context, "暂不支持该系统目录路径", Toast.LENGTH_SHORT).show()
-            } else {
-                scope.launch {
-                    mainViewModel.settingsManager.setScanIncludeFolders(
-                        (savedFolders + folderPath).distinct().joinToString("；")
-                    )
-                    mainViewModel.scanMusic()
-                }
-                Toast.makeText(context, "已添加扫描文件夹", Toast.LENGTH_SHORT).show()
-            }
+    val rootFolderPath = remember(songs) { songs.commonFolderRoot() }
+    val rootDirectSongs = remember(songs, rootFolderPath) { songs.directSongsInFolder(rootFolderPath) }
+    val rootChildFolders = remember(songs, rootFolderPath) { songs.childFoldersOf(rootFolderPath) }
+
+    BackHandler(enabled = sortExpanded || folderToBlock != null) {
+        when {
+            folderToBlock != null -> folderToBlock = null
+            sortExpanded -> sortExpanded = false
         }
-    }
-
-    val folderMap = remember(songs) {
-        songs.groupBy { song ->
-            val path = song.path
-            val lastSlash = path.lastIndexOf('/')
-            if (lastSlash > 0) path.substring(0, lastSlash) else "/"
-        }.toSortedMap()
     }
 
     Column(
@@ -143,50 +121,58 @@ fun FolderScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = "文件夹",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            },
-            actions = {
-                IconButton(onClick = { sortExpanded = !sortExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Sort,
-                        contentDescription = "排序",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        if (!isScanning) mainViewModel.scanMusic()
+        Box {
+            SmallTopAppBar(
+                title = "文件夹",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
-                ) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "全量扫描",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
+                },
+                actions = {
+                    IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Sort,
+                            contentDescription = "排序",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (!isScanning) mainViewModel.scanMusic()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Refresh,
+                            contentDescription = "全量扫描",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = onNavigateToScanSettings) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Settings,
+                            contentDescription = "扫描设置",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-                IconButton(onClick = { folderPicker.launch(null) }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Add,
-                        contentDescription = "添加文件夹",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         AnimatedVisibility(
             visible = sortExpanded,
@@ -206,6 +192,7 @@ fun FolderScreen(
                                 onClick = {
                                     LibrarySortUiState.folderListSortIndex = mode.ordinal
                                     scope.launch { mainViewModel.settingsManager.setFolderListSortIndex(mode.ordinal) }
+                                    scrollToTopRequest++
                                     sortExpanded = false
                                 }
                             )
@@ -227,41 +214,6 @@ fun FolderScreen(
             ScanStatusCard(scanProgress = scanProgress)
         }
 
-        MediaSourceModeCard(
-            useAndroidMediaLibrary = useAndroidMediaLibrary,
-            customFolderCount = savedFolders.size,
-            onUseAndroidMediaLibraryChange = { enabled ->
-                scope.launch {
-                    mainViewModel.settingsManager.setUseAndroidMediaLibrary(enabled)
-                    mainViewModel.scanMusic()
-                }
-            }
-        )
-
-        if (savedFolders.isNotEmpty()) {
-            SavedScanFoldersCard(
-                folders = savedFolders,
-                onRemove = { folderPath ->
-                    scope.launch {
-                        mainViewModel.settingsManager.setScanIncludeFolders(
-                            savedFolders.filterNot { it == folderPath }.joinToString("；")
-                        )
-                        mainViewModel.scanMusic()
-                    }
-                },
-                onScan = {
-                    if (!isScanning) mainViewModel.scanMusic()
-                }
-            )
-        }
-
-        if (blockedFolders.isNotEmpty()) {
-            BlockedFoldersEntryCard(
-                count = blockedFolders.size,
-                onClick = { showBlockedDialog = true }
-            )
-        }
-
         LibraryAnalysisEntryCard(onClick = onNavigateToLibraryAnalysis)
 
         folderToBlock?.let { folderPath ->
@@ -276,34 +228,11 @@ fun FolderScreen(
                         mainViewModel.scanMusic()
                     }
                     folderToBlock = null
-                    Toast.makeText(context, "已屏蔽该文件夹", Toast.LENGTH_SHORT).show()
                 }
             )
         }
 
-        if (showBlockedDialog) {
-            BlockedFoldersDialog(
-                folders = blockedFolders,
-                onDismiss = { showBlockedDialog = false },
-                onRemove = { folderPath ->
-                    scope.launch {
-                        mainViewModel.settingsManager.setScanExcludeFolders(
-                            blockedFolders.filterNot { it == folderPath }.joinToString("；")
-                        )
-                        mainViewModel.scanMusic()
-                    }
-                },
-                onClear = {
-                    scope.launch {
-                        mainViewModel.settingsManager.setScanExcludeFolders("")
-                        mainViewModel.scanMusic()
-                    }
-                    showBlockedDialog = false
-                }
-            )
-        }
-
-        if (folderMap.isEmpty()) {
+        if (songs.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -327,10 +256,26 @@ fun FolderScreen(
                 }
             }
         } else {
-            val folders = remember(folderMap, folderSortMode) {
-                folderMap.entries.toList().sortedForFolderList(folderSortMode)
+            val folders = remember(rootChildFolders, rootDirectSongs, rootFolderPath, folderSortMode) {
+                val entries = buildList {
+                    if (rootDirectSongs.isNotEmpty()) {
+                        add(
+                            FolderTreeEntry(
+                                path = rootFolderPath,
+                                name = rootFolderPath.substringAfterLast('/').ifBlank { "根目录" },
+                                songCount = rootDirectSongs.size,
+                                duration = rootDirectSongs.sumOf { it.duration }
+                            )
+                        )
+                    }
+                    addAll(rootChildFolders)
+                }
+                entries.sortedForFolderList(folderSortMode)
             }
             val listState = rememberLazyListState()
+            LaunchedEffect(scrollToTopRequest) {
+                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+            }
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -338,17 +283,15 @@ fun FolderScreen(
             ) {
                 items(
                     items = folders,
-                    key = { it.key }
-                ) { (folderPath, folderSongs) ->
-                    val folderName = folderPath.substringAfterLast('/')
-
+                    key = { it.path }
+                ) { folder ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp)
                             .combinedClickable(
-                                onClick = { onFolderClick(folderPath) },
-                                onLongClick = { folderToBlock = folderPath }
+                                onClick = { onFolderClick(folder.path) },
+                                onLongClick = { folderToBlock = folder.path }
                             )
                     ) {
                         Row(
@@ -366,13 +309,13 @@ fun FolderScreen(
                             )
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = folderName.ifEmpty { "根目录" },
+                                    text = folder.name,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MiuixTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "${folderSongs.size} 首歌曲 · ${folderSongs.sumOf { it.duration }.formatFolderDuration()}",
+                                    text = "${folder.songCount} 首歌曲 · ${folder.duration.formatFolderDuration()}",
                                     fontSize = 13.sp,
                                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                                 )
@@ -387,6 +330,158 @@ fun FolderScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ScanSettingsScreen(
+    mainViewModel: MainViewModel,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val isScanning by mainViewModel.isScanning.collectAsState()
+    val scanProgress by mainViewModel.scanProgress.collectAsState()
+    val scanIncludeFolders by mainViewModel.settingsManager.scanIncludeFolders.collectAsState(initial = "")
+    val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
+    val useAndroidMediaLibrary by mainViewModel.settingsManager.useAndroidMediaLibrary.collectAsState(initial = true)
+    val savedFolders = remember(scanIncludeFolders) { scanIncludeFolders.toFolderSettingList() }
+    val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
+    var showBlockedDialog by remember { mutableStateOf(false) }
+
+    val folderPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            val readOnly = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            val readWrite = readOnly or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, readWrite)
+            }.recoverCatching {
+                context.contentResolver.takePersistableUriPermission(uri, readOnly)
+            }
+            val folderPath = uri.toPrimaryStoragePath()
+            if (folderPath == null) {
+                Toast.makeText(context, "暂不支持该系统目录路径", Toast.LENGTH_SHORT).show()
+            } else {
+                scope.launch {
+                    mainViewModel.settingsManager.setUseAndroidMediaLibrary(false)
+                    mainViewModel.settingsManager.setScanIncludeFolders(
+                        (savedFolders + folderPath).distinct().joinToString("；")
+                    )
+                    mainViewModel.scanMusic()
+                }
+                Toast.makeText(context, "已添加扫描文件夹", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ellaPageBackground())
+            .windowInsetsPadding(WindowInsets.statusBars)
+    ) {
+        SmallTopAppBar(
+            title = "扫描设置",
+            color = ellaPageBackground(),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Back,
+                        contentDescription = "返回",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            },
+            actions = {
+                IconButton(onClick = { if (!isScanning) mainViewModel.scanMusic() }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Refresh,
+                        contentDescription = "全量扫描",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                IconButton(onClick = { folderPicker.launch(null) }) {
+                    Icon(
+                        imageVector = MiuixIcons.Regular.Add,
+                        contentDescription = "添加自定义目录",
+                        tint = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 120.dp)
+        ) {
+            if (isScanning) {
+                item { ScanStatusCard(scanProgress = scanProgress) }
+            }
+
+            item {
+                MediaSourceModeCard(
+                    useAndroidMediaLibrary = useAndroidMediaLibrary,
+                    customFolderCount = savedFolders.size,
+                    onUseAndroidMediaLibraryChange = { enabled ->
+                        scope.launch {
+                            mainViewModel.settingsManager.setUseAndroidMediaLibrary(enabled)
+                            mainViewModel.scanMusic()
+                        }
+                    }
+                )
+            }
+
+            item {
+                SavedScanFoldersCard(
+                    folders = savedFolders,
+                    onRemove = { folderPath ->
+                        scope.launch {
+                            mainViewModel.settingsManager.setScanIncludeFolders(
+                                savedFolders.filterNot { it == folderPath }.joinToString("；")
+                            )
+                            mainViewModel.scanMusic()
+                        }
+                    },
+                    onScan = {
+                        if (!isScanning) mainViewModel.scanMusic()
+                    }
+                )
+            }
+
+            item {
+                BlockedFoldersEntryCard(
+                    count = blockedFolders.size,
+                    onClick = { showBlockedDialog = true }
+                )
+            }
+        }
+
+        if (showBlockedDialog) {
+            BlockedFoldersDialog(
+                folders = blockedFolders,
+                onDismiss = { showBlockedDialog = false },
+                onRemove = { folderPath ->
+                    scope.launch {
+                        mainViewModel.settingsManager.setScanExcludeFolders(
+                            blockedFolders.filterNot { it == folderPath }.joinToString("；")
+                        )
+                        mainViewModel.scanMusic()
+                    }
+                },
+                onClear = {
+                    scope.launch {
+                        mainViewModel.settingsManager.setScanExcludeFolders("")
+                        mainViewModel.scanMusic()
+                    }
+                    showBlockedDialog = false
+                }
+            )
         }
     }
 }
@@ -439,13 +534,13 @@ private enum class FolderListSortMode(val label: String) {
     Duration("歌曲时长")
 }
 
-private fun List<Map.Entry<String, List<Song>>>.sortedForFolderList(
+private fun List<FolderTreeEntry>.sortedForFolderList(
     mode: FolderListSortMode
-): List<Map.Entry<String, List<Song>>> {
+): List<FolderTreeEntry> {
     return when (mode) {
-        FolderListSortMode.Name -> sortedBy { it.key.substringAfterLast('/').lowercase(Locale.ROOT) }
-        FolderListSortMode.SongCount -> sortedByDescending { it.value.size }
-        FolderListSortMode.Duration -> sortedByDescending { entry -> entry.value.sumOf { it.duration } }
+        FolderListSortMode.Name -> sortedBy { it.name.lowercase(Locale.ROOT) }
+        FolderListSortMode.SongCount -> sortedByDescending { it.songCount }
+        FolderListSortMode.Duration -> sortedByDescending { it.duration }
     }
 }
 

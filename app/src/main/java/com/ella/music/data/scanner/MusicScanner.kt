@@ -54,7 +54,7 @@ class MusicScanner(private val context: Context) {
             MediaStore.Audio.Media.DATE_MODIFIED,
             MediaStore.Audio.Media.TRACK
         )
-        val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+        val selection: String? = null
         val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
 
         context.contentResolver.query(
@@ -385,7 +385,17 @@ class MusicScanner(private val context: Context) {
                         tag.safeFirst(file, "WRITER")
                     ).orEmpty(),
                     "track" to tag.safeFirst(file, FieldKey.TRACK),
-                    "comment" to tag.safeFirst(file, FieldKey.COMMENT)
+                    "comment" to tag.safeFirst(file, FieldKey.COMMENT),
+                    "rating" to listOf(
+                        tag.safeFirst(file, "RATING"),
+                        tag.safeFirst(file, "RATE"),
+                        tag.safeFirst(file, "POPM"),
+                        tag.safeFirst(file, "POPULARIMETER"),
+                        tag.safeFirst(file, "WM/RATING"),
+                        tag.safeFirst(file, "WM/POPULARITY")
+                    )
+                        .filter { it.isNotBlank() }
+                        .joinToString(";")
                 )
             }.orEmpty()
         }.getOrElse {
@@ -426,7 +436,21 @@ class MusicScanner(private val context: Context) {
             }.cleanTagText(),
             neteaseKey = tagLibValues.findNeteaseKey()
                 .ifBlank { jaudioValues["comment"].orEmpty().takeIf { it.looksLikeNeteaseValue() }.orEmpty() }
-                .cleanTagText()
+                .cleanTagText(),
+            rating = ratingStarsFromTagValues(
+                jaudioValues["rating"],
+                tagLibValues.allTagValues(
+                    "RATING",
+                    "RATE",
+                    "POPM",
+                    "POPULARIMETER",
+                    "POPULARITY",
+                    "WM/RATING",
+                    "WM/POPULARITY",
+                    "RATING WMP",
+                    "FMPS_RATING"
+                )
+            )
         )
     }
 
@@ -507,6 +531,39 @@ class MusicScanner(private val context: Context) {
             ?.groupValues
             ?.getOrNull(1)
             ?.toFloatOrNull()
+    }
+
+    private fun ratingStarsFromTagValues(vararg values: String?): Int {
+        return values
+            .flatMap { value -> value.orEmpty().split(';', '\n') }
+            .mapNotNull { it.parseRatingStars() }
+            .maxOrNull()
+            ?.coerceIn(0, 5)
+            ?: 0
+    }
+
+    private fun String.parseRatingStars(): Int? {
+        val text = cleanTagText()
+        if (text.isBlank()) return null
+
+        val filledStars = text.count { it == '★' || it == '⭐' }
+        if (filledStars > 0) return filledStars.coerceIn(0, 5)
+
+        val numeric = Regex("""([0-9]+(?:\.[0-9]+)?)""")
+            .find(text)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toFloatOrNull()
+            ?: return null
+
+        return when {
+            numeric <= 0f -> 0
+            numeric <= 1f -> kotlin.math.round(numeric * 5f).toInt()
+            numeric <= 5f -> kotlin.math.round(numeric).toInt()
+            numeric <= 100f -> kotlin.math.round(numeric / 20f).toInt()
+            numeric <= 255f -> kotlin.math.round(numeric / 255f * 5f).toInt()
+            else -> null
+        }?.coerceIn(0, 5)
     }
 
     private fun String.isUsableSynchronizedLyrics(): Boolean {
@@ -697,6 +754,26 @@ class MusicScanner(private val context: Context) {
             }
         }
         return ""
+    }
+
+    private fun Map<String, List<String>>.allTagValues(vararg keys: String): String {
+        val normalizedKeys = keys.map { it.normalizedPropertyKey() }.toSet()
+        val values = linkedSetOf<String>()
+        for (key in keys) {
+            get(key)
+                ?.map { it.cleanTagText() }
+                ?.filter { it.isNotBlank() }
+                ?.forEach(values::add)
+        }
+        for ((key, propertyValues) in this) {
+            if (key.normalizedPropertyKey() in normalizedKeys) {
+                propertyValues
+                    .map { it.cleanTagText() }
+                    .filter { it.isNotBlank() }
+                    .forEach(values::add)
+            }
+        }
+        return values.joinToString(";")
     }
 
     private fun Map<String, List<String>>.findNeteaseKey(): String {

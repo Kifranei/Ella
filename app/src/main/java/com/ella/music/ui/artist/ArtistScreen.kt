@@ -1,6 +1,7 @@
 package com.ella.music.ui.artist
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -23,8 +24,10 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +47,8 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
+import com.ella.music.ui.components.DoubleTapScrollOverlay
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.ui.components.SongItem
@@ -73,12 +78,14 @@ fun ArtistScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     var sortExpanded by remember { mutableStateOf(false) }
     val sortIndex by mainViewModel.settingsManager.artistDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.artistDetailSongSortIndex)
     val sortMode = ArtistDetailSongSortMode.entries.getOrElse(sortIndex) { ArtistDetailSongSortMode.Title }
     val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf(0) }
+    var scrollToTopRequest by remember { mutableStateOf(0) }
 
     val artistSongs = remember(songs, artistName) {
         mainViewModel.getSongsForArtist(artistName)
@@ -101,11 +108,30 @@ fun ArtistScreen(
         }
     }
     val selectedArtistTab = tabs.getOrElse(selectedTab) { ArtistTab.Songs }
+    val listState = rememberLazyListState()
+    val currentSongItemIndex = remember(sortedArtistSongs, currentSong?.id, selectedArtistTab) {
+        if (selectedArtistTab != ArtistTab.Songs) {
+            -1
+        } else {
+            sortedArtistSongs.indexOfFirst { it.id == currentSong?.id }
+                .takeIf { it >= 0 }
+                ?.plus(3)
+                ?: -1
+        }
+    }
 
     // 暂时用该歌手第一首歌的专辑封面作为歌手页顶部大图
     val artistCoverUri = artistSongs.firstOrNull()?.albumId
         ?.takeIf { it > 0L }
         ?.let { mainViewModel.getAlbumArtUri(it) }
+
+    BackHandler(enabled = sortExpanded) {
+        sortExpanded = false
+    }
+
+    LaunchedEffect(scrollToTopRequest) {
+        if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+    }
 
     Box(
         modifier = Modifier
@@ -113,6 +139,7 @@ fun ArtistScreen(
             .background(ellaPageBackground())
     ) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 120.dp)
         ) {
@@ -245,6 +272,17 @@ fun ArtistScreen(
             }
         }
 
+        DoubleTapScrollOverlay(
+            onDoubleTap = { scrollToTopRequest++ },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .fillMaxWidth()
+                .height(56.dp),
+            startPadding = 64.dp,
+            endPadding = 64.dp
+        )
+
         AnimatedVisibility(
             visible = sortExpanded && selectedArtistTab == ArtistTab.Songs,
             enter = expandVertically(),
@@ -271,6 +309,7 @@ fun ArtistScreen(
                             .clickable {
                                 LibrarySortUiState.artistDetailSongSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setArtistDetailSongSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp)
@@ -278,6 +317,15 @@ fun ArtistScreen(
                 }
             }
         }
+
+        LocateCurrentSongFloatingButton(
+            listState = listState,
+            currentItemIndex = currentSongItemIndex,
+            locateRequest = locateCurrentSongRequest,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 22.dp, bottom = 118.dp)
+        )
     }
 }
 

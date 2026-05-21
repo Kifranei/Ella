@@ -137,20 +137,20 @@ class PlaylistStore private constructor(context: Context) {
     }
 
     suspend fun importSaltPlayerPlaylist(uri: Uri, librarySongs: List<Song>): PlaylistImportResult =
+        importLocalPlaylist(uri, librarySongs)
+
+    suspend fun importLocalPlaylist(uri: Uri, librarySongs: List<Song>): PlaylistImportResult =
         withContext(Dispatchers.IO) {
-            val rawPaths = appContext.contentResolver.openInputStream(uri)
+            val rawEntries = appContext.contentResolver.openInputStream(uri)
                 ?.bufferedReader(Charsets.UTF_8)
                 ?.useLines { lines ->
-                    lines
-                        .map { it.trim().trimStart('\uFEFF') }
-                        .filter { it.isNotBlank() }
-                        .toList()
+                    lines.toList().toPlaylistEntries()
                 }
                 .orEmpty()
 
             val seen = mutableSetOf<String>()
-            val paths = rawPaths.filter { seen.add(it.normalizedPlaylistPath()) }
-            val duplicateCount = rawPaths.size - paths.size
+            val paths = rawEntries.filter { seen.add(it.normalizedPlaylistPath()) }
+            val duplicateCount = rawEntries.size - paths.size
             if (paths.isEmpty()) {
                 return@withContext PlaylistImportResult(
                     playlist = null,
@@ -162,10 +162,12 @@ class PlaylistStore private constructor(context: Context) {
             }
 
             val libraryByPath = librarySongs.associateBy { it.path.normalizedPlaylistPath() }
+            val libraryByFileName = librarySongs
+                .groupBy { it.path.substringAfterLast('/').ifBlank { it.fileName }.normalizedPlaylistPath() }
             var matchedCount = 0
             val now = System.currentTimeMillis()
             val playlistSongs = paths.mapIndexed { index, path ->
-                val matched = libraryByPath[path.normalizedPlaylistPath()]
+                val matched = matchPlaylistEntry(path, librarySongs, libraryByPath, libraryByFileName)
                 if (matched != null) {
                     matchedCount += 1
                     matched.toPlaylistSong(now + index)
@@ -194,6 +196,48 @@ class PlaylistStore private constructor(context: Context) {
                 )
             }
         }
+
+    private fun List<String>.toPlaylistEntries(): List<String> {
+        return map { it.trim().trimStart('\uFEFF') }
+            .filter { it.isNotBlank() }
+            .mapNotNull { line ->
+                when {
+                    line.startsWith("#") -> null
+                    else -> line.toPlaylistPath()
+                }
+            }
+            .filter { it.isNotBlank() }
+    }
+
+    private fun String.toPlaylistPath(): String {
+        val text = trim().trim('"', '\'')
+        val decoded = Uri.decode(text)
+        if (decoded.startsWith("file://", ignoreCase = true)) {
+            return Uri.parse(decoded).path.orEmpty().replace('\\', '/')
+        }
+        return decoded.replace('\\', '/')
+    }
+
+    private fun matchPlaylistEntry(
+        entry: String,
+        librarySongs: List<Song>,
+        libraryByPath: Map<String, Song>,
+        libraryByFileName: Map<String, List<Song>>
+    ): Song? {
+        val normalized = entry.normalizedPlaylistPath()
+        libraryByPath[normalized]?.let { return it }
+
+        if ('/' in normalized) {
+            librarySongs.firstOrNull { song ->
+                song.path.normalizedPlaylistPath().endsWith("/$normalized")
+            }?.let { return it }
+        }
+
+        val fileName = normalized.substringAfterLast('/')
+        return libraryByFileName[fileName]
+            ?.takeIf { it.size == 1 }
+            ?.firstOrNull()
+    }
 
     suspend fun exportSaltPlayerPlaylist(playlist: UserPlaylist, uri: Uri): PlaylistExportResult =
         withContext(Dispatchers.IO) {

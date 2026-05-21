@@ -82,6 +82,8 @@ import com.ella.music.data.neteaseSongUrl
 import com.ella.music.data.splitArtistNames
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.ArtistPickerSheet
+import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.TagEditorOption
@@ -106,6 +108,7 @@ import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
 import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import kotlinx.coroutines.Job
 import java.util.Locale
 
@@ -136,12 +139,25 @@ fun LibraryScreen(
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
+    var artistChoices by remember { mutableStateOf<List<String>>(emptyList()) }
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var tagEditorSong by remember { mutableStateOf<Song?>(null) }
     var songInfoSheetSong by remember { mutableStateOf<Song?>(null) }
+    var aiInterpretationSong by remember { mutableStateOf<Song?>(null) }
     var listCoversEnabled by remember { mutableStateOf(false) }
     var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var scrollToTopRequest by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    fun navigateToArtistOrChoose(artistText: String) {
+        val artists = splitArtistNames(artistText)
+            .filterNot { it.equals("Unknown", ignoreCase = true) }
+            .distinctBy { it.lowercase() }
+        when (artists.size) {
+            0 -> Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
+            1 -> onNavigateToArtist(artists.first())
+            else -> artistChoices = artists
+        }
+    }
     val deleteRequestLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -220,82 +236,90 @@ fun LibraryScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = "音乐库",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                if (!selectionMode) {
-                    IconButton(
-                        onClick = {
-                            if (!isScanning) mainViewModel.scanMusic()
+        Box {
+            SmallTopAppBar(
+                title = "音乐库",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    if (!selectionMode) {
+                        IconButton(
+                            onClick = {
+                                if (!isScanning) mainViewModel.scanMusic()
+                            }
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Refresh,
+                                contentDescription = "刷新音乐库",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.Refresh,
-                            contentDescription = "刷新音乐库",
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
                     }
-                }
-            },
-            actions = {
-                if (selectionMode) {
-                    IconButton(onClick = {
-                        val selectedSongs = sortedSongs.filter { it.id in selectedIds }
-                        if (selectedSongs.isEmpty()) {
-                            Toast.makeText(context, "请先选择歌曲", Toast.LENGTH_SHORT).show()
-                        } else {
-                            playlistPickerSongs = selectedSongs
+                },
+                actions = {
+                    if (selectionMode) {
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selectedIds }
+                            if (selectedSongs.isEmpty()) {
+                                Toast.makeText(context, "请先选择歌曲", Toast.LENGTH_SHORT).show()
+                            } else {
+                                playlistPickerSongs = selectedSongs
+                            }
+                        }) {
+                            Text(text = "添加到歌单", fontSize = 13.sp, color = MiuixTheme.colorScheme.primary)
                         }
-                    }) {
-                        Text(text = "添加到歌单", fontSize = 13.sp, color = MiuixTheme.colorScheme.primary)
+                        IconButton(onClick = {
+                            val selectedSongs = sortedSongs.filter { it.id in selectedIds }
+                            requestDeleteSongs(selectedSongs)
+                            selectedIds = emptySet()
+                            selectionMode = false
+                        }) {
+                            Text(text = "删除", fontSize = 13.sp, color = MiuixTheme.colorScheme.primary)
+                        }
+                        IconButton(onClick = {
+                            selectedIds = emptySet()
+                            selectionMode = false
+                        }) {
+                            Text(text = "取消", fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurface)
+                        }
+                    } else {
+                        IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Sort,
+                                contentDescription = "排序",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        IconButton(onClick = {
+                            selectionMode = true
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.SelectAll,
+                                contentDescription = "多选",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
-                    IconButton(onClick = {
-                        val selectedSongs = sortedSongs.filter { it.id in selectedIds }
-                        requestDeleteSongs(selectedSongs)
-                        selectedIds = emptySet()
-                        selectionMode = false
-                    }) {
-                        Text(text = "删除", fontSize = 13.sp, color = MiuixTheme.colorScheme.primary)
-                    }
-                    IconButton(onClick = {
-                        selectedIds = emptySet()
-                        selectionMode = false
-                    }) {
-                        Text(text = "取消", fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurface)
-                    }
-                } else {
-                    IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                    IconButton(onClick = { searchExpanded = !searchExpanded }) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    IconButton(onClick = {
-                        selectionMode = true
-                        selectedIds = emptySet()
-                    }) {
-                        Icon(
-                            imageVector = MiuixIcons.Regular.SelectAll,
-                            contentDescription = "多选",
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = "搜索",
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
                     }
                 }
-                IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Search,
-                        contentDescription = "搜索",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         BackHandler(enabled = selectionMode || searchExpanded || sortExpanded) {
             when {
@@ -328,6 +352,7 @@ fun LibraryScreen(
                             .clickable {
                                 LibrarySortUiState.librarySongSortIndex = mode.ordinal
                                 scope.launch { settingsManager.setLibrarySongSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp),
@@ -409,6 +434,10 @@ fun LibraryScreen(
                 if (locateCurrentSongRequest <= 0 || locateCurrentSongRequest == handledLocateRequest) return@LaunchedEffect
                 handledLocateRequest = locateCurrentSongRequest
                 if (currentSongIndex >= 0) listState.animateScrollToItem(currentSongIndex)
+            }
+
+            LaunchedEffect(scrollToTopRequest) {
+                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
             }
 
             val fastIndexTargets = remember(sortedSongs, sortKeysBySongId) {
@@ -539,14 +568,13 @@ fun LibraryScreen(
                         actionSong = null
                         songInfoSheetSong = song
                     },
+                    onAiInterpret = {
+                        actionSong = null
+                        aiInterpretationSong = song
+                    },
                     onArtist = {
                         actionSong = null
-                        val artist = splitArtistNames(song.artist).firstOrNull().orEmpty()
-                        if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
-                            onNavigateToArtist(artist)
-                        } else {
-                            Toast.makeText(context, "这首歌没有可跳转的歌手信息", Toast.LENGTH_SHORT).show()
-                        }
+                        navigateToArtistOrChoose(song.artist)
                     },
                     onAlbum = {
                         actionSong = null
@@ -565,6 +593,23 @@ fun LibraryScreen(
                         actionSong = null
                         requestDeleteSongs(listOf(song))
                     }
+                )
+            }
+        }
+
+        if (artistChoices.isNotEmpty()) {
+            Popup(
+                alignment = Alignment.BottomCenter,
+                onDismissRequest = { artistChoices = emptyList() },
+                properties = PopupProperties(focusable = true, dismissOnBackPress = true, dismissOnClickOutside = true)
+            ) {
+                ArtistPickerSheet(
+                    artists = artistChoices,
+                    onArtistSelected = { artist ->
+                        artistChoices = emptyList()
+                        onNavigateToArtist(artist)
+                    },
+                    onDismiss = { artistChoices = emptyList() }
                 )
             }
         }
@@ -618,9 +663,21 @@ fun LibraryScreen(
                     song = song,
                     audioInfoLoader = mainViewModel::getAudioInfo,
                     tagInfoLoader = mainViewModel::getSongTagInfo,
+                    onAiInterpret = {
+                        songInfoSheetSong = null
+                        aiInterpretationSong = song
+                    },
                     onDismiss = { songInfoSheetSong = null }
                 )
             }
+        }
+
+        aiInterpretationSong?.let { song ->
+            SongAiInterpretationMenu(
+                song = song,
+                mainViewModel = mainViewModel,
+                onDismiss = { aiInterpretationSong = null }
+            )
         }
     }
 }
@@ -634,6 +691,7 @@ private fun SongActionMenu(
     onPlayNext: () -> Unit,
     onShare: () -> Unit,
     onInfo: () -> Unit,
+    onAiInterpret: () -> Unit,
     onArtist: () -> Unit,
     onAlbum: () -> Unit,
     onEditTag: () -> Unit,
@@ -663,6 +721,7 @@ private fun SongActionMenu(
         LibraryMenuItem("添加到歌单", onAddToPlaylist)
         LibraryMenuItem("下一首播放", onPlayNext)
         LibraryMenuItem("分享", onShare)
+        LibraryMenuItem("AI 解读歌曲", onAiInterpret)
         LibraryMenuItem("查看歌曲信息", onInfo)
         LibraryMenuItem("艺术家：${song.artist.ifBlank { "未知艺术家" }}", onArtist)
         LibraryMenuItem("专辑：${song.album.ifBlank { "未知专辑" }}", onAlbum)
@@ -677,6 +736,7 @@ private fun SongInfoMenu(
     song: Song,
     audioInfoLoader: (Song) -> AudioInfo,
     tagInfoLoader: (Song) -> SongTagInfo,
+    onAiInterpret: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -717,6 +777,7 @@ private fun SongInfoMenu(
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
+        LibraryMenuItem("AI 解读歌曲", onAiInterpret)
         SongInfoRow("标题", tagInfo?.title?.ifBlank { song.title } ?: song.title)
         SongInfoRow("艺术家", tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
         SongInfoRow("专辑", tagInfo?.album?.ifBlank { song.album } ?: song.album)
@@ -725,7 +786,7 @@ private fun SongInfoMenu(
         SongInfoRow("年份", tagInfo?.year?.ifBlank { song.year }.orEmpty())
         SongInfoRow("作曲家", tagInfo?.composer?.ifBlank { song.composer }.orEmpty())
         SongInfoRow("作词家", tagInfo?.lyricist?.ifBlank { song.lyricist }.orEmpty())
-        SongInfoRow("注释", tagInfo?.comment.orEmpty())
+        SongInfoRow("注释", tagInfo?.displayComment.orEmpty())
         if (!tagInfo?.neteaseKey.isNullOrBlank()) {
             SongInfoActionRow(
                 label = "163 key",
@@ -741,6 +802,91 @@ private fun SongInfoMenu(
         SongInfoRow("文件名", song.fileName.ifBlank { song.path.substringAfterLast('/') })
         SongInfoRow("路径", song.path)
         LibraryMenuItem("关闭", onDismiss)
+    }
+}
+
+@Composable
+private fun SongAiInterpretationMenu(
+    song: Song,
+    mainViewModel: MainViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val settingsManager = remember(context) { SettingsManager(context) }
+    val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
+    var requestKey by remember(song.id) { mutableStateOf(0) }
+    var isLoading by remember(song.id) { mutableStateOf(false) }
+    var resultText by remember(song.id) { mutableStateOf("") }
+    var errorText by remember(song.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(song.id, requestKey, openAiApiKey) {
+        if (openAiApiKey.isBlank()) {
+            isLoading = false
+            resultText = ""
+            errorText = "请先到 设置 > 应用偏好 > AI 解读 填写 OpenAI API Key。"
+            return@LaunchedEffect
+        }
+        isLoading = true
+        errorText = null
+        resultText = ""
+        runCatching {
+            mainViewModel.interpretSongWithOpenAi(song)
+        }.onSuccess {
+            resultText = it
+        }.onFailure {
+            errorText = it.message ?: "AI 解读失败"
+        }
+        isLoading = false
+    }
+
+    WindowBottomSheet(
+        show = true,
+        title = "AI 解读歌曲",
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.78f)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = song.title,
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+
+            when {
+                isLoading -> {
+                    SongInfoRow("状态", "正在读取歌曲信息和歌词，并请求 OpenAI 解读...")
+                }
+                errorText != null -> {
+                    SongInfoRow("状态", errorText.orEmpty())
+                    LibraryMenuItem("重试", onClick = { requestKey++ })
+                }
+                resultText.isNotBlank() -> {
+                    Text(
+                        text = resultText,
+                        fontSize = 14.sp,
+                        lineHeight = 22.sp,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                    )
+                    LibraryMenuItem("重新解读", onClick = { requestKey++ })
+                }
+            }
+
+            LibraryMenuItem("关闭", onDismiss)
+        }
     }
 }
 
@@ -800,6 +946,7 @@ private fun NeteaseKeyInfoMenu(
         }
         SongInfoRow("格式", info.format)
         SongInfoRow("码率", info.bitrate.takeIf { it.isNotBlank() }?.let { "${it} bps" }.orEmpty())
+        SongInfoRow("注释", info.comment)
         SongInfoRow("原始 163 key", info.raw)
         SongInfoRow("解密 JSON", info.decodedJson)
         LibraryMenuItem("返回歌曲信息", onBack)

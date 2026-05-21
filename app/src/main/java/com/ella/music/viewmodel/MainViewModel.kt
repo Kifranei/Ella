@@ -13,6 +13,10 @@ import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.matchesArtistName
+import com.ella.music.data.ai.OpenAiSongInterpretationConfig
+import com.ella.music.data.ai.OpenAiSongInterpretationInput
+import com.ella.music.data.ai.OpenAiSongInterpreter
+import com.ella.music.data.detailedAudioInfo
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.AudioInfo
@@ -33,7 +37,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -41,6 +47,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settingsManager = SettingsManager(application)
     private val playlistStore = PlaylistStore.getInstance(application)
     private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
+    private val openAiSongInterpreter = OpenAiSongInterpreter()
 
     val songs: StateFlow<List<Song>> = repository.songs
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -54,6 +61,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val playbackHistory: StateFlow<List<PlaybackHistoryEntry>> = playbackStatsStore.history
     val dailyListenMs: StateFlow<Map<String, Long>> = playbackStatsStore.dailyListenMs
     val playlists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
+    private val _libraryCacheLoaded = MutableStateFlow(false)
+    val libraryCacheLoaded: StateFlow<Boolean> = _libraryCacheLoaded.asStateFlow()
 
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
@@ -90,14 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun scanMusic() {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
-            val minDuration = settingsManager.minDurationSec.first() * 1000L
-            val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
-            val useAndroidMediaLibrary = settingsManager.useAndroidMediaLibrary.first()
-            repository.scanMusic(
-                minDuration,
-                if (useAndroidMediaLibrary) emptyList() else includeFolders.ifEmpty { listOf("__ella_no_custom_folder__") },
-                settingsManager.scanExcludeFolders.first().toFolderFilterList()
-            )
+            scanFromCurrentSettings()
         }
     }
 
@@ -107,20 +109,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
             if (!settingsManager.autoScan.first()) return@launch
-            val minDuration = settingsManager.minDurationSec.first() * 1000L
-            val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
-            val useAndroidMediaLibrary = settingsManager.useAndroidMediaLibrary.first()
-            repository.scanMusic(
-                minDuration,
-                if (useAndroidMediaLibrary) emptyList() else includeFolders.ifEmpty { listOf("__ella_no_custom_folder__") },
-                settingsManager.scanExcludeFolders.first().toFolderFilterList()
-            )
+            scanFromCurrentSettings()
+        }
+    }
+
+    private suspend fun scanFromCurrentSettings() {
+        val minDuration = settingsManager.minDurationSec.first() * 1000L
+        val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
+        val excludeFolders = settingsManager.scanExcludeFolders.first().toFolderFilterList()
+        val useAndroidMediaLibrary = settingsManager.useAndroidMediaLibrary.first()
+        val count = repository.scanMusic(
+            minDuration,
+            if (useAndroidMediaLibrary) emptyList() else includeFolders.ifEmpty { listOf("__ella_no_custom_folder__") },
+            excludeFolders
+        )
+        if (count == 0 && useAndroidMediaLibrary && includeFolders.isNotEmpty()) {
+            repository.scanMusic(minDuration, includeFolders, excludeFolders)
         }
     }
 
     fun loadCachedLibrary() {
         viewModelScope.launch {
             repository.loadCachedLibrary()
+            _libraryCacheLoaded.value = true
         }
     }
 
@@ -243,6 +254,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getSongTagInfo(song)
     }
 
+    suspend fun getFiveStarSongs(): List<Song> = withContext(Dispatchers.IO) {
+        songs.value.filter { repository.getSongRating(it) >= 5 }
+    }
+
+    suspend fun interpretSongWithOpenAi(song: Song): String = withContext(Dispatchers.IO) {
+        val lyricSourceMode = settingsManager.lyricSourceMode.first()
+        val tagInfo = repository.getSongTagInfo(song)
+        val audioInfo = runCatching { repository.getAudioInfo(song) }.getOrNull()
+        val lyrics = repository.getLyrics(song, lyricSourceMode)
+        openAiSongInterpreter.interpret(
+            config = OpenAiSongInterpretationConfig(
+                apiKey = settingsManager.openAiApiKey.first(),
+                baseUrl = settingsManager.openAiBaseUrl.first(),
+                model = settingsManager.openAiModel.first()
+            ),
+            input = OpenAiSongInterpretationInput(
+                song = song,
+                tagInfo = tagInfo,
+                audioInfo = audioInfo,
+                audioInfoText = audioInfo?.let { detailedAudioInfo(it) }.orEmpty(),
+                lyrics = lyrics
+            )
+        )
+    }
+
     fun clearOnlineMetadataCache() {
         repository.clearRemoteMetadataCache()
     }
@@ -277,7 +313,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun importLocalPlaylist(uri: Uri, onResult: (Result<PlaylistImportResult>) -> Unit) {
         viewModelScope.launch {
-            val result = runCatching { playlistStore.importSaltPlayerPlaylist(uri, songs.value) }
+            val result = runCatching { playlistStore.importLocalPlaylist(uri, songs.value) }
             onResult(result)
         }
     }

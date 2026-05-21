@@ -23,16 +23,22 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -40,10 +46,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.data.model.FIVE_STAR_PLAYLIST_ID
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.AppleStylePlayButton
+import com.ella.music.ui.components.DoubleTapScrollOverlay
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
@@ -59,9 +68,12 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Download
+import top.yukonga.miuix.kmp.icon.extended.FavoritesFill
+import top.yukonga.miuix.kmp.icon.extended.Playlist
 import top.yukonga.miuix.kmp.icon.extended.Share
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
+import kotlinx.coroutines.launch
 
 @Composable
 fun PlaylistScreen(
@@ -71,9 +83,15 @@ fun PlaylistScreen(
 ) {
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
+    val librarySongs by mainViewModel.songs.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val favorites = playlists.firstOrNull { it.id == FAVORITES_PLAYLIST_ID }
     val customPlaylists = playlists.filterNot { it.id == FAVORITES_PLAYLIST_ID }
+    val fiveStarSongs by produceState(initialValue = emptyList(), librarySongs) {
+        value = mainViewModel.getFiveStarSongs()
+    }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         mainViewModel.importLocalPlaylist(uri) { result ->
@@ -100,39 +118,59 @@ fun PlaylistScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = "歌单",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface
-                    )
+        Box {
+            SmallTopAppBar(
+                title = "歌单",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        importLauncher.launch(
+                            arrayOf(
+                                "audio/x-mpegurl",
+                                "audio/mpegurl",
+                                "application/vnd.apple.mpegurl",
+                                "text/plain",
+                                "application/octet-stream",
+                                "*/*"
+                            )
+                        )
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Download,
+                            contentDescription = "导入歌单",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = { showCreateDialog = true }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Add,
+                            contentDescription = "新建歌单",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-            },
-            actions = {
-                IconButton(onClick = { importLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*")) }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Download,
-                        contentDescription = "导入歌单",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { showCreateDialog = true }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Add,
-                        contentDescription = "新建歌单",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
         ) {
@@ -144,6 +182,20 @@ fun PlaylistScreen(
                         onClick = { onPlaylistClick(favorites.id) }
                     )
                 }
+            }
+
+            item(key = FIVE_STAR_PLAYLIST_ID) {
+                PlaylistRow(
+                    playlist = UserPlaylist(
+                        id = FIVE_STAR_PLAYLIST_ID,
+                        name = "五星歌曲",
+                        createdAt = 0L,
+                        updatedAt = 0L
+                    ),
+                    countOverride = fiveStarSongs.size,
+                    accent = true,
+                    onClick = { onPlaylistClick(FIVE_STAR_PLAYLIST_ID) }
+                )
             }
 
             item {
@@ -200,11 +252,34 @@ fun PlaylistDetailScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
-    val playlist = playlists.firstOrNull { it.id == playlistId }
-    val songs = remember(playlist, librarySongs) {
-        playlist?.let(mainViewModel::playlistSongs).orEmpty()
+    val isFiveStarPlaylist = playlistId == FIVE_STAR_PLAYLIST_ID
+    val storedPlaylist = playlists.firstOrNull { it.id == playlistId }
+    val fiveStarSongs by produceState(initialValue = emptyList(), isFiveStarPlaylist, librarySongs) {
+        value = if (isFiveStarPlaylist) mainViewModel.getFiveStarSongs() else emptyList()
+    }
+    val playlist = if (isFiveStarPlaylist) {
+        UserPlaylist(
+            id = FIVE_STAR_PLAYLIST_ID,
+            name = "五星歌曲",
+            createdAt = 0L,
+            updatedAt = 0L
+        )
+    } else {
+        storedPlaylist
+    }
+    val songs = remember(playlist, librarySongs, fiveStarSongs, isFiveStarPlaylist) {
+        if (isFiveStarPlaylist) fiveStarSongs else playlist?.let(mainViewModel::playlistSongs).orEmpty()
+    }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val currentSongItemIndex = remember(songs, currentSong?.playlistIdentityKey()) {
+        songs.indexOfFirst { it.playlistIdentityKey() == currentSong?.playlistIdentityKey() }
+            .takeIf { it >= 0 }
+            ?.plus(1)
+            ?: -1
     }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         val targetPlaylist = playlist
@@ -227,31 +302,39 @@ fun PlaylistDetailScreen(
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = playlist?.name ?: "歌单",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface
-                    )
-                }
-            },
-            actions = {
-                if (playlist != null) {
-                    IconButton(onClick = { exportLauncher.launch("${playlist.name.safePlaylistFileName()}.txt") }) {
+        Box {
+            SmallTopAppBar(
+                title = playlist?.name ?: "歌单",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = MiuixIcons.Regular.Share,
-                            contentDescription = "导出歌单",
-                            tint = MiuixTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(24.dp)
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onSurface
                         )
                     }
+                },
+                actions = {
+                    if (playlist != null && !isFiveStarPlaylist) {
+                        IconButton(onClick = { exportLauncher.launch("${playlist.name.safePlaylistFileName()}.txt") }) {
+                            Icon(
+                                imageVector = MiuixIcons.Regular.Share,
+                                contentDescription = "导出歌单",
+                                tint = MiuixTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
                 }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scope.launch { listState.animateScrollToItem(0) } },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         if (playlist == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -260,10 +343,12 @@ fun PlaylistDetailScreen(
             return@Column
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 150.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 150.dp)
+            ) {
             item {
                 Column(
                     modifier = Modifier
@@ -305,7 +390,11 @@ fun PlaylistDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = if (playlist.isFavorites) "播放页点红心后会收藏到这里" else "这个歌单还没有歌曲",
+                            text = when {
+                                playlist.isFavorites -> "播放页点红心后会收藏到这里"
+                                playlist.isFiveStarRating -> "文件标签里评分为五星的歌曲会显示在这里"
+                                else -> "这个歌单还没有歌曲"
+                            },
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             fontSize = 14.sp
                         )
@@ -324,12 +413,24 @@ fun PlaylistDetailScreen(
                             if (openPlayerOnPlay) onNavigateToPlayer()
                         },
                         onAddToQueue = { playerViewModel.addToPlaylist(song) },
-                        onRemove = {
-                            mainViewModel.removeSongFromPlaylist(playlist.id, song.playlistIdentityKey())
+                        onRemove = if (playlist.isFiveStarRating) null else {
+                            {
+                                mainViewModel.removeSongFromPlaylist(playlist.id, song.playlistIdentityKey())
+                            }
                         }
                     )
                 }
             }
+            }
+
+            LocateCurrentSongFloatingButton(
+                listState = listState,
+                currentItemIndex = currentSongItemIndex,
+                locateRequest = locateCurrentSongRequest,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 22.dp, bottom = 118.dp)
+            )
         }
     }
 }
@@ -340,6 +441,7 @@ private fun String.safePlaylistFileName(): String =
 @Composable
 private fun PlaylistRow(
     playlist: UserPlaylist,
+    countOverride: Int? = null,
     accent: Boolean = false,
     onClick: () -> Unit,
     onDelete: (() -> Unit)? = null
@@ -367,10 +469,15 @@ private fun PlaylistRow(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (playlist.isFavorites) "♥" else "♪",
-                    fontSize = 24.sp,
-                    color = if (accent) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
+                Icon(
+                    imageVector = when {
+                        playlist.isFavorites -> MiuixIcons.Regular.FavoritesFill
+                        playlist.isFiveStarRating -> FiveStarPlaylistIcon
+                        else -> MiuixIcons.Regular.Playlist
+                    },
+                    contentDescription = null,
+                    tint = if (accent) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(25.dp)
                 )
             }
             Spacer(modifier = Modifier.width(14.dp))
@@ -384,7 +491,7 @@ private fun PlaylistRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${playlist.songs.size} 首歌曲",
+                    text = "${countOverride ?: playlist.songs.size} 首歌曲",
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -401,6 +508,30 @@ private fun PlaylistRow(
             }
         }
     }
+}
+
+private val FiveStarPlaylistIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "FiveStarPlaylist",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(fill = SolidColor(Color.Black)) {
+            moveTo(12f, 2.4f)
+            lineTo(14.96f, 8.38f)
+            lineTo(21.56f, 9.34f)
+            lineTo(16.78f, 13.99f)
+            lineTo(17.91f, 20.56f)
+            lineTo(12f, 17.46f)
+            lineTo(6.09f, 20.56f)
+            lineTo(7.22f, 13.99f)
+            lineTo(2.44f, 9.34f)
+            lineTo(9.04f, 8.38f)
+            close()
+        }
+    }.build()
 }
 
 @Composable

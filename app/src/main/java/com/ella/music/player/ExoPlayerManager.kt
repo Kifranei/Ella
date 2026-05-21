@@ -361,8 +361,8 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun skipToNext() {
-        if (!restartCurrentInRepeatOne()) {
-            if (!playTrueRandomItem()) {
+        if (!playTrueRandomItem()) {
+            if (!seekAdjacentMediaItemInRepeatOne(1)) {
                 mediaController?.seekToNextMediaItem()
             }
             updateCurrentSong()
@@ -371,7 +371,9 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun skipToPrevious() {
-        mediaController?.seekToPreviousMediaItem()
+        if (!seekAdjacentMediaItemInRepeatOne(-1)) {
+            mediaController?.seekToPreviousMediaItem()
+        }
         updateCurrentSong()
         savePlaybackQueue(force = true)
     }
@@ -400,6 +402,25 @@ class ExoPlayerManager(private val context: Context) {
         updateCurrentSong()
         savePlaybackQueue(force = true)
         savePlaybackState(force = true)
+    }
+
+    private fun seekAdjacentMediaItemInRepeatOne(offset: Int): Boolean {
+        val controller = mediaController ?: return false
+        if (controller.repeatMode != Player.REPEAT_MODE_ONE) return false
+
+        val itemCount = controller.mediaItemCount
+        val currentIndex = controller.currentMediaItemIndex
+        if (itemCount <= 0 || currentIndex !in 0 until itemCount) return false
+
+        val targetIndex = if (itemCount == 1) {
+            currentIndex
+        } else {
+            Math.floorMod(currentIndex + offset, itemCount)
+        }
+        controller.seekToDefaultPosition(targetIndex)
+        controller.play()
+        _currentPosition.value = 0L
+        return true
     }
 
     fun seekTo(positionMs: Long) {

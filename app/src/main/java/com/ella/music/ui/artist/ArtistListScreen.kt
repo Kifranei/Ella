@@ -1,5 +1,6 @@
 package com.ella.music.ui.artist
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -24,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +43,7 @@ import com.ella.music.data.model.Artist
 import com.ella.music.data.model.Song
 import com.ella.music.data.splitArtistNames
 import com.ella.music.ui.LibrarySortUiState
+import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.SafeCoverImage
@@ -73,6 +76,7 @@ fun ArtistListScreen(
     val sortIndex by mainViewModel.settingsManager.artistListSortIndex.collectAsState(initial = LibrarySortUiState.artistListSortIndex)
     val sortMode = ArtistSortMode.entries.getOrElse(sortIndex) { ArtistSortMode.Name }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var scrollToTopRequest by remember { mutableStateOf(0) }
 
     val artists = remember(songs, albums) { mainViewModel.getArtists() }
     val representativeSongsByArtist = remember(songs) {
@@ -97,44 +101,62 @@ fun ArtistListScreen(
         }
     }
 
+    BackHandler(enabled = searchExpanded || sortExpanded) {
+        when {
+            searchExpanded -> {
+                searchExpanded = false
+                searchQuery = ""
+            }
+            sortExpanded -> sortExpanded = false
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(ellaPageBackground())
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        SmallTopAppBar(
-            title = "艺术家",
-            color = ellaPageBackground(),
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
+        Box {
+            SmallTopAppBar(
+                title = "艺术家",
+                color = ellaPageBackground(),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Back,
+                            contentDescription = "返回",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { sortExpanded = !sortExpanded }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Sort,
+                            contentDescription = "排序",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = { searchExpanded = !searchExpanded }) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = "搜索",
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
-            },
-            actions = {
-                IconButton(onClick = { sortExpanded = !sortExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Sort,
-                        contentDescription = "排序",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                IconButton(onClick = { searchExpanded = !searchExpanded }) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Search,
-                        contentDescription = "搜索",
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        )
+            )
+            DoubleTapScrollOverlay(
+                onDoubleTap = { scrollToTopRequest++ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            )
+        }
 
         AnimatedVisibility(
             visible = sortExpanded,
@@ -153,6 +175,7 @@ fun ArtistListScreen(
                             .clickable {
                                 LibrarySortUiState.artistListSortIndex = mode.ordinal
                                 scope.launch { mainViewModel.settingsManager.setArtistListSortIndex(mode.ordinal) }
+                                scrollToTopRequest++
                                 sortExpanded = false
                             }
                             .padding(vertical = 10.dp)
@@ -180,6 +203,9 @@ fun ArtistListScreen(
         } else {
             val listState = rememberLazyListState()
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
+            LaunchedEffect(scrollToTopRequest) {
+                if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
+            }
             val fastIndexTargets = remember(filteredArtists) {
                 filteredArtists
                     .mapIndexed { index, artist -> artist.indexLetter() to index + 1 }
