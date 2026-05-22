@@ -239,10 +239,6 @@ class MusicRepository(private val context: Context) {
     }
 
     private fun fetchOnlineLyrics(song: Song): List<LyricLine>? {
-        if (song.onlineSource.startsWith("musicfree:")) {
-            parseMusicFreeOnlineLyrics(song)?.let { return it }
-            return null
-        }
         if (song.onlineSource != "kw" || song.onlineId.isBlank()) return null
         val request = Request.Builder()
             .url("https://www.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${song.onlineId}")
@@ -267,29 +263,6 @@ class MusicRepository(private val context: Context) {
             Log.w("MusicRepo", "Failed to fetch online lyrics for ${song.title}", it)
             null
         }
-    }
-
-    private fun parseMusicFreeOnlineLyrics(song: Song): List<LyricLine>? {
-        val rawLyrics = song.onlineLyrics.trim()
-        val rawTranslation = song.onlineLyricTranslation.trim()
-        if (rawLyrics.isBlank() && rawTranslation.isBlank()) return null
-
-        val content = listOf(rawLyrics, rawTranslation)
-            .filter { it.isNotBlank() }
-            .joinToString("\n")
-        val parsed = LrcParser.parse(content).lyrics
-        if (parsed.isNotEmpty()) {
-            Log.d("MusicRepo", "MusicFree online lyrics parsed: ${parsed.size} lines for ${song.title}")
-            return parsed
-        }
-
-        val plainLines = content.lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .mapIndexed { index, line ->
-                LyricLine(timeMs = index * 3000L, text = line)
-            }
-        return plainLines.takeIf { it.isNotEmpty() }
     }
 
     fun getReplayGain(song: Song): Float? {

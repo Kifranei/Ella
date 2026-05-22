@@ -62,7 +62,6 @@ fun HomeScreen(
     onNavigateToFolder: () -> Unit,
     onNavigateToPlaylists: () -> Unit,
     onNavigateToLxOnline: () -> Unit,
-    onNavigateToMusicFreeOnline: () -> Unit,
     onNavigateToWebDav: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToMetadataCategory: (String) -> Unit,
@@ -166,12 +165,7 @@ fun HomeScreen(
             SectionTitle("在线音乐")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 HomeTile("LX Music", "导入 API 源", Color(0xFF00A896), onNavigateToLxOnline, Modifier.weight(1f))
-                HomeTile("MusicFree", "导入插件源", Color(0xFFFF6B6B), onNavigateToMusicFreeOnline, Modifier.weight(1f))
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 HomeTile("WebDAV", "连接云端音乐", Color(0xFF5E60CE), onNavigateToWebDav, Modifier.weight(1f))
-                Spacer(modifier = Modifier.weight(1f))
             }
 
             SectionTitle("最近听过")

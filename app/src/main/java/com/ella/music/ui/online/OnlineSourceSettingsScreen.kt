@@ -36,10 +36,8 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.LxSourceConfig
-import com.ella.music.data.MusicFreePluginConfig
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.lx.LxOnlineService
-import com.ella.music.data.musicfree.MusicFreePluginService
 import com.ella.music.ui.components.ellaPageBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -164,114 +162,6 @@ fun LxSourceSettingsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun MusicFreePluginSettingsScreen(onBack: () -> Unit) {
-    BackHandler(onBack = onBack)
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val settingsManager = remember { SettingsManager(context) }
-    val service = remember(context) { MusicFreePluginService(context) }
-    val plugins by settingsManager.musicFreePlugins.collectAsState(initial = emptyList())
-    val selectedId by settingsManager.selectedMusicFreePluginId.collectAsState(initial = "")
-    var importUrl by remember { mutableStateOf("") }
-    var isBusy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("导入 MusicFree 插件后即可搜索在线歌曲") }
-
-    fun showToast(text: String) {
-        Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
-    }
-
-    val localPluginLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            isBusy = true
-            runCatching {
-                val script = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        input.bufferedReader(Charsets.UTF_8).readText()
-                    }.orEmpty()
-                }
-                val (name, normalizedScript) = service.importPluginScript(script, allowRuntimeInspect = false)
-                settingsManager.setMusicFreePlugin(uri.toString(), name, normalizedScript)
-                message = "已导入 $name"
-            }.onFailure {
-                message = it.localizedMessage ?: "本地导入失败"
-                showToast(message)
-            }
-            isBusy = false
-        }
-    }
-
-    SourceSettingsScaffold(
-        title = "MusicFree 插件管理",
-        onBack = onBack,
-        message = if (isBusy) "处理中..." else message,
-        importUrl = importUrl,
-        onImportUrlChange = { importUrl = it },
-        importPlaceholder = "https://.../plugin.js",
-        isBusy = isBusy,
-        onLocalImport = {
-            localPluginLauncher.launch(
-                arrayOf(
-                    "text/javascript",
-                    "application/javascript",
-                    "application/x-javascript",
-                    "text/*",
-                    "application/octet-stream"
-                )
-            )
-        },
-        onUrlImport = {
-            if (importUrl.isBlank()) {
-                showToast("请先输入插件地址")
-                return@SourceSettingsScaffold
-            }
-            scope.launch {
-                isBusy = true
-                runCatching {
-                    val result = service.importPlugins(importUrl)
-                    settingsManager.setMusicFreePlugins(result.plugins)
-                    importUrl = ""
-                    message = if (result.plugins.size == 1 && result.skippedCount == 0) {
-                        "已导入 ${result.plugins.first().name}"
-                    } else {
-                        "已导入 ${result.plugins.size} 个插件，跳过 ${result.skippedCount} 个"
-                    }
-                }.onFailure {
-                    message = it.localizedMessage ?: "导入失败"
-                    showToast(message)
-                }
-                isBusy = false
-            }
-        }
-    ) {
-        if (plugins.isEmpty()) {
-            EmptySourceText("还没有导入 MusicFree 插件")
-        } else {
-            plugins.forEach { plugin ->
-                MusicFreePluginManageRow(
-                    plugin = plugin,
-                    selected = plugin.id == selectedId || selectedId.isBlank() && plugin == plugins.first(),
-                    enabled = !isBusy,
-                    onSelect = {
-                        scope.launch {
-                            settingsManager.selectMusicFreePlugin(plugin.id)
-                            message = "已切换到 ${plugin.name}"
-                        }
-                    },
-                    onRemove = {
-                        scope.launch {
-                            settingsManager.removeMusicFreePlugin(plugin.id)
-                            message = "已移除 ${plugin.name}"
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun SourceSettingsScaffold(
     title: String,
     onBack: () -> Unit,
@@ -376,24 +266,6 @@ private fun LxSourceManageRow(
     SourceManageRow(
         title = source.name,
         summary = source.url,
-        selected = selected,
-        enabled = enabled,
-        onSelect = onSelect,
-        onRemove = onRemove
-    )
-}
-
-@Composable
-private fun MusicFreePluginManageRow(
-    plugin: MusicFreePluginConfig,
-    selected: Boolean,
-    enabled: Boolean,
-    onSelect: () -> Unit,
-    onRemove: () -> Unit
-) {
-    SourceManageRow(
-        title = plugin.name,
-        summary = plugin.url,
         selected = selected,
         enabled = enabled,
         onSelect = onSelect,

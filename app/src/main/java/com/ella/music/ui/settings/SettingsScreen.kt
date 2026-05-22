@@ -139,7 +139,7 @@ fun SettingsScreen(
                 Column {
                     ArrowPreference(
                         title = "清除封面歌词缓存",
-                        summary = "清除 WebDAV、LX 和 MusicFree 的封面、歌词与远程元数据缓存",
+                        summary = "清除 WebDAV 和 LX 的封面、歌词与远程元数据缓存",
                         onClick = {
                             scope.launch {
                                 mainViewModel?.clearOnlineMetadataCache()
@@ -1066,7 +1066,7 @@ fun SettingsDetailScreen(
 
                     SwitchPreference(
                         title = "启用 SuperLyric",
-                        summary = "向 SuperLyric 模块发布逐字歌词",
+                        summary = "通过 SuperLyricApi 向 SuperLyric 生态发布逐字歌词",
                         checked = superLyricEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setSuperLyricEnabled(enabled)
@@ -1076,7 +1076,7 @@ fun SettingsDetailScreen(
 
                     SwitchPreference(
                         title = "SuperLyric 传递翻译",
-                        summary = "关闭后只传原文，不再把翻译行交给 SuperLyric",
+                        summary = "关闭后只传原文，不再通过 SuperLyricApi 传递翻译行",
                         enabled = superLyricEnabled,
                         checked = superLyricTranslation,
                         onCheckedChange = { enabled ->
@@ -1087,7 +1087,7 @@ fun SettingsDetailScreen(
 
                     SwitchPreference(
                         title = "启用 Lyric Getter",
-                        summary = "向 Lyric Getter 模块发布当前原文歌词",
+                        summary = "通过 Lyric Getter API 传递当前原文歌词",
                         checked = lyricGetterEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setLyricGetterEnabled(enabled)

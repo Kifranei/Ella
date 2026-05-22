@@ -378,7 +378,7 @@ object AppLogStore {
             listOf("lyric", "ticker", "superlyric", "lyricon", "flyme", "samsung", "歌词", "词幕").any { it in haystack } -> AppLogType.LYRICS
             listOf("scan", "scanner", "library", "folder", "album", "artist", "cover", "音乐库", "扫描", "封面").any { it in haystack } -> AppLogType.LIBRARY
             listOf("tag", "metadata", "jaudiotagger", "taglib", "wav", "alac", "元数据", "标签").any { it in haystack } -> AppLogType.METADATA
-            listOf("lx", "musicfree", "plugin", "online", "quickjs", "在线", "插件").any { it in haystack } -> AppLogType.ONLINE
+            listOf("lx", "online", "quickjs", "在线").any { it in haystack } -> AppLogType.ONLINE
             listOf("database", "db", "cache", "playlist", "stats", "backup", "restore", "数据", "备份").any { it in haystack } -> AppLogType.DATABASE
             else -> AppLogType.APP
         }

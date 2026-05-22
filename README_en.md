@@ -24,7 +24,7 @@
 
 **Ella Music** is an Android music player built with **Jetpack Compose, Miuix, and AndroidX Media3**.
 
-It focuses on local music playback while integrating local playlists, WebDAV remote libraries, LX Music API and MusicFree online sources, LRC / Enhanced LRC / TTML / Lyricify lyric parsing, dynamic playback pages, immersive player UI, floating desktop lyrics, Lyricon integration, SuperLyric integration, Flyme / AOSP ticker lyrics, Bluetooth lyrics, lyric card sharing, AI song interpretation, FFmpeg extended decoding, application logs, backup and restore, and music library analytics.
+It focuses on local music playback while integrating local playlists, WebDAV remote libraries, LX Music API online sources, LRC / Enhanced LRC / TTML / Lyricify lyric parsing, dynamic playback pages, immersive player UI, floating desktop lyrics, Lyricon integration, SuperLyricApi lyric publishing, Lyric Getter API raw-lyric transmission, Flyme / AOSP ticker lyrics, Bluetooth lyrics, lyric card sharing, AI song interpretation, FFmpeg extended decoding, application logs, backup and restore, and music library analytics.
 
 The overall UI and interaction design are inspired by **MIUI / HyperOS**, aiming to provide a lightweight, modern, lyric-focused music playback experience on Android.
 
@@ -75,18 +75,18 @@ The overall UI and interaction design are inspired by **MIUI / HyperOS**, aiming
 - Supports double-tap controls, auto-hide, and dragging constrained within the screen bounds.
 - Floating lyrics controls include play / pause, previous track, next track, font size, lock, and close.
 - Supports lyric barrage.
-- Supports SuperLyric, Flyme / AOSP ticker lyrics notifications, and Bluetooth lyrics.
-- Supports passing raw lyric text to Lyric Getter.
+- Supports publishing lyric data to the SuperLyric ecosystem through SuperLyricApi.
+- Supports passing raw lyric text through the Lyric Getter API.
+- Supports Flyme / AOSP ticker lyrics notifications and Bluetooth lyrics.
 - Supports passing translations to Samsung floating lyrics while preserving word-by-word spacing, trailing words, and dual-line display structure as much as possible.
 
-### 🌐 WebDAV, LX & MusicFree Online Music
+### 🌐 WebDAV & LX Online Music
 
 - Supports WebDAV configuration, Digest authentication, connection testing, remote directory browsing, and remote audio playback.
-- The WebDAV entry is located in the home page online music area for convenient access alongside LX Music / MusicFree.
+- The WebDAV entry is located in the home page online music area for convenient access alongside LX Music.
 - Supports importing and centrally managing multiple LX Music API sources.
 - Supports importing sources from URLs or local JS files.
 - Supports online search, online playback, cover display, lyric retrieval, and downloads to `Music/Ella/`.
-- Supports MusicFree plugin import and management, online search, lazy-loaded playback queues, and downloads.
 - Online queues skip unplayable items to reduce playback interruptions.
 
 ### 🎚 Playback, Decoding & Audio Quality
@@ -124,7 +124,7 @@ The overall UI and interaction design are inspired by **MIUI / HyperOS**, aiming
 | Android Version | Android 10.0 / API 29 or higher |
 | Target SDK | Android API 37 |
 | Default ABI | `arm64-v8a` |
-| Network | Required for WebDAV, LX / MusicFree online sources, and online lyrics |
+| Network | Required for WebDAV, LX online sources, and online lyrics |
 | Video Permission | Android 13+ may require video media permission for dynamic video covers |
 | Overlay Permission | Required when using floating lyrics |
 | Notification Permission | Required on Android 13 and above |
@@ -232,10 +232,10 @@ The script builds FFmpeg through WSL using the Linux Android NDK.
 |:--|:--|
 | Local Music | Scanning, searching, playback, custom folders, folder browsing, local playlists, five-star songs, album / artist management |
 | Remote Music | WebDAV Digest authentication, directory browsing, and playback |
-| Online Music | LX Music API / MusicFree source import, search, streaming playback, downloads |
+| Online Music | LX Music API source import, search, streaming playback, downloads |
 | Dynamic Covers | Album folder videos, album videos, song videos, fallback videos |
 | Lyrics | LRC, Enhanced LRC, TTML, Lyricify, word-by-word lyrics, translation, romanization, background vocals |
-| System Lyrics | Floating lyrics, lyric barrage, SuperLyric, Lyric Getter, Flyme status bar lyrics (Ticker notification), Bluetooth lyrics |
+| System Lyrics | Floating lyrics, lyric barrage, SuperLyricApi, Lyric Getter API, Flyme status bar lyrics (Ticker notification), Bluetooth lyrics |
 | Decoding | Media3, system decoder, FFmpeg extended decoder |
 | Audio Metadata | TagLib, Jaudiotagger, embedded and external lyrics, 163 key decryption, alias / comment, quality label display |
 | Analytics | Format distribution, quality distribution, play count ranking, listening duration ranking, listening history |
@@ -249,26 +249,24 @@ The script builds FFmpeg through WSL using the Linux Android NDK.
 |:--|:--|
 | [Miuix](https://github.com/compose-miuix-ui/miuix) | MIUI / HyperOS-style Compose UI components |
 | [AndroidX Media3](https://github.com/androidx/media) | Playback, media sessions, and ExoPlayer FFmpeg extension |
-| [FFmpeg](https://ffmpeg.org) | Software decoding for ALAC and other audio formats |
+| [FFmpeg](https://ffmpeg.org) | Software decoding for ALAC and other audio formats (LGPL-2.1) |
 | [Lyricon](https://github.com/proify/lyricon) | Lyric Provider API and status bar lyrics |
-| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | SuperLyric publishing API |
-| [SuperLyric](https://github.com/HChenX/SuperLyric) | System lyrics module and status bar lyrics ecosystem reference |
-| [Lyric Getter](https://github.com/xiaowine/Lyric-Getter) | Lyric Getter raw lyric display and API adaptation reference |
+| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | Publishes lyric data to the SuperLyric ecosystem (LGPL-2.1) |
+| [LyricGetter-API](https://github.com/xiaowine/Lyric-Getter-Api) | Passes raw lyric text to the Lyric Getter ecosystem / API adaptation (LGPL-2.1) |
 | [Lyrico](https://github.com/Replica0110/Lyrico) | Tag editor adaptation and log page interaction reference |
 | [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | NetEase Cloud Music 163 key decryption flow reference |
-| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | Audio tags, embedded lyrics, and embedded covers |
+| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | Audio tags, embedded lyrics, and embedded covers (LGPL-2.1) |
 | [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib bindings |
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Liquid glass and background blur effects |
 | [Coil](https://github.com/coil-kt/coil) | Compose image loading |
-| [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | Runtime for LX Music API / MusicFree JavaScript sources |
+| [QuickJS wrapper Android](https://github.com/HarlonWang/quickjs-wrapper) | Runtime for LX Music API JavaScript sources |
 | [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API compatibility implementation and reference |
-| [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree plugin protocol, import compatibility, and runtime adaptation reference |
 
 ---
 
 ## 📄 License
 
-Ella Music is open-sourced under **AGPL-3.0-or-later**. Because the project contains compatibility implementations for the MusicFree plugin protocol and runtime adaptation, modified distributions must comply with AGPL source disclosure requirements. MusicFree-related code may be split into an independent module in the future, at which point a more permissive license will be used.
+The Ella Music main project is open-sourced under **Apache-2.0**. Third-party components retain their own licenses; see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
 
 ---
 
@@ -281,9 +279,8 @@ Ella Music is open-sourced under **AGPL-3.0-or-later**. Because the project cont
 - **Lyrico** — Reference for external tag editor adaptation and log page interaction.
 - **Retro Music Player** — Reference for jaudiotagger-based tag reading.
 - **LX Music Mobile** — Provides LX Music API compatibility implementation and testing reference.
-- **MusicFree** — Provides MusicFree plugin protocol, import compatibility, and runtime adaptation reference.
 - **Light Cone Music** — Interface design and feature implementation reference.
-- Thanks to the code from Miuix, Media3, FFmpeg, Lyricon, SuperLyric, SuperLyricApi, Lyric Getter, Lyrico, 163KeyDecrypter, Jaudiotagger, Kyant TagLib, Backdrop, Coil, and other open source projects used by Ella Music.
+- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, Lyrico, 163KeyDecrypter, Jaudiotagger, Kyant TagLib, Backdrop, Coil, and other open source projects used by Ella Music.
 
 ---
 
@@ -311,4 +308,4 @@ Ella Music is open-sourced under **AGPL-3.0-or-later**. Because the project cont
 
 ## 📄 License
 
-Ella Music uses MusicFree-related compatibility code, so the license has been adjusted to **AGPL-3.0-or-later**. See [LICENSE](LICENSE) for details.
+The Ella Music main project is licensed under **Apache-2.0**. Third-party components retain their own licenses; see [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

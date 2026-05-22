@@ -260,8 +260,8 @@ private fun AboutContent(
                     )
                     BasicComponent(
                         title = "开源许可证",
-                        summary = "AGPL-3.0-or-later",
-                        onClick = { uriHandler.openUri("https://www.gnu.org/licenses/agpl-3.0.html") },
+                        summary = "Apache-2.0",
+                        onClick = { uriHandler.openUri("https://www.apache.org/licenses/LICENSE-2.0") },
                     )
                 }
             }
@@ -305,83 +305,78 @@ private fun AboutContent(
                 FrostedCard(backdrop = backdrop, blurEnable = blurEnable, cardBlendColors = cardBlendColors) {
                     BasicComponent(
                         title = "Miuix",
-                        summary = "MIUI/HyperOS 风格 Compose UI 组件库",
+                        summary = "MIUI/HyperOS 风格 Compose UI 组件库（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/compose-miuix-ui/miuix") },
                     )
                     BasicComponent(
                         title = "AndroidX Media3",
-                        summary = "播放、媒体会话与 ExoPlayer 扩展",
+                        summary = "播放、媒体会话与 ExoPlayer 扩展（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/androidx/media") },
                     )
                     BasicComponent(
                         title = "FFmpeg",
-                        summary = "ALAC 等音频格式软件解码",
+                        summary = "ALAC 等音频格式软件解码（LGPL-2.1）",
                         onClick = { uriHandler.openUri("https://ffmpeg.org") },
                     )
                     BasicComponent(
                         title = "Jaudiotagger",
-                        summary = "音频标签、内嵌歌词与封面读取",
+                        summary = "音频标签、内嵌歌词与封面读取（LGPL-2.1）",
                         onClick = { uriHandler.openUri("https://github.com/Adonai/jaudiotagger") },
                     )
                     BasicComponent(
                         title = "Kyant TagLib",
-                        summary = "Android/Kotlin TagLib 绑定",
+                        summary = "Android/Kotlin TagLib 绑定（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/Kyant0/TagLib") },
                     )
                     BasicComponent(
                         title = "Lyricon",
-                        summary = "词幕 Provider API 与状态栏歌词",
+                        summary = "词幕 Provider API 与状态栏歌词（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/proify/lyricon") },
                     )
                     BasicComponent(
                         title = "SuperLyricApi",
-                        summary = "SuperLyric 发布 API",
+                        summary = "SuperLyric 歌词发布 API（LGPL-2.1）",
                         onClick = { uriHandler.openUri("https://github.com/HChenX/SuperLyricApi") },
                     )
                     BasicComponent(
-                        title = "SuperLyric",
-                        summary = "系统歌词模块与状态栏歌词生态参考",
-                        onClick = { uriHandler.openUri("https://github.com/HChenX/SuperLyric") },
-                    )
-                    BasicComponent(
-                        title = "Lyric Getter",
-                        summary = "原文歌词显示与发布 API 适配参考",
-                        onClick = { uriHandler.openUri("https://github.com/xiaowine/Lyric-Getter") },
+                        title = "LyricGetter-API",
+                        summary = "Lyric Getter 原文歌词传递 API（LGPL-2.1）",
+                        onClick = { uriHandler.openUri("https://github.com/xiaowine/Lyric-Getter-Api") },
                     )
                     BasicComponent(
                         title = "Lyrico",
-                        summary = "标签编辑器与应用日志页面参考",
+                        summary = "标签编辑器与应用日志页面参考（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/Replica0110/Lyrico") },
                     )
                     BasicComponent(
                         title = "163KeyDecrypter",
-                        summary = "网易云音乐 163 key 解密流程参考",
+                        summary = "网易云音乐 163 key 解密流程参考（MIT）",
                         onClick = { uriHandler.openUri("https://github.com/lycode404/163KeyDecrypter") },
                     )
                     BasicComponent(
                         title = "Kyant Backdrop",
-                        summary = "液态玻璃与背景模糊效果",
+                        summary = "液态玻璃与背景模糊效果（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/Kyant0/AndroidLiquidGlass") },
                     )
                     BasicComponent(
                         title = "Coil",
-                        summary = "Kotlin 图片加载库",
+                        summary = "Kotlin 图片加载库（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/coil-kt/coil") },
                     )
                     BasicComponent(
+                        title = "quickjs-wrapper Android",
+                        summary = "LX Music API JavaScript 运行时（Apache-2.0）",
+                        onClick = { uriHandler.openUri("https://github.com/HarlonWang/quickjs-wrapper") },
+                    )
+                    BasicComponent(
                         title = "LX Music Mobile",
-                        summary = "在线音乐源与 API 适配参考",
+                        summary = "在线音乐源与 API 适配参考（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/lyswhut/lx-music-mobile") },
                     )
                     BasicComponent(
                         title = "accompanist-lyrics-core",
                         summary = "歌词解析与 TTML/LRC 结构参考",
                         onClick = { uriHandler.openUri("https://github.com/6xingyv/accompanist-lyrics-core") },
-                    )
-                    BasicComponent(
-                        title = "MusicFree",
-                        summary = "AGPLv3；在线音乐插件协议、导入兼容与运行时适配参考",
-                        onClick = { uriHandler.openUri("https://github.com/maotoumao/MusicFree") },
                     )
                 }
             }

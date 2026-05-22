@@ -61,6 +61,6 @@ private fun String.unwrapWholeCommentMarks(): String {
 private fun String.looksLikeSourceGarbageComment(): Boolean {
     val normalized = lowercase()
         .replace(Regex("""[\s_\-:：/\\|,.，。;；()\[\]{}<>《》「」『』]+"""), "")
-    if (normalized in setOf("kuwo", "酷我", "kw", "lx", "musicfree")) return true
+    if (normalized in setOf("kuwo", "酷我", "kw", "lx")) return true
     return normalized.startsWith("kuwo") && normalized.length <= 12
 }

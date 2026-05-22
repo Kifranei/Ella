@@ -24,7 +24,7 @@
 
 **Ella Music** 是一款基于 **Jetpack Compose、Miuix 和 AndroidX Media3** 构建的 Android 音乐播放器。
 
-它以本地音乐播放为核心，同时集成了本地歌单、WebDAV 远程曲库、LX Music API 与 MusicFree 在线音源、LRC / 增强 LRC / TTML / Lyricify 歌词解析、动态播放页、沉浸式播放页、桌面歌词悬浮窗、Lyricon 集成、SuperLyric 集成、Flyme / AOSP 跑马灯歌词、蓝牙歌词、歌词卡片分享、AI 歌曲解读、FFmpeg 扩展解码、应用日志、备份恢复以及音乐库统计分析等能力。
+它以本地音乐播放为核心，同时集成了本地歌单、WebDAV 远程曲库、LX Music API 在线音源、LRC / 增强 LRC / TTML / Lyricify 歌词解析、动态播放页、沉浸式播放页、桌面歌词悬浮窗、Lyricon 集成、SuperLyricApi 歌词发布、Lyric Getter API 原文歌词传递、Flyme / AOSP 跑马灯歌词、蓝牙歌词、歌词卡片分享、AI 歌曲解读、FFmpeg 扩展解码、应用日志、备份恢复以及音乐库统计分析等能力。
 
 应用整体采用接近 **MIUI / HyperOS** 的视觉与交互风格，目标是在 Android 上提供轻量、现代、以歌词体验为重点的音乐播放体验。
 
@@ -75,18 +75,18 @@
 - 支持双击控制、自动隐藏和限制在屏幕范围内拖动。
 - 桌面歌词控制项包括播放 / 暂停、上一首、下一首、字体大小、锁定和关闭。
 - 支持 词幕。
-- 支持 SuperLyric、Flyme / AOSP 跑马灯歌词通知和蓝牙歌词。
-- 支持 Lyric Getter 传递歌词原文。
+- 支持通过 SuperLyricApi 向 SuperLyric 生态发布歌词数据。
+- 支持通过 Lyric Getter API 传递歌词原文。
+- 支持 Flyme / AOSP 跑马灯歌词通知和蓝牙歌词。
 - 支持三星悬浮歌词翻译传递，并尽量保留逐词空格、尾部词和双行显示结构。
 
-### 🌐 WebDAV、LX 与 MusicFree 在线音乐
+### 🌐 WebDAV 与 LX 在线音乐
 
 - 支持 WebDAV 配置、Digest 认证、连接测试、远程目录浏览和远程音频播放。
-- WebDAV 入口位于首页在线音乐区域，便于和 LX Music / MusicFree 一起访问。
+- WebDAV 入口位于首页在线音乐区域，便于和 LX Music 一起访问。
 - 支持多源 LX Music API 导入和集中管理。
 - 支持从 URL 或本地 JS 文件导入音源。
 - 支持在线搜索、在线播放、封面显示、歌词获取，以及下载到 `Music/Ella/`。
-- 支持 MusicFree 插件导入和管理、在线搜索、懒加载播放队列和下载。
 - 在线队列会跳过不可播放项目，减少播放中断。
 
 ### 🎚 播放、解码与音质
@@ -124,7 +124,7 @@
 | Android 版本 | Android 10.0 / API 29 或更高版本 |
 | Target SDK | Android API 37 |
 | 默认 ABI | `arm64-v8a` |
-| 网络 | WebDAV、LX / MusicFree 在线音源和在线歌词需要网络 |
+| 网络 | WebDAV、LX 在线音源和在线歌词需要网络 |
 | 视频权限 | Android 13+ 使用动态视频封面时可能需要视频媒体权限 |
 | 悬浮窗权限 | 使用桌面歌词时需要 |
 | 通知权限 | Android 13 及以上需要 |
@@ -231,10 +231,10 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 |:--|:-------------------------------------------------------------|
 | 本地音乐 | 扫描、搜索、播放、自定义文件夹、文件夹浏览、本地歌单、五星歌曲、专辑 / 艺术家管理               |
 | 远程音乐 | WebDAV Digest 认证、目录浏览及播放                                      |
-| 在线音乐 | LX Music API / MusicFree 音源导入、搜索、串流播放、下载                     |
+| 在线音乐 | LX Music API 音源导入、搜索、串流播放、下载                                |
 | 动态封面 | 专辑文件夹视频、专辑视频、歌曲视频、fallback 视频                                |
 | 歌词 | LRC、增强 LRC、TTML、Lyricify、逐词歌词、翻译、罗马音、背景人声                    |
-| 系统歌词 | 桌面歌词、词幕、SuperLyric、Lyric Getter、 FLYme 状态栏歌词（Ticker 通知）、蓝牙歌词 |
+| 系统歌词 | 桌面歌词、词幕、SuperLyricApi、Lyric Getter API、FLYme 状态栏歌词（Ticker 通知）、蓝牙歌词 |
 | 解码 | Media3、系统解码器、FFmpeg 扩展解码器                                    |
 | 音频元数据 | TagLib、Jaudiotagger、读取内嵌和外置歌词、163 key 解密、alias / comment、显示音质标签 |
 | 统计分析 | 格式分布、音质分布、播放次数排行、听歌时长排行、听歌历史                                |
@@ -248,26 +248,24 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 |:--|:--|
 | [Miuix](https://github.com/compose-miuix-ui/miuix) | MIUI / HyperOS 风格 Compose UI 组件 |
 | [AndroidX Media3](https://github.com/androidx/media) | 播放、媒体会话和 ExoPlayer FFmpeg 扩展 |
-| [FFmpeg](https://ffmpeg.org) | 用于 ALAC 等音频格式的软件解码 |
+| [FFmpeg](https://ffmpeg.org) | 用于 ALAC 等音频格式的软件解码（LGPL-2.1） |
 | [Lyricon](https://github.com/proify/lyricon) | Lyric Provider API 和状态栏歌词 |
-| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | SuperLyric 发布 API |
-| [SuperLyric](https://github.com/HChenX/SuperLyric) | 系统歌词模块与状态栏歌词生态参考 |
-| [Lyric Getter](https://github.com/xiaowine/Lyric-Getter) | Lyric Getter 原文歌词显示与 API 适配参考 |
+| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | 用于向 SuperLyric 生态发布歌词数据（LGPL-2.1） |
+| [LyricGetter-API](https://github.com/xiaowine/Lyric-Getter-Api) | 用于向 Lyric Getter 生态传递歌词原文 / API 适配（LGPL-2.1） |
 | [Lyrico](https://github.com/Replica0110/Lyrico) | 标签编辑器适配与日志页面交互参考 |
 | [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | 网易云音乐 163 key 解密流程参考 |
-| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | 音频标签、内嵌歌词和内嵌封面 |
+| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | 音频标签、内嵌歌词和内嵌封面（LGPL-2.1） |
 | [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib 绑定 |
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | 液态玻璃与背景模糊效果 |
 | [Coil](https://github.com/coil-kt/coil) | Compose 图片加载 |
-| [QuickJS Android](https://github.com/HarlonWang/quickjs-wrapper-android) | 运行 LX Music API / MusicFree JavaScript 音源 |
- | [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API 兼容实现与参考 |
-| [MusicFree](https://github.com/maotoumao/MusicFree) | MusicFree 插件协议、导入兼容与运行时适配参考 |
+| [QuickJS wrapper Android](https://github.com/HarlonWang/quickjs-wrapper) | 运行 LX Music API JavaScript 音源 |
+| [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API 兼容实现与参考 |
 
 ---
 
 ## 📄 许可证
 
-Ella Music 以 **AGPL-3.0-or-later** 协议开源。由于项目包含对 MusicFree 插件协议与运行时适配的兼容实现，分发修改版本时请遵循 AGPL 相关源码公开要求。未来会考虑将 MusicFree 相关代码拆分至独立模块，届时将遵循更宽松的许可证。
+Ella Music 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各自许可证，详见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
 
 ---
 
@@ -280,9 +278,8 @@ Ella Music 以 **AGPL-3.0-or-later** 协议开源。由于项目包含对 MusicF
 - **Lyrico** — 为外部标签编辑器适配和日志页面交互提供参考。
 - **Retro Music Player** — 为基于 jaudiotagger 的标签读取方案提供参考。
 - **LX Music Mobile** — 提供 LX Music API 兼容实现与测试参考。
-- **MusicFree** — 提供 MusicFree 插件协议、导入兼容与运行时适配参考。
 - **光锥音乐** — 界面设计与功能实现参考。
-- 感谢 Ella Music 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyric、SuperLyricApi、Lyric Getter、Lyrico、163KeyDecrypter、Jaudiotagger、Kyant TagLib、Backdrop、Coil 以及其它开源项目的代码。
+- 感谢 Ella Music 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、Lyrico、163KeyDecrypter、Jaudiotagger、Kyant TagLib、Backdrop、Coil 以及其它开源项目。
 
 ---
 
@@ -310,4 +307,4 @@ Ella Music 以 **AGPL-3.0-or-later** 协议开源。由于项目包含对 MusicF
 
 ## 📄 许可证
 
-Ella Music 使用了 MusicFree 相关兼容代码，因此许可证已调整为 **AGPL-3.0-or-later**。详见 [LICENSE](LICENSE)。
+Ella Music 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各自许可证，详见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。

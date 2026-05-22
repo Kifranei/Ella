@@ -31,8 +31,6 @@ import com.ella.music.ui.home.HomeScreen
 import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
 import com.ella.music.ui.online.LxSourceSettingsScreen
-import com.ella.music.ui.online.MusicFreePluginSettingsScreen
-import com.ella.music.ui.online.MusicFreeOnlineScreen
 import com.ella.music.ui.playlist.PlaylistDetailScreen
 import com.ella.music.ui.playlist.PlaylistScreen
 import com.ella.music.ui.settings.AudioSettingsScreen
@@ -82,8 +80,6 @@ sealed class Screen(val route: String) {
     data object Logs : Screen("logs")
     data object LxOnline : Screen("lx_online")
     data object LxSourceSettings : Screen("lx_source_settings")
-    data object MusicFreeOnline : Screen("musicfree_online")
-    data object MusicFreePluginSettings : Screen("musicfree_plugin_settings")
     data object Analytics : Screen("analytics")
     data object PlaybackHistory : Screen("playback_history")
     data object About : Screen("about")
@@ -126,7 +122,6 @@ fun AppNavigation(
                 onNavigateToFolder = { navController.navigate(Screen.Folder.route) },
                 onNavigateToPlaylists = { navController.navigate(Screen.Playlists.route) },
                 onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
-                onNavigateToMusicFreeOnline = { navController.navigate(Screen.MusicFreeOnline.route) },
                 onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToMetadataCategory = { type -> navController.navigate(Screen.MetadataCategory.createRoute(type)) },
@@ -414,24 +409,6 @@ fun AppNavigation(
 
         composable(Screen.LxSourceSettings.route) {
             LxSourceSettingsScreen(
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(Screen.MusicFreeOnline.route) {
-            MusicFreeOnlineScreen(
-                mainViewModel = mainViewModel,
-                playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() },
-                onNavigateToPlayer = onNavigateToPlayer,
-                onNavigateToPluginSettings = { navController.navigate(Screen.MusicFreePluginSettings.route) },
-                onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
-                onNavigateToArtist = { artistName -> navController.navigate(Screen.ArtistDetail.createRoute(artistName)) }
-            )
-        }
-
-        composable(Screen.MusicFreePluginSettings.route) {
-            MusicFreePluginSettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
