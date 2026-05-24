@@ -22,6 +22,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.parser.LrcParser
+import com.ella.music.data.scanner.MediaStoreAudioItem
 import com.ella.music.data.scanner.MusicScanner
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
@@ -84,7 +85,9 @@ class MusicRepository(private val context: Context) {
     suspend fun scanMusic(
         minDurationMs: Long = 0,
         includeFolders: List<String> = emptyList(),
-        excludeFolders: List<String> = emptyList()
+        excludeFolders: List<String> = emptyList(),
+        fullRescan: Boolean = false,
+        deepRescan: Boolean = fullRescan
     ): Int {
         _isScanning.value = true
         _scanProgress.value = 0
@@ -93,15 +96,23 @@ class MusicRepository(private val context: Context) {
             AppLogStore.info(
                 context,
                 "MusicScanner",
-                "Start scan mode=$mode minDuration=${minDurationMs}ms include=${includeFolders.size} exclude=${excludeFolders.size}",
+                "Start scan mode=$mode minDuration=${minDurationMs}ms include=${includeFolders.size} exclude=${excludeFolders.size} fullRescan=$fullRescan deepRescan=$deepRescan",
                 AppLogType.LIBRARY
             )
-            val scannedSongs = scanner.scanAllSongs(
-                minDurationMs = minDurationMs,
-                includeFolders = includeFolders,
-                excludeFolders = excludeFolders,
-                deepMetadata = true
-            ) { count -> _scanProgress.value = count }
+            val scannedSongs = if (fullRescan || deepRescan) {
+                scanner.scanAllSongs(
+                    minDurationMs = minDurationMs,
+                    includeFolders = includeFolders,
+                    excludeFolders = excludeFolders,
+                    deepMetadata = true
+                ) { count -> _scanProgress.value = count }
+            } else {
+                synchronizeLibrary(
+                    minDurationMs = minDurationMs,
+                    includeFolders = includeFolders,
+                    excludeFolders = excludeFolders
+                )
+            }
             _songs.value = scannedSongs
             _albums.value = scannedSongs.toAlbums()
             saveLibraryCache(scannedSongs, _albums.value)
@@ -124,6 +135,103 @@ class MusicRepository(private val context: Context) {
         } finally {
             _isScanning.value = false
         }
+    }
+
+    private suspend fun synchronizeLibrary(
+        minDurationMs: Long,
+        includeFolders: List<String>,
+        excludeFolders: List<String>
+    ): List<Song> = withContext(Dispatchers.IO) {
+        val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: readCachedSongs()
+        val cachedBySyncKey = cachedSongs.associateBy { it.librarySyncKey() }
+        val cachedByPath = cachedSongs.associateBy { it.path }
+        val currentItems = scanner.enumerateAudioFiles(
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders
+        )
+        val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
+        val currentPaths = currentItems.map { it.path }.toSet()
+        val mergedSongs = ArrayList<Song>(currentItems.size)
+        var addedCount = 0
+        var updatedCount = 0
+        var reusedCount = 0
+        var failedCount = 0
+
+        currentItems.forEachIndexed { index, item ->
+            val cached = cachedBySyncKey[item.librarySyncKey()] ?: cachedByPath[item.path]
+            val mediaStoreSaysTooShort = item.duration > 0L && item.duration < minDurationMs
+            if (mediaStoreSaysTooShort) {
+                _scanProgress.value = index + 1
+                return@forEachIndexed
+            }
+
+            val currentInfo = item.toLibrarySyncInfo()
+            val cachedInfo = cached?.toLibrarySyncInfo()
+            val needsUpdate = cachedInfo == null ||
+                cachedInfo.key != currentInfo.key ||
+                cachedInfo.path != currentInfo.path ||
+                cachedInfo.fileSize != currentInfo.fileSize ||
+                cachedInfo.dateModified != currentInfo.dateModified
+
+            if (needsUpdate) {
+                val scanned = runCatching {
+                    scanner.scanAudioItem(
+                        item = item,
+                        minDurationMs = minDurationMs,
+                        deepMetadata = true
+                    )
+                }.onFailure { error ->
+                    failedCount++
+                    AppLogStore.warn(
+                        context,
+                        "MusicScanner",
+                        "Incremental item failed path=${item.path}: ${error.message ?: error.javaClass.name}",
+                        type = AppLogType.LIBRARY
+                    )
+                }.getOrNull()
+
+                if (scanned != null) {
+                    cached?.let(::clearMetadataCache)
+                    clearMetadataCache(scanned)
+                    mergedSongs += scanned
+                    if (cached == null) addedCount++ else updatedCount++
+                } else if (cached != null) {
+                    mergedSongs += cached
+                }
+            } else {
+                val reused = cached.copy(
+                    albumId = item.albumId,
+                    fileName = item.fileName.ifBlank { cached.fileName },
+                    mimeType = item.mimeType.ifBlank { cached.mimeType },
+                    dateAdded = item.dateAdded.takeIf { it > 0L } ?: cached.dateAdded,
+                    trackNumber = item.trackNumber.takeIf { it > 0 } ?: cached.trackNumber,
+                    discNumber = item.discNumber.takeIf { it > 0 } ?: cached.discNumber
+                )
+                if (reused.duration >= minDurationMs) {
+                    mergedSongs += reused
+                    reusedCount++
+                }
+            }
+            _scanProgress.value = index + 1
+        }
+
+        val deletedSongs = cachedSongs.filter { song ->
+            song.librarySyncKey() !in currentKeys && song.path !in currentPaths
+        }
+        deletedSongs.forEach(::clearMetadataCache)
+        val deletedCount = deletedSongs.size
+
+        AppLogStore.info(
+            context,
+            "MusicScanner",
+            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount",
+            AppLogType.LIBRARY
+        )
+        Log.d(
+            "MusicScanner",
+            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount"
+        )
+        mergedSongs
     }
 
     suspend fun refreshSongAfterExternalEdit(song: Song): Song? = withContext(Dispatchers.IO) {
@@ -158,6 +266,16 @@ class MusicRepository(private val context: Context) {
             _albums.value = songs.toAlbums()
         }.onFailure {
             Log.w("MusicRepo", "Failed to load music library cache", it)
+        }
+    }
+
+    private fun readCachedSongs(): List<Song> {
+        if (!libraryCacheFile.exists()) return emptyList()
+        return runCatching {
+            JSONObject(libraryCacheFile.readText()).getJSONArray("songs").toSongList()
+        }.getOrElse {
+            Log.w("MusicRepo", "Failed to read music library cache for sync", it)
+            emptyList()
         }
     }
 
@@ -753,6 +871,36 @@ class MusicRepository(private val context: Context) {
         return source.sha256()
     }
 
+    private fun Song.librarySyncKey(): String =
+        if (id > 0L) {
+            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
+        } else {
+            path
+        }
+
+    private fun MediaStoreAudioItem.librarySyncKey(): String =
+        if (id > 0L) {
+            ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
+        } else {
+            path
+        }
+
+    private fun Song.toLibrarySyncInfo(): LibrarySyncInfo =
+        LibrarySyncInfo(
+            key = librarySyncKey(),
+            path = path,
+            fileSize = fileSize,
+            dateModified = dateModified
+        )
+
+    private fun MediaStoreAudioItem.toLibrarySyncInfo(): LibrarySyncInfo =
+        LibrarySyncInfo(
+            key = librarySyncKey(),
+            path = path,
+            fileSize = fileSize,
+            dateModified = dateModified
+        )
+
     private fun String.extractYearInt(): Int? =
         Regex("""\d{4}""").find(this)?.value?.toIntOrNull()
 
@@ -762,4 +910,11 @@ class MusicRepository(private val context: Context) {
         if ('\uFFFD' in text || "锟斤拷" in text || Regex("""(?:锟|斤|拷){3,}""").containsMatchIn(text)) return ""
         return text
     }
+
+    private data class LibrarySyncInfo(
+        val key: String,
+        val path: String,
+        val fileSize: Long,
+        val dateModified: Long
+    )
 }

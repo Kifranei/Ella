@@ -23,10 +23,243 @@ import java.io.RandomAccessFile
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 
+data class MediaStoreAudioItem(
+    val id: Long,
+    val title: String,
+    val artist: String,
+    val album: String,
+    val albumId: Long,
+    val duration: Long,
+    val path: String,
+    val fileName: String,
+    val fileSize: Long,
+    val mimeType: String,
+    val dateAdded: Long,
+    val dateModified: Long,
+    val trackNumber: Int,
+    val discNumber: Int
+)
+
 class MusicScanner(private val context: Context) {
 
     companion object {
         private const val TAG = "MusicScanner"
+    }
+
+    suspend fun enumerateAudioFiles(
+        includeFolders: List<String> = emptyList(),
+        excludeFolders: List<String> = emptyList()
+    ): List<MediaStoreAudioItem> = withContext(Dispatchers.IO) {
+        val items = mutableListOf<MediaStoreAudioItem>()
+        val normalizedIncludeFolders = includeFolders.mapNotNull { it.normalizedFolderPath() }
+        val normalizedExcludeFolders = excludeFolders.mapNotNull { it.normalizedFolderPath() }
+        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Audio.Media._ID,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.DURATION,
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.DISPLAY_NAME,
+            MediaStore.Audio.Media.SIZE,
+            MediaStore.Audio.Media.MIME_TYPE,
+            MediaStore.Audio.Media.DATE_ADDED,
+            MediaStore.Audio.Media.DATE_MODIFIED,
+            MediaStore.Audio.Media.TRACK
+        )
+        val sortOrder = "${MediaStore.Audio.Media.TITLE} ASC"
+
+        context.contentResolver.query(
+            collection, projection, null, null, sortOrder
+        )?.use { cursor ->
+            val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+            val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+            val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_MODIFIED)
+            val trackCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TRACK)
+
+            while (cursor.moveToNext()) {
+                val path = cursor.getString(dataCol).orEmpty()
+                if (path.isEmpty()) continue
+                if (!path.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)) continue
+                val file = File(path)
+                if (!file.exists()) continue
+
+                val rawTrackNumber = cursor.getInt(trackCol)
+                items += MediaStoreAudioItem(
+                    id = cursor.getLong(idCol),
+                    title = cursor.getString(titleCol).orEmpty(),
+                    artist = cursor.getString(artistCol).orEmpty(),
+                    album = cursor.getString(albumCol).orEmpty(),
+                    albumId = cursor.getLong(albumIdCol),
+                    duration = cursor.getLong(durationCol),
+                    path = path,
+                    fileName = cursor.getString(nameCol).orEmpty(),
+                    fileSize = cursor.getLong(sizeCol),
+                    mimeType = cursor.getString(mimeCol).orEmpty(),
+                    dateAdded = cursor.getLong(dateAddedCol) * 1000L,
+                    dateModified = cursor.getLong(dateModifiedCol) * 1000L,
+                    trackNumber = rawTrackNumber.normalizedTrackNumber(),
+                    discNumber = rawTrackNumber.normalizedDiscNumber()
+                )
+            }
+        }
+        items
+    }
+
+    suspend fun scanAudioItem(
+        item: MediaStoreAudioItem,
+        minDurationMs: Long = 0,
+        deepMetadata: Boolean = false
+    ): Song? = withContext(Dispatchers.IO) {
+        var title = item.title
+        var artist = item.artist
+        var album = item.album
+        var albumArtist = ""
+        var genre = ""
+        var year = ""
+        var composer = ""
+        var lyricist = ""
+        var duration = item.duration
+        var discNumber = item.discNumber
+        val file = File(item.path)
+        if (!file.exists()) return@withContext null
+
+        val shouldDeepRead = deepMetadata ||
+            isMissingTag(title, file.name) ||
+            isMissingTag(artist) ||
+            isMissingTag(album) ||
+            duration <= 0
+
+        val audioFile = if (shouldDeepRead) readAudioFile(file) else null
+        val tag = audioFile?.safeTag(file)
+
+        if (tag != null) {
+            if (isMissingTag(title, file.name)) title = tag.safeFirst(file, FieldKey.TITLE)
+            if (isMissingTag(artist)) artist = tag.safeFirst(file, FieldKey.ARTIST)
+            if (isMissingTag(album)) album = tag.safeFirst(file, FieldKey.ALBUM)
+            albumArtist = tag.safeFirst(file, FieldKey.ALBUM_ARTIST)
+            genre = tag.safeFirst(file, FieldKey.GENRE)
+            year = tag.safeFirst(file, FieldKey.YEAR).normalizeYear()
+            composer = tag.safeFirst(file, FieldKey.COMPOSER)
+            lyricist = firstNonBlank(
+                tag.safeFirst(file, "LYRICIST"),
+                tag.safeFirst(file, "TEXT"),
+                tag.safeFirst(file, "WRITER")
+            ).orEmpty()
+            discNumber = discNumber.takeIf { it > 0 } ?: firstNonBlank(
+                tag.safeFirst(file, "DISCNUMBER"),
+                tag.safeFirst(file, "DISC"),
+                tag.safeFirst(file, "TPOS")
+            ).orEmpty().normalizedDiscNumberFromTag()
+            if (duration <= 0) duration = (audioFile.audioHeader?.trackLength ?: 0) * 1000L
+        }
+
+        if (shouldReadTagsWithTagLib(file, title, artist, album, duration, deepMetadata)) {
+            try {
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                    val audioProps = TagLib.getAudioProperties(fd.dup().detachFd())
+                    val metadata = TagLib.getMetadata(fd.dup().detachFd(), false)
+                    val props = metadata?.propertyMap
+
+                    if (isMissingTag(title, file.name)) {
+                        title = props.firstValue("TITLE", "INAM", "NAME", "TIT2")
+                    }
+                    if (isMissingTag(artist)) {
+                        artist = props.firstValue("ARTIST", "ALBUMARTIST", "ALBUM ARTIST", "IART", "PERFORMER", "TPE1")
+                    }
+                    if (isMissingTag(album)) {
+                        album = props.firstValue("ALBUM", "IPRD", "PRODUCT", "WM/ALBUMTITLE", "TALB")
+                    }
+                    if (albumArtist.isBlank()) {
+                        albumArtist = props.firstValue("ALBUMARTIST", "ALBUM ARTIST", "ALBUM_ARTIST", "WM/ALBUMARTIST", "TPE2")
+                    }
+                    if (genre.isBlank()) {
+                        genre = props.firstValue("GENRE", "TCON")
+                    }
+                    if (year.isBlank()) {
+                        year = props.firstValue("DATE", "YEAR", "TYER", "TDRC").normalizeYear()
+                    }
+                    if (composer.isBlank()) {
+                        composer = props.firstValue("COMPOSER", "TCOM", "WM/COMPOSER")
+                    }
+                    if (lyricist.isBlank()) {
+                        lyricist = props.firstValue("LYRICIST", "TEXT", "WRITER", "AUTHOR", "WM/WRITER")
+                    }
+                    if (discNumber <= 0) {
+                        discNumber = props.firstValue("DISCNUMBER", "DISC", "TPOS").normalizedDiscNumberFromTag()
+                    }
+                    if (duration <= 0) {
+                        duration = ((audioProps?.length ?: 0) * 1000L)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "TagLib metadata extraction failed for ${item.path}", e)
+            }
+        }
+
+        if (shouldDeepRead || deepMetadata) file.readWavInfoTags()?.let { wavInfo ->
+            if (isMissingTag(title, file.name)) title = wavInfo.title.orEmpty()
+            if (isMissingTag(artist)) artist = wavInfo.artist.orEmpty()
+            if (isMissingTag(album)) album = wavInfo.album.orEmpty()
+            if (albumArtist.isBlank()) albumArtist = wavInfo.albumArtist.orEmpty()
+            if (genre.isBlank()) genre = wavInfo.genre.orEmpty()
+            if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeYear()
+            if (composer.isBlank()) composer = wavInfo.composer.orEmpty()
+            if (lyricist.isBlank()) lyricist = wavInfo.lyricist.orEmpty()
+        }
+
+        if (shouldDeepRead && (isMissingTag(title, file.name) || isMissingTag(artist) || isMissingTag(album) || duration <= 0)) {
+            try {
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(item.path)
+                if (isMissingTag(title, file.name)) title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: ""
+                if (isMissingTag(artist)) artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: ""
+                if (isMissingTag(album)) album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: ""
+                if (duration <= 0) duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                retriever.release()
+            } catch (e: Exception) {
+                Log.w(TAG, "Metadata extraction failed for ${item.path}", e)
+            }
+        }
+
+        if (isMissingTag(title, file.name)) title = item.fileName.substringBeforeLast('.')
+        if (isMissingTag(artist)) artist = "Unknown"
+        if (isMissingTag(album)) album = "Unknown"
+
+        if (duration <= 0 || duration < minDurationMs) return@withContext null
+
+        Song(
+            id = item.id,
+            title = title,
+            artist = artist,
+            album = album,
+            albumId = item.albumId,
+            duration = duration,
+            path = item.path,
+            fileName = item.fileName,
+            fileSize = item.fileSize,
+            mimeType = item.mimeType,
+            dateAdded = item.dateAdded,
+            dateModified = item.dateModified,
+            trackNumber = item.trackNumber,
+            discNumber = discNumber,
+            albumArtist = albumArtist,
+            genre = genre,
+            year = year,
+            composer = composer,
+            lyricist = lyricist
+        )
     }
 
     suspend fun scanAllSongs(
@@ -865,18 +1098,6 @@ class MusicScanner(private val context: Context) {
     private fun String.cleanTagText(): String =
         trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')
             .replace(Regex("""\s+"""), " ")
-
-    private fun String.extractNeteaseValue(): String {
-        val rawText = trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')
-        if (rawText.looksLikeNeteaseKeyValue()) return rawText.cleanTagText()
-        val text = rawText.cleanTagText()
-        Regex("""(?:music\.163\.com/(?:#/)?song\?id=|songid[:=]\s*|song_id[:=]\s*|id=)(\d{4,})""", RegexOption.IGNORE_CASE)
-            .find(text)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.let { return it }
-        return ""
-    }
 
     private fun selectBestLyrics(candidates: List<String>): String? {
         return candidates

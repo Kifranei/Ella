@@ -107,11 +107,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _selectedTab.value = index
     }
 
-    fun scanMusic() {
+    fun scanMusic(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
-            scanFromCurrentSettings()
+            scanFromCurrentSettings(fullRescan = fullRescan, deepRescan = deepRescan)
         }
+    }
+
+    fun fullRescanMusic() {
+        scanMusic(fullRescan = true, deepRescan = true)
     }
 
     fun scanMusicIfAutoEnabled() {
@@ -120,11 +124,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (scanJob?.isActive == true || isScanning.value) return
         scanJob = viewModelScope.launch {
             if (!settingsManager.autoScan.first()) return@launch
-            scanFromCurrentSettings()
+            scanFromCurrentSettings(fullRescan = false, deepRescan = false)
         }
     }
 
-    private suspend fun scanFromCurrentSettings() {
+    private suspend fun scanFromCurrentSettings(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
         val minDuration = settingsManager.minDurationSec.first() * 1000L
         val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
         val excludeFolders = settingsManager.scanExcludeFolders.first().toFolderFilterList()
@@ -132,10 +136,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val count = repository.scanMusic(
             minDuration,
             if (useAndroidMediaLibrary) emptyList() else includeFolders.ifEmpty { listOf("__ella_no_custom_folder__") },
-            excludeFolders
+            excludeFolders,
+            fullRescan = fullRescan,
+            deepRescan = deepRescan
         )
         if (count == 0 && useAndroidMediaLibrary && includeFolders.isNotEmpty()) {
-            repository.scanMusic(minDuration, includeFolders, excludeFolders)
+            repository.scanMusic(
+                minDuration,
+                includeFolders,
+                excludeFolders,
+                fullRescan = fullRescan,
+                deepRescan = deepRescan
+            )
         }
     }
 
