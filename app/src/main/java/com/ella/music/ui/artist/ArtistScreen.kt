@@ -273,7 +273,14 @@ fun ArtistScreen(
                 }
 
                 ArtistTab.ParticipatedAlbums -> {
-                    item { SectionTitle("参与专辑 · ${albumSortMode.label}") }
+                    item {
+                        Text(
+                            text = "${sortedParticipatedAlbums.size} 个参与专辑 · ${albumSortMode.label}",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                     items(
                         items = sortedParticipatedAlbums,
                         key = { it.id }
@@ -288,7 +295,14 @@ fun ArtistScreen(
                 }
 
                 ArtistTab.ReleaseAlbums -> {
-                    item { SectionTitle("发行专辑 · ${albumSortMode.label}") }
+                    item {
+                        Text(
+                            text = "${sortedReleaseAlbums.size} 个发行专辑 · ${albumSortMode.label}",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
                     items(
                         items = sortedReleaseAlbums,
                         key = { it.id }

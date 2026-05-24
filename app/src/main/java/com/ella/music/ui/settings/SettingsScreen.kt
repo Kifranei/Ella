@@ -735,7 +735,7 @@ fun SettingsDetailScreen(
                         )
                         WindowSpinnerPreference(
                             title = "分类网格列数",
-                            summary = "专辑、流派、年份等页面显示为 ${categoryGridColumns.coerceIn(1, 4)} 列；作曲家、作词家和文件夹固定一列",
+                            summary = "专辑、流派、年份等页面显示为 ${categoryGridColumns.coerceIn(1, 4)} 列",
                             items = categoryGridEntries,
                             selectedIndex = (categoryGridColumns - 1).coerceIn(categoryGridEntries.indices),
                             onSelectedIndexChange = { index ->
@@ -744,7 +744,7 @@ fun SettingsDetailScreen(
                         )
                         SwitchPreference(
                             title = "显示专辑艺术家",
-                            summary = "开启后将专辑艺术家并入艺术家列表，并显示发行专辑页",
+                            summary = "开启后将专辑艺术家并入艺术家列表，并在艺术家页显示发行专辑Tab",
                             checked = showAlbumArtists,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setShowAlbumArtists(it) }
@@ -860,7 +860,7 @@ fun SettingsDetailScreen(
                     Column {
                         WindowSpinnerPreference(
                             title = "元数据编辑软件",
-                            summary = "当前：${metadataEditorOptions[metadataEditorIndex].second}",
+                            summary = "",
                             items = metadataEditorEntries,
                             selectedIndex = metadataEditorIndex,
                             onSelectedIndexChange = { index ->

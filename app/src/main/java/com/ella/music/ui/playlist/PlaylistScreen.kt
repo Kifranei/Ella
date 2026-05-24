@@ -336,7 +336,7 @@ fun PlaylistScreen(
 
             item {
                 Text(
-                    text = "自定义歌单",
+                    text = "${displayedCustomPlaylists.size} 个歌单",
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)

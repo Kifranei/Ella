@@ -73,6 +73,7 @@ fun HomeScreen(
 ) {
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
+    val playlists by mainViewModel.playlists.collectAsState()
     val history by mainViewModel.playbackHistory.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val context = LocalContext.current
@@ -103,6 +104,11 @@ fun HomeScreen(
             .distinctBy { it.tagIdentityKey() }
             .size
     }
+    val folderCount = remember(songs) { mainViewModel.getMetadataCategoryItems("folder").size }
+    val genreCount = remember(songs) { mainViewModel.getMetadataCategoryItems("genre").size }
+    val yearCount = remember(songs) { mainViewModel.getMetadataCategoryItems("year").size }
+    val composerCount = remember(songs) { mainViewModel.getMetadataCategoryItems("composer").size }
+    val lyricistCount = remember(songs) { mainViewModel.getMetadataCategoryItems("lyricist").size }
     val songsById = remember(songs) { songs.associateBy { it.id } }
     val recentSongs = remember(history, songsById) {
         history
@@ -155,18 +161,29 @@ fun HomeScreen(
             val tileOrder = remember(homeLibraryTileOrder) {
                 homeLibraryTileOrder.csvIds(SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
             }
-            val libraryTiles = remember(tileOrder, hiddenTiles, artistCount, albums.size) {
+            val libraryTiles = remember(
+                tileOrder,
+                hiddenTiles,
+                artistCount,
+                albums.size,
+                folderCount,
+                playlists.size,
+                genreCount,
+                yearCount,
+                composerCount,
+                lyricistCount
+            ) {
                 val all = mapOf(
                     "artist" to HomeTileSpec("artist", "艺术家", "$artistCount 位", Color(0xFF118AB2), Screen.Artist.route, onNavigateToArtist),
                     "album" to HomeTileSpec("album", "专辑", "${albums.size} 张", Color(0xFFFF9F1C), Screen.Album.route, onNavigateToAlbum),
-                    "folder" to HomeTileSpec("folder", "文件夹", "按目录分类", Color(0xFF5E60CE), Screen.MetadataCategory.createRoute("folder")) { onNavigateToMetadataCategory("folder") },
+                    "folder" to HomeTileSpec("folder", "文件夹", "$folderCount 个", Color(0xFF5E60CE), Screen.MetadataCategory.createRoute("folder")) { onNavigateToMetadataCategory("folder") },
                     "folder_tree" to HomeTileSpec("folder_tree", "文件夹层次结构", "按嵌套目录浏览", Color(0xFF8338EC), Screen.Folder.route, onNavigateToFolder),
-                    "playlist" to HomeTileSpec("playlist", "歌单", "收藏与自建", Color(0xFFEF476F), Screen.Playlists.route, onNavigateToPlaylists),
+                    "playlist" to HomeTileSpec("playlist", "歌单", "${playlists.size} 个", Color(0xFFEF476F), Screen.Playlists.route, onNavigateToPlaylists),
                     "analytics" to HomeTileSpec("analytics", "听歌统计", "历史和热力图", Color(0xFFE71D36), Screen.Analytics.route, onNavigateToAnalytics),
-                    "genre" to HomeTileSpec("genre", "流派", "按 Genre 浏览", Color(0xFF06D6A0), Screen.MetadataCategory.createRoute("genre")) { onNavigateToMetadataCategory("genre") },
-                    "year" to HomeTileSpec("year", "年份", "按年份归档", Color(0xFF4CC9F0), Screen.MetadataCategory.createRoute("year")) { onNavigateToMetadataCategory("year") },
-                    "composer" to HomeTileSpec("composer", "作曲家", "Composer", Color(0xFFB5179E), Screen.MetadataCategory.createRoute("composer")) { onNavigateToMetadataCategory("composer") },
-                    "lyricist" to HomeTileSpec("lyricist", "作词家", "Lyricist", Color(0xFFFF6D00), Screen.MetadataCategory.createRoute("lyricist")) { onNavigateToMetadataCategory("lyricist") }
+                    "genre" to HomeTileSpec("genre", "流派", "$genreCount 种", Color(0xFF06D6A0), Screen.MetadataCategory.createRoute("genre")) { onNavigateToMetadataCategory("genre") },
+                    "year" to HomeTileSpec("year", "年份", "$yearCount 个", Color(0xFF4CC9F0), Screen.MetadataCategory.createRoute("year")) { onNavigateToMetadataCategory("year") },
+                    "composer" to HomeTileSpec("composer", "作曲家", "$composerCount 位", Color(0xFFB5179E), Screen.MetadataCategory.createRoute("composer")) { onNavigateToMetadataCategory("composer") },
+                    "lyricist" to HomeTileSpec("lyricist", "作词家", "$lyricistCount 位", Color(0xFFFF6D00), Screen.MetadataCategory.createRoute("lyricist")) { onNavigateToMetadataCategory("lyricist") }
                 )
                 tileOrder.mapNotNull { all[it] }.filterNot { it.id in hiddenTiles }
             }

@@ -256,7 +256,7 @@ fun MetadataCategoryScreen(
             ) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
-                        text = "${displayedItems.size} 个分类 · ${sortMode.displayLabel(type)}",
+                        text = "${type.categoryCountSummary(displayedItems.size)} · ${sortMode.displayLabel(type)}",
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -1292,6 +1292,17 @@ private fun String.categoryTitle(): String {
         "lyricist" -> "作词家"
         "folder" -> "文件夹"
         else -> "分类"
+    }
+}
+
+private fun String.categoryCountSummary(count: Int): String {
+    return when (this) {
+        "genre" -> "$count 种流派"
+        "composer" -> "$count 位作曲家"
+        "lyricist" -> "$count 位作词家"
+        "folder" -> "$count 个文件夹"
+        "year" -> "$count 个年份"
+        else -> "$count 个分类"
     }
 }
 
