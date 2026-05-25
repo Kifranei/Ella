@@ -3,6 +3,7 @@ package com.ella.music.ui.artist
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -464,8 +465,11 @@ fun ArtistScreen(
                         createPlaylistSong = song
                         playlistPickerSong = null
                     },
-                    onPlaylistClick = { playlist ->
-                        mainViewModel.addSongsToPlaylist(playlist.id, listOf(song))
+                    onPlaylistsConfirm = { selectedPlaylists ->
+                        selectedPlaylists.forEach { playlist ->
+                            mainViewModel.addSongsToPlaylist(playlist.id, listOf(song))
+                        }
+                        Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
                         playlistPickerSong = null
                     }
                 )
@@ -638,8 +642,10 @@ private fun ArtistAddToPlaylistMenu(
     playlists: List<UserPlaylist>,
     onDismiss: () -> Unit,
     onCreatePlaylist: () -> Unit,
-    onPlaylistClick: (UserPlaylist) -> Unit
+    onPlaylistsConfirm: (List<UserPlaylist>) -> Unit
 ) {
+    var selectedPlaylistIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
+    val selectedPlaylists = playlists.filter { it.id in selectedPlaylistIds }
     ArtistSheetColumn {
         ArtistSheetHandle()
         Text(
@@ -659,10 +665,22 @@ private fun ArtistAddToPlaylistMenu(
             )
         } else {
             playlists.forEach { playlist ->
-                ArtistMenuItem("${playlist.name} · ${playlist.songs.size} 首", onClick = {
-                    onPlaylistClick(playlist)
+                val selected = playlist.id in selectedPlaylistIds
+                ArtistMenuItem("${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} 首", onClick = {
+                    selectedPlaylistIds = if (selected) {
+                        selectedPlaylistIds - playlist.id
+                    } else {
+                        selectedPlaylistIds + playlist.id
+                    }
                 })
             }
+        }
+        if (playlists.isNotEmpty()) {
+            ArtistMenuItem("完成（${selectedPlaylistIds.size}）", onClick = {
+                if (selectedPlaylists.isNotEmpty()) {
+                    onPlaylistsConfirm(selectedPlaylists)
+                }
+            })
         }
         ArtistMenuItem("取消", onDismiss)
     }

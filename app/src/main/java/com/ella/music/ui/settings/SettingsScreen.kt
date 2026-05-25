@@ -495,12 +495,15 @@ fun SettingsDetailScreen(
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectAsState(initial = 110)
     val desktopLyricOpacity by settingsManager.desktopLyricOpacity.collectAsState(initial = 100)
     val desktopLyricTextColor by settingsManager.desktopLyricTextColor.collectAsState(initial = -1)
+    val desktopLyricShadowStrength by settingsManager.desktopLyricShadowStrength.collectAsState(initial = 100)
     val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
     val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
     val lyricGetterEnabled by settingsManager.lyricGetterEnabled.collectAsState(initial = false)
     val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsState(initial = false)
     val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsState(initial = false)
     val miniPlayerLyricTranslation by settingsManager.miniPlayerLyricTranslation.collectAsState(initial = true)
+    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
+    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
@@ -575,10 +578,16 @@ fun SettingsDetailScreen(
     val desktopLyricColorPresets = remember {
         listOf(
             "白色" to android.graphics.Color.WHITE,
+            "银灰" to android.graphics.Color.rgb(191, 191, 191),
             "淡蓝" to android.graphics.Color.rgb(145, 205, 255),
+            "天蓝" to android.graphics.Color.rgb(3, 169, 244),
             "浅粉" to android.graphics.Color.rgb(255, 188, 214),
             "薄荷绿" to android.graphics.Color.rgb(166, 235, 203),
-            "暖黄色" to android.graphics.Color.rgb(255, 224, 150)
+            "荧光绿" to android.graphics.Color.rgb(26, 201, 125),
+            "淡紫" to android.graphics.Color.rgb(179, 136, 255),
+            "柔红" to android.graphics.Color.rgb(255, 112, 112),
+            "暖黄色" to android.graphics.Color.rgb(255, 224, 150),
+            "橙色" to android.graphics.Color.rgb(255, 87, 34)
         )
     }
     val desktopLyricColorEntries = remember(desktopLyricColorPresets) {
@@ -998,11 +1007,30 @@ fun SettingsDetailScreen(
                 SettingsCardGroup {
                     Column {
                     SwitchPreference(
+                        title = "迷你播放条显示歌词",
+                        summary = "播放时在迷你播放条显示当前歌词；关闭后显示歌曲标题和歌手",
+                        checked = miniPlayerLyricsEnabled,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setMiniPlayerLyricsEnabled(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
                         title = "迷你播放条显示翻译",
                         summary = "播放栏显示歌词时同时显示翻译",
+                        enabled = miniPlayerLyricsEnabled,
                         checked = miniPlayerLyricTranslation,
                         onCheckedChange = { enabled ->
                             scope.launch { settingsManager.setMiniPlayerLyricTranslation(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "迷你播放条封面旋转",
+                        summary = "播放时旋转迷你播放条封面；关闭后保持静态封面",
+                        checked = miniPlayerCoverRotation,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setMiniPlayerCoverRotation(enabled) }
                         }
                     )
 
@@ -1150,6 +1178,37 @@ fun SettingsDetailScreen(
                             Text(text = "35%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             Spacer(modifier = Modifier.weight(1f))
                             Text(text = "100%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = "桌面歌词阴影 ${desktopLyricShadowStrength}%",
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "增强浅色壁纸上的可读性；设为 0 可关闭阴影",
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = (desktopLyricShadowStrength.coerceIn(0, 160).toFloat() / 160f).coerceIn(0f, 1f),
+                            onValueChange = { fraction ->
+                                val strength = (fraction * 160f).toInt().coerceIn(0, 160)
+                                scope.launch {
+                                    settingsManager.setDesktopLyricShadowStrength(strength)
+                                    applyDesktopLyricSettings()
+                                }
+                            },
+                            enabled = desktopLyricEnabled,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = "0%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(text = "160%", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                         }
                     }
 

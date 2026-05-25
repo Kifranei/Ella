@@ -8,8 +8,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -64,6 +66,7 @@ import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.data.PlaylistImportMode
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.ConfirmDangerDialog
@@ -75,6 +78,8 @@ import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Button
@@ -358,6 +363,24 @@ fun PlaylistScreen(
                         playlist = playlist,
                         coverModel = playlistCoverModels[playlist.id],
                         onClick = { onPlaylistClick(playlist.id) },
+                        onLongClick = {
+                            val route = Screen.PlaylistDetail.createRoute(playlist.id)
+                            val created = requestPinnedEllaShortcut(
+                                context = context,
+                                id = "playlist_${playlist.id}",
+                                label = playlist.name,
+                                route = route
+                            )
+                            Toast.makeText(
+                                context,
+                                if (created) {
+                                    "已请求创建「${playlist.name}」快捷方式"
+                                } else {
+                                    "当前桌面不支持创建快捷方式"
+                                },
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
                         onDelete = { playlistPendingDelete = playlist }
                     )
                 }
@@ -478,10 +501,25 @@ fun PlaylistDetailScreen(
             song.coverUrl.takeIf { it.isNotBlank() } ?: mainViewModel.getAlbumArtUri(song.albumId)
         }
     }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+    var showExportFormatSheet by remember { mutableStateOf(false) }
+    val txtExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         val targetPlaylist = playlist
         if (uri == null || targetPlaylist == null) return@rememberLauncherForActivityResult
-        mainViewModel.exportLocalPlaylist(targetPlaylist, uri) { result ->
+        mainViewModel.exportLocalPlaylist(targetPlaylist, uri, PlaylistExportFormat.PlainText) { result ->
+            result
+                .onSuccess { exportResult ->
+                    val skippedText = if (exportResult.skippedCount > 0) "，跳过 ${exportResult.skippedCount} 首在线歌曲" else ""
+                    Toast.makeText(context, "已导出 ${exportResult.exportedCount} 首$skippedText", Toast.LENGTH_SHORT).show()
+                }
+                .onFailure {
+                    Toast.makeText(context, "导出失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                }
+        }
+    }
+    val m3uExportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("audio/x-mpegurl")) { uri ->
+        val targetPlaylist = playlist
+        if (uri == null || targetPlaylist == null) return@rememberLauncherForActivityResult
+        mainViewModel.exportLocalPlaylist(targetPlaylist, uri, PlaylistExportFormat.M3u) { result ->
             result
                 .onSuccess { exportResult ->
                     val skippedText = if (exportResult.skippedCount > 0) "，跳过 ${exportResult.skippedCount} 首在线歌曲" else ""
@@ -538,7 +576,7 @@ fun PlaylistDetailScreen(
                         )
                     }
                     if (playlist != null && !isFiveStarPlaylist) {
-                        IconButton(onClick = { exportLauncher.launch("${playlist.name.safePlaylistFileName()}.txt") }) {
+                        IconButton(onClick = { showExportFormatSheet = true }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.Share,
                                 contentDescription = "导出歌单",
@@ -722,6 +760,24 @@ fun PlaylistDetailScreen(
                 )
             }
         }
+    }
+
+    if (showExportFormatSheet && playlist != null) {
+        ExportPlaylistFormatSheet(
+            onDismiss = { showExportFormatSheet = false },
+            onFormatSelected = { format ->
+                val extension = when (format) {
+                    PlaylistExportFormat.PlainText -> "txt"
+                    PlaylistExportFormat.M3u -> "m3u"
+                }
+                showExportFormatSheet = false
+                val fileName = "${playlist.name.safePlaylistFileName()}.$extension"
+                when (format) {
+                    PlaylistExportFormat.PlainText -> txtExportLauncher.launch(fileName)
+                    PlaylistExportFormat.M3u -> m3uExportLauncher.launch(fileName)
+                }
+            }
+        )
     }
 }
 
@@ -974,6 +1030,7 @@ private fun Song?.playlistCoverModel(): Any? {
         ?: song.albumId.takeIf { it > 0L }?.let { Uri.parse("content://media/external/audio/albumart/$it") }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlaylistRow(
     playlist: UserPlaylist,
@@ -982,14 +1039,18 @@ private fun PlaylistRow(
     durationOverride: Long? = null,
     accent: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp),
-        cornerRadius = 16.dp,
-        onClick = onClick
+            .padding(bottom = 10.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
+        cornerRadius = 16.dp
     ) {
         Row(
             modifier = Modifier
@@ -1165,6 +1226,37 @@ private fun ImportPlaylistModeSheet(
                 title = "合并并保留同名歌单",
                 summary = "同名歌单只追加不存在的歌曲",
                 onClick = { onModeSelected(PlaylistImportMode.MergeKeepExisting) }
+            )
+            Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                Text("取消")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExportPlaylistFormatSheet(
+    onDismiss: () -> Unit,
+    onFormatSelected: (PlaylistExportFormat) -> Unit
+) {
+    WindowBottomSheet(
+        show = true,
+        title = "导出歌单",
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier.padding(bottom = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ImportModeItem(
+                title = "导出为 TXT",
+                summary = "逐行导出本地歌曲路径",
+                onClick = { onFormatSelected(PlaylistExportFormat.PlainText) }
+            )
+            ImportModeItem(
+                title = "导出为 M3U",
+                summary = "导出 #EXTM3U 播放列表，包含歌曲信息和本地路径",
+                onClick = { onFormatSelected(PlaylistExportFormat.M3u) }
             )
             Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
                 Text("取消")

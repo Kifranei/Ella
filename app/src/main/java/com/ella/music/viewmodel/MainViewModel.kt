@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ella.music.data.PlaylistBatchImportResult
 import com.ella.music.data.PlaylistExportResult
+import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.data.PlaylistImportResult
 import com.ella.music.data.PlaylistImportMode
 import com.ella.music.data.PlaylistStore
@@ -409,9 +410,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun exportLocalPlaylist(playlist: UserPlaylist, uri: Uri, onResult: (Result<PlaylistExportResult>) -> Unit) {
+    fun exportLocalPlaylist(
+        playlist: UserPlaylist,
+        uri: Uri,
+        format: PlaylistExportFormat = PlaylistExportFormat.PlainText,
+        onResult: (Result<PlaylistExportResult>) -> Unit
+    ) {
         viewModelScope.launch {
-            val result = runCatching { playlistStore.exportSaltPlayerPlaylist(playlist, uri) }
+            val result = runCatching { playlistStore.exportLocalPlaylist(playlist, uri, format) }
             onResult(result)
         }
     }

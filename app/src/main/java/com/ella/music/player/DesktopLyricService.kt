@@ -60,6 +60,7 @@ class DesktopLyricService : Service() {
     private var translationScale = 1.1f
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
+    private var shadowStrength = 1f
     private var savedX = Int.MIN_VALUE
     private var savedY = Int.MIN_VALUE
     private val settingsManager by lazy { SettingsManager(this) }
@@ -168,6 +169,8 @@ class DesktopLyricService : Service() {
             addControl("⏭", "下一首") { controller?.seekToNext() }
             addControl("A-", "缩小歌词") { updateFontScale(-0.08f) }
             addControl("A+", "放大歌词") { updateFontScale(0.08f) }
+            addControl("顶", "贴到状态栏") { snapToStatusBar() }
+            addControl("色", "切换颜色") { cycleTextColor() }
             addControl("🔒", "锁定") { setLocked(true) }
             addControl("×", "关闭") { closeByUser() }
             visibility = View.GONE
@@ -206,12 +209,18 @@ class DesktopLyricService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = savedX.takeIf { it != Int.MIN_VALUE } ?: 0
             y = savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         }
 
         rootView = root
@@ -252,6 +261,25 @@ class DesktopLyricService : Service() {
         fontScale = (fontScale + delta).coerceIn(0.8f, 2.2f)
         applyCurrentSettingsToViews()
         serviceScope.launch { settingsManager.setDesktopLyricFontScale((fontScale * 100f).roundToInt()) }
+    }
+
+    private fun snapToStatusBar() {
+        val view = rootView ?: return
+        val params = layoutParams ?: return
+        params.x = 0
+        params.y = -statusBarHeight() - dp(6)
+        clampToScreen(view, params)
+        windowManager.updateViewLayout(view, params)
+        persistPosition(params.x, params.y)
+        if (!locked) scheduleControlsAutoHide()
+    }
+
+    private fun cycleTextColor() {
+        val currentIndex = desktopLyricQuickColors.indexOf(lyricTextColor).takeIf { it >= 0 } ?: 0
+        lyricTextColor = desktopLyricQuickColors[(currentIndex + 1) % desktopLyricQuickColors.size]
+        applyCurrentSettingsToViews()
+        serviceScope.launch { settingsManager.setDesktopLyricTextColor(lyricTextColor) }
+        if (!locked) scheduleControlsAutoHide()
     }
 
     private fun closeByUser() {
@@ -363,7 +391,12 @@ class DesktopLyricService : Service() {
         val maxX = (metrics.widthPixels / 2 - halfWidth).coerceAtLeast(0)
         val maxY = (metrics.heightPixels - (view.height.takeIf { it > 0 } ?: dp(112))).coerceAtLeast(0)
         params.x = params.x.coerceIn(-maxX, maxX)
-        params.y = params.y.coerceIn(-dp(28), maxY)
+        params.y = params.y.coerceIn(-statusBarHeight() - dp(12), maxY)
+    }
+
+    private fun statusBarHeight(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
     }
 
     private fun loadSettingsFromStore() {
@@ -373,6 +406,7 @@ class DesktopLyricService : Service() {
             translationScale = settingsManager.desktopLyricTranslationScale.first().coerceIn(80, 220) / 100f
             opacityPercent = settingsManager.desktopLyricOpacity.first().coerceIn(35, 100)
             lyricTextColor = settingsManager.desktopLyricTextColor.first()
+            shadowStrength = settingsManager.desktopLyricShadowStrength.first().coerceIn(0, 160) / 100f
             savedX = settingsManager.desktopLyricX.first()
             savedY = settingsManager.desktopLyricY.first()
         }
@@ -389,7 +423,8 @@ class DesktopLyricService : Service() {
             fontScale = fontScale,
             translationScale = translationScale,
             opacityPercent = opacityPercent,
-            textColor = lyricTextColor
+            textColor = lyricTextColor,
+            shadowStrength = shadowStrength
         )
         rootView?.alpha = 1f
     }
@@ -483,26 +518,34 @@ class DesktopLyricService : Service() {
         private var translationScale = 1.1f
         private var opacity = 1f
         private var textColor = Color.WHITE
+        private var shadowStrength = 1f
         private var positionMs = 0L
         private var words = emptyList<DesktopWord>()
         private var pronunciationWords = emptyList<DesktopWord>()
         private var backgroundWords = emptyList<DesktopWord>()
 
-        fun setStyle(fontScale: Float, translationScale: Float, opacityPercent: Int, textColor: Int) {
+        fun setStyle(
+            fontScale: Float,
+            translationScale: Float,
+            opacityPercent: Int,
+            textColor: Int,
+            shadowStrength: Float
+        ) {
             this.fontScale = fontScale.coerceIn(0.8f, 2.2f)
             this.translationScale = translationScale.coerceIn(0.8f, 2.2f)
             this.opacity = (opacityPercent.coerceIn(35, 100) / 100f)
             this.textColor = textColor
+            this.shadowStrength = shadowStrength.coerceIn(0f, 1.6f)
             pendingPaint.color = colorWithAlpha(textColor, 150)
             activePaint.color = colorWithAlpha(textColor, 255)
             glowPaint.color = colorWithAlpha(textColor, 150)
             pronunciationPaint.color = colorWithAlpha(textColor, 155)
             translationPaint.color = colorWithAlpha(textColor, 180)
-            pendingPaint.setShadowLayer(8f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
-            activePaint.setShadowLayer(10f, 0f, 2f, colorWithAlpha(Color.BLACK, 210))
-            glowPaint.setShadowLayer(18f, 0f, 0f, colorWithAlpha(textColor, 170))
-            pronunciationPaint.setShadowLayer(7f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
-            translationPaint.setShadowLayer(7f, 0f, 2f, colorWithAlpha(Color.BLACK, 180))
+            applyTextShadow(pendingPaint, 8f, 180)
+            applyTextShadow(activePaint, 10f, 210)
+            applyTextGlow(glowPaint, 18f, 170)
+            applyTextShadow(pronunciationPaint, 7f, 180)
+            applyTextShadow(translationPaint, 7f, 180)
             invalidate()
         }
 
@@ -818,6 +861,27 @@ class DesktopLyricService : Service() {
             return Color.argb(appliedAlpha, Color.red(color), Color.green(color), Color.blue(color))
         }
 
+        private fun shadowAlpha(base: Int): Int =
+            (base * shadowStrength).roundToInt().coerceIn(0, 255)
+
+        private fun applyTextShadow(paint: Paint, radius: Float, alpha: Int) {
+            val appliedAlpha = shadowAlpha(alpha)
+            if (appliedAlpha <= 0) {
+                paint.clearShadowLayer()
+            } else {
+                paint.setShadowLayer(radius * shadowStrength.coerceAtLeast(0.2f), 0f, 2f, colorWithAlpha(Color.BLACK, appliedAlpha))
+            }
+        }
+
+        private fun applyTextGlow(paint: Paint, radius: Float, alpha: Int) {
+            val appliedAlpha = shadowAlpha(alpha)
+            if (appliedAlpha <= 0) {
+                paint.clearShadowLayer()
+            } else {
+                paint.setShadowLayer(radius * shadowStrength.coerceAtLeast(0.2f), 0f, 0f, colorWithAlpha(textColor, appliedAlpha))
+            }
+        }
+
         private fun Char.isCjkChar(): Boolean =
             Character.UnicodeBlock.of(this) in setOf(
                 Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
@@ -902,6 +966,19 @@ class DesktopLyricService : Service() {
         private const val NOTIFICATION_ID = 0x454c4459
         private const val CONTROLS_AUTO_HIDE_MS = 4_000L
         private const val DOUBLE_TAP_TIMEOUT_MS = 360L
+        private val desktopLyricQuickColors = intArrayOf(
+            Color.WHITE,
+            Color.rgb(191, 191, 191),
+            Color.rgb(145, 205, 255),
+            Color.rgb(3, 169, 244),
+            Color.rgb(166, 235, 203),
+            Color.rgb(26, 201, 125),
+            Color.rgb(179, 136, 255),
+            Color.rgb(255, 188, 214),
+            Color.rgb(255, 112, 112),
+            Color.rgb(255, 224, 150),
+            Color.rgb(255, 87, 34)
+        )
         private var userHidden = false
     }
 }

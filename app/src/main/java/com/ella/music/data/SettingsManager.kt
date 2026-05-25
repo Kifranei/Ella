@@ -40,6 +40,7 @@ class SettingsManager(private val context: Context) {
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
         val KEY_DESKTOP_LYRIC_OPACITY = intPreferencesKey("desktop_lyric_opacity")
         val KEY_DESKTOP_LYRIC_TEXT_COLOR = intPreferencesKey("desktop_lyric_text_color")
+        val KEY_DESKTOP_LYRIC_SHADOW_STRENGTH = intPreferencesKey("desktop_lyric_shadow_strength")
         val KEY_DESKTOP_LYRIC_X = intPreferencesKey("desktop_lyric_x")
         val KEY_DESKTOP_LYRIC_Y = intPreferencesKey("desktop_lyric_y")
         val KEY_SUPER_LYRIC_ENABLED = booleanPreferencesKey("super_lyric_enabled")
@@ -54,6 +55,8 @@ class SettingsManager(private val context: Context) {
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
+        val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
+        val KEY_MINI_PLAYER_LYRICS_ENABLED = booleanPreferencesKey("mini_player_lyrics_enabled")
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
@@ -171,6 +174,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_TRANSLATION_SCALE] ?: 110 }
     val desktopLyricOpacity: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_OPACITY] ?: 100 }
     val desktopLyricTextColor: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_TEXT_COLOR] ?: -1 }
+    val desktopLyricShadowStrength: Flow<Int> =
+        context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_SHADOW_STRENGTH] ?: 100 }
     val desktopLyricX: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_X] ?: Int.MIN_VALUE }
     val desktopLyricY: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_Y] ?: Int.MIN_VALUE }
     val superLyricEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_SUPER_LYRIC_ENABLED] ?: false }
@@ -190,6 +195,11 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
     val miniPlayerLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRIC_TRANSLATION] ?: true }
+    val miniPlayerCoverRotation: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MINI_PLAYER_COVER_ROTATION] ?: true }
+
+    val miniPlayerLyricsEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRICS_ENABLED] ?: true }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val playerImmersiveCover: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: true }
@@ -351,6 +361,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_DESKTOP_LYRIC_TEXT_COLOR] = color }
     }
 
+    suspend fun setDesktopLyricShadowStrength(strength: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_SHADOW_STRENGTH] = strength.coerceIn(0, 160) }
+    }
+
     suspend fun setDesktopLyricPosition(x: Int, y: Int) {
         context.dataStore.edit {
             it[KEY_DESKTOP_LYRIC_X] = x
@@ -414,6 +428,14 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setMiniPlayerLyricTranslation(enabled: Boolean) {
         context.dataStore.edit { it[KEY_MINI_PLAYER_LYRIC_TRANSLATION] = enabled }
+    }
+
+    suspend fun setMiniPlayerCoverRotation(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MINI_PLAYER_COVER_ROTATION] = enabled }
+    }
+
+    suspend fun setMiniPlayerLyricsEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_MINI_PLAYER_LYRICS_ENABLED] = enabled }
     }
 
     suspend fun setPlayerHdrGlow(enabled: Boolean) {

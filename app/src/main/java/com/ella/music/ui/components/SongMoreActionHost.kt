@@ -282,9 +282,11 @@ fun SongMoreActionHost(
                     createPlaylistSong = song
                     playlistSong = null
                 },
-                onPlaylistClick = { playlist ->
-                    mainViewModel.addSongsToPlaylist(playlist.id, listOf(song))
-                    Toast.makeText(context, "已添加到 ${playlist.name}", Toast.LENGTH_SHORT).show()
+                onPlaylistsConfirm = { selectedPlaylists ->
+                    selectedPlaylists.forEach { playlist ->
+                        mainViewModel.addSongsToPlaylist(playlist.id, listOf(song))
+                    }
+                    Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
                     playlistSong = null
                 }
             )
@@ -416,8 +418,10 @@ private fun AddToPlaylistSheet(
     playlists: List<UserPlaylist>,
     onDismiss: () -> Unit,
     onCreatePlaylist: () -> Unit,
-    onPlaylistClick: (UserPlaylist) -> Unit
+    onPlaylistsConfirm: (List<UserPlaylist>) -> Unit
 ) {
+    var selectedIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
+    val selectedPlaylists = playlists.filter { it.id in selectedIds }
     SongSheetColumn {
         SongMenuItem("新建歌单", onCreatePlaylist)
         if (playlists.isEmpty()) {
@@ -429,8 +433,28 @@ private fun AddToPlaylistSheet(
             )
         } else {
             playlists.forEach { playlist ->
-                SongMenuItem("${playlist.name} · ${playlist.songs.size} 首", onClick = { onPlaylistClick(playlist) })
+                val selected = playlist.id in selectedIds
+                SongMenuItem(
+                    "${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} 首",
+                    onClick = {
+                        selectedIds = if (selected) {
+                            selectedIds - playlist.id
+                        } else {
+                            selectedIds + playlist.id
+                        }
+                    }
+                )
             }
+        }
+        if (playlists.isNotEmpty()) {
+            SongMenuItem(
+                "完成（${selectedIds.size}）",
+                onClick = {
+                    if (selectedPlaylists.isNotEmpty()) {
+                        onPlaylistsConfirm(selectedPlaylists)
+                    }
+                }
+            )
         }
         SongMenuItem("取消", onDismiss)
     }

@@ -493,9 +493,11 @@ fun FolderDetailScreen(
                         createPlaylistSongs = songsToAdd
                         playlistPickerSongs = null
                     },
-                    onPlaylistClick = { playlist ->
-                        mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
-                        Toast.makeText(context, "已添加到 ${playlist.name}", Toast.LENGTH_SHORT).show()
+                    onPlaylistsConfirm = { selectedPlaylists ->
+                        selectedPlaylists.forEach { playlist ->
+                            mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
+                        }
+                        Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
                         playlistPickerSongs = null
                         selectedIds = emptySet()
                         selectionMode = false
@@ -544,8 +546,10 @@ private fun AddSelectedSongsToPlaylistSheet(
     songCount: Int,
     onDismiss: () -> Unit,
     onCreatePlaylist: () -> Unit,
-    onPlaylistClick: (UserPlaylist) -> Unit
+    onPlaylistsConfirm: (List<UserPlaylist>) -> Unit
 ) {
+    var selectedPlaylistIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
+    val selectedPlaylists = playlists.filter { it.id in selectedPlaylistIds }
     Column(
         modifier = Modifier.padding(bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -566,7 +570,21 @@ private fun AddSelectedSongsToPlaylistSheet(
             )
         } else {
             playlists.forEach { playlist ->
-                FolderSheetItem("${playlist.name} · ${playlist.songs.size} 首") { onPlaylistClick(playlist) }
+                val selected = playlist.id in selectedPlaylistIds
+                FolderSheetItem("${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} 首") {
+                    selectedPlaylistIds = if (selected) {
+                        selectedPlaylistIds - playlist.id
+                    } else {
+                        selectedPlaylistIds + playlist.id
+                    }
+                }
+            }
+        }
+        if (playlists.isNotEmpty()) {
+            FolderSheetItem("完成（${selectedPlaylistIds.size}）") {
+                if (selectedPlaylists.isNotEmpty()) {
+                    onPlaylistsConfirm(selectedPlaylists)
+                }
             }
         }
         FolderSheetItem("取消", onDismiss)

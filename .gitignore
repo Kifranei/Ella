@@ -11,6 +11,7 @@
 local.properties
 /app/build
 /app/debug
+/app/fastRelease
 /app/release
 /.tmp
 /ffmpeg-decoder/build

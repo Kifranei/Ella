@@ -48,6 +48,11 @@ data class PlaylistExportResult(
     val skippedCount: Int
 )
 
+enum class PlaylistExportFormat {
+    PlainText,
+    M3u
+}
+
 class PlaylistStore private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val file = File(appContext.filesDir, "ella_playlists.json")
@@ -303,11 +308,20 @@ class PlaylistStore private constructor(context: Context) {
             .firstOrNull()
     }
 
+    suspend fun exportLocalPlaylist(
+        playlist: UserPlaylist,
+        uri: Uri,
+        format: PlaylistExportFormat = PlaylistExportFormat.PlainText
+    ): PlaylistExportResult = when (format) {
+        PlaylistExportFormat.PlainText -> exportSaltPlayerPlaylist(playlist, uri)
+        PlaylistExportFormat.M3u -> exportM3uPlaylist(playlist, uri)
+    }
+
     suspend fun exportSaltPlayerPlaylist(playlist: UserPlaylist, uri: Uri): PlaylistExportResult =
         withContext(Dispatchers.IO) {
             val paths = playlist.songs
                 .map { it.path.trim() }
-                .filter { it.isNotBlank() && !it.startsWith("http://") && !it.startsWith("https://") }
+                .filter { it.isExportableLocalPlaylistPath() }
                 .distinctBy { it.normalizedPlaylistPath() }
             val content = paths.joinToString(separator = "\n", postfix = if (paths.isNotEmpty()) "\n" else "")
             appContext.contentResolver.openOutputStream(uri, "wt")?.use { output ->
@@ -316,6 +330,32 @@ class PlaylistStore private constructor(context: Context) {
             PlaylistExportResult(
                 exportedCount = paths.size,
                 skippedCount = playlist.songs.size - paths.size
+            )
+        }
+
+    private suspend fun exportM3uPlaylist(playlist: UserPlaylist, uri: Uri): PlaylistExportResult =
+        withContext(Dispatchers.IO) {
+            val exportableSongs = playlist.songs
+                .filter { it.path.isExportableLocalPlaylistPath() }
+                .distinctBy { it.path.normalizedPlaylistPath() }
+            val content = buildString {
+                appendLine("#EXTM3U")
+                exportableSongs.forEach { song ->
+                    val seconds = if (song.duration > 0L) song.duration / 1000L else -1L
+                    val artist = song.artist.ifBlank { "Unknown Artist" }
+                    val title = song.title.ifBlank {
+                        song.fileName.ifBlank { song.path.substringAfterLast('/') }
+                    }
+                    appendLine("#EXTINF:$seconds,$artist - $title")
+                    appendLine(song.path.trim())
+                }
+            }
+            appContext.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                output.write(content.toByteArray(Charsets.UTF_8))
+            } ?: error("无法打开导出文件")
+            PlaylistExportResult(
+                exportedCount = exportableSongs.size,
+                skippedCount = playlist.songs.size - exportableSongs.size
             )
         }
 
@@ -414,6 +454,13 @@ class PlaylistStore private constructor(context: Context) {
 
     private fun String.normalizedPlaylistPath(): String =
         trim().replace('\\', '/').lowercase()
+
+    private fun String.isExportableLocalPlaylistPath(): Boolean {
+        val value = trim()
+        return value.isNotBlank() &&
+            !value.startsWith("http://", ignoreCase = true) &&
+            !value.startsWith("https://", ignoreCase = true)
+    }
 
     private fun Song.playlistPathKeys(): List<String> =
         path.playlistEntryPathCandidates() + fileName.playlistEntryPathCandidates()

@@ -32,9 +32,7 @@ android {
         versionCode = 17
         versionName = "1.1.6"
 
-        val buildTime = providers.environmentVariable("BUILD_TIME")
-            .orElse("local")
-            .get()
+        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 

@@ -357,14 +357,16 @@ fun EllaApp(
     val lyrics by playerViewModel.lyrics.collectAsState()
     val currentLyricIndex by playerViewModel.currentLyricIndex.collectAsState()
     val miniPlayerShowTranslation by settingsManager.miniPlayerLyricTranslation.collectAsState(initial = true)
+    val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
+    val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
 
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
-    val miniPlayerLyricText = if (isPlaying) {
+    val miniPlayerLyricText = if (isPlaying && miniPlayerLyricsEnabled) {
         currentLyricLine?.text?.takeIf { it.isNotBlank() && !it.isMusicSymbolOnly() }
     } else {
         null
     }
-    val miniPlayerLyricTranslation = if (isPlaying && miniPlayerShowTranslation) {
+    val miniPlayerLyricTranslation = if (isPlaying && miniPlayerLyricsEnabled && miniPlayerShowTranslation) {
         currentLyricLine?.translation?.takeIf { it.isNotBlank() }
     } else {
         null
@@ -441,6 +443,7 @@ fun EllaApp(
                 showBottomBar = showBottomBar,
                 currentSong = currentSong,
                 isPlaying = isPlaying,
+                coverRotationEnabled = miniPlayerCoverRotation,
                 currentPosition = currentPosition,
                 duration = duration,
                 lyricText = miniPlayerLyricText,
@@ -603,6 +606,7 @@ private fun FloatingBottomControls(
     showBottomBar: Boolean,
     currentSong: com.ella.music.data.model.Song?,
     isPlaying: Boolean,
+    coverRotationEnabled: Boolean,
     currentPosition: Long,
     duration: Long,
     lyricText: String?,
@@ -633,6 +637,7 @@ private fun FloatingBottomControls(
                     song = song,
                     isPlaying = isPlaying,
                     progress = if (duration > 0L) currentPosition.toFloat() / duration.toFloat() else 0f,
+                    coverRotationEnabled = coverRotationEnabled,
                     lyricText = lyricText,
                     lyricTranslation = lyricTranslation,
                     albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),

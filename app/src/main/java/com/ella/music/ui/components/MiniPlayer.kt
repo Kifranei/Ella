@@ -78,6 +78,7 @@ fun MiniPlayer(
     lyricText: String? = null,
     lyricTranslation: String? = null,
     lyricProgress: Float = 0f,
+    coverRotationEnabled: Boolean = true,
     albumArtUri: Uri? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
@@ -130,7 +131,11 @@ fun MiniPlayer(
     var coverRotation by remember(song.id) { mutableFloatStateOf(0f) }
     val interactionSource = remember { MutableInteractionSource() }
 
-    LaunchedEffect(song.id, isPlaying) {
+    LaunchedEffect(song.id, isPlaying, coverRotationEnabled) {
+        if (!coverRotationEnabled) {
+            coverRotation = 0f
+            return@LaunchedEffect
+        }
         if (!isPlaying) return@LaunchedEffect
         var lastFrameNanos = 0L
         while (isActive) {

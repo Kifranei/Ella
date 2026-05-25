@@ -110,8 +110,8 @@ private fun shortcutIconForRoute(route: String): Int = when (route) {
     "category/folder" -> R.drawable.ic_shortcut_folder
     "category/genre" -> R.drawable.ic_shortcut_tag
     "category/year" -> R.drawable.ic_shortcut_calendar
-    "category/composer",
-    "category/lyricist" -> R.drawable.ic_shortcut_artist
+    "category/composer" -> R.drawable.ic_shortcut_composer
+    "category/lyricist" -> R.drawable.ic_shortcut_lyricist
     else -> shortcutIconForRoutePrefix(route)
 }
 
@@ -123,7 +123,8 @@ private fun shortcutIconForRoutePrefix(route: String): Int = when {
     route.startsWith("category/folder/") -> R.drawable.ic_shortcut_folder
     route.startsWith("category/genre/") -> R.drawable.ic_shortcut_tag
     route.startsWith("category/year/") -> R.drawable.ic_shortcut_calendar
-    route.startsWith("category/composer/") || route.startsWith("category/lyricist/") -> R.drawable.ic_shortcut_artist
+    route.startsWith("category/composer/") -> R.drawable.ic_shortcut_composer
+    route.startsWith("category/lyricist/") -> R.drawable.ic_shortcut_lyricist
     else -> R.drawable.ic_music_note
 }
 
