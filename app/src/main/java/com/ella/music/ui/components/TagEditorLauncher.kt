@@ -115,7 +115,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
             putExtra("content_uri", contentUri.toString())
             mediaStoreUri?.let { putExtra("mediaStoreUri", it.toString()) }
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(tagEditorActivityFlags())
             clipData = ClipData.newUri(context.contentResolver, label, dataUri)
         }
     }
@@ -157,7 +157,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                 putExtra("uri", it.toString())
                 putExtra("mediaStoreUri", it.toString())
             }
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(tagEditorActivityFlags())
         }
     }
 
@@ -189,7 +189,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
             putExtra("content_uri", defaultEditUri.toString())
             mediaStoreUri?.let { putExtra("mediaStoreUri", it.toString()) }
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(tagEditorActivityFlags())
             clipData = ClipData.newUri(context.contentResolver, "LunaBeat", defaultEditUri)
         }
     }
@@ -301,6 +301,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
 fun launchTagEditorOption(context: Context, option: TagEditorOption) {
     val launched = option.intents.any { intent ->
         runCatching {
+            intent.addFlags(tagEditorActivityFlags())
             val targetPackage = intent.component?.packageName ?: intent.`package`
             targetPackage?.let { packageName ->
                 context.grantTagEditorUriPermission(packageName, intent.data)
@@ -335,6 +336,9 @@ fun launchTagEditorOption(context: Context, option: TagEditorOption) {
         Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
     }
 }
+
+private fun tagEditorActivityFlags(): Int =
+    Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
 
 private fun Context.grantTagEditorUriPermission(packageName: String, uri: Uri?) {
     if (uri == null) return

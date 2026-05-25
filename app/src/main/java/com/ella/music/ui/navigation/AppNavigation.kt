@@ -112,11 +112,21 @@ fun AppNavigation(
             )
         }
     ) {
+        fun navigateTopLevel(route: String) {
+            navController.navigate(route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = false
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+        }
+
         composable(Screen.Home.route) {
             HomeScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
-                onNavigateToLibrary = { navController.navigate(Screen.Library.route) },
+                onNavigateToLibrary = { navigateTopLevel(Screen.Library.route) },
                 onNavigateToArtist = { navController.navigate(Screen.Artist.route) },
                 onNavigateToAlbum = { navController.navigate(Screen.Album.route) },
                 onNavigateToFolder = { navController.navigate(Screen.Folder.route) },

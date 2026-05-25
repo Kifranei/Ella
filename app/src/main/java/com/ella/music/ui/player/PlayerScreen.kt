@@ -3668,10 +3668,10 @@ private fun miniLyricsPreviewHeight(
     showTranslation: Boolean,
     showPronunciation: Boolean
 ) = when (line?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) {
-    0, 1 -> 126.dp
-    2 -> 154.dp
-    3 -> 184.dp
-    else -> 220.dp
+    0, 1 -> 154.dp
+    2 -> 184.dp
+    3 -> 220.dp
+    else -> 252.dp
 }
 
 @Composable

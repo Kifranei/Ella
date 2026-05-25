@@ -114,7 +114,7 @@ fun FolderScreen(
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
     val rootFolderPath = remember(songs) { songs.commonFolderRoot() }
-    val rootDirectSongs = remember(songs, rootFolderPath) { songs.directSongsInFolder(rootFolderPath) }
+    val rootSongs = remember(songs, rootFolderPath) { songs.recursiveSongsInFolder(rootFolderPath) }
     val rootChildFolders = remember(songs, rootFolderPath) { songs.childFoldersOf(rootFolderPath) }
 
     BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null) {
@@ -285,24 +285,24 @@ fun FolderScreen(
                 }
             }
         } else {
-            val folders = remember(rootChildFolders, rootDirectSongs, rootFolderPath, folderSortMode, searchQuery) {
+            val folders = remember(rootChildFolders, rootSongs, rootFolderPath, folderSortMode, searchQuery) {
                 val entries = buildList {
-                    if (rootDirectSongs.isNotEmpty()) {
+                    if (rootSongs.isNotEmpty()) {
                         add(
                             FolderTreeEntry(
                                 path = rootFolderPath,
                                 name = rootFolderPath.substringAfterLast('/').ifBlank { "根目录" },
-                                songCount = rootDirectSongs.size,
-                                albumCount = rootDirectSongs.map { it.albumIdentityId() }.distinct().size,
-                                duration = rootDirectSongs.sumOf { it.duration },
-                                dateModified = rootDirectSongs.maxOfOrNull { it.dateModified } ?: 0L
+                                songCount = rootSongs.size,
+                                albumCount = rootSongs.map { it.albumIdentityId() }.distinct().size,
+                                duration = rootSongs.sumOf { it.duration },
+                                dateModified = rootSongs.maxOfOrNull { it.dateModified } ?: 0L
                             )
                         )
                     }
                     addAll(rootChildFolders)
                 }
                 val query = searchQuery.trim()
-                val pinnedRoot = rootFolderPath.takeIf { rootDirectSongs.isNotEmpty() }
+                val pinnedRoot = rootFolderPath.takeIf { rootSongs.isNotEmpty() }
                 entries
                     .sortedForFolderList(folderSortMode, pinnedPath = pinnedRoot)
                     .let { sorted ->
