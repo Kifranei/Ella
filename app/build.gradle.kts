@@ -32,7 +32,9 @@ android {
         versionCode = 17
         versionName = "1.1.6"
 
-        val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
+        val buildTime = providers.environmentVariable("BUILD_TIME")
+            .orElse("local")
+            .get()
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
@@ -75,6 +77,14 @@ android {
                 )
             }
             signingConfig = signingConfigs.getByName("release")
+        }
+
+    create("fastRelease") {
+        initWith(getByName("release"))
+        isMinifyEnabled = false
+        isShrinkResources = false
+        matchingFallbacks += listOf("release")
+        signingConfig = signingConfigs.getByName("release")
         }
     }
 
