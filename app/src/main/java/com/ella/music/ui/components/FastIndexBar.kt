@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -121,6 +122,7 @@ fun LazyListScrollIndicator(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    var dragJob by remember { mutableStateOf<Job?>(null) }
     val info by remember {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
@@ -135,7 +137,10 @@ fun LazyListScrollIndicator(
         visibleCount = info.second,
         totalCount = info.third,
         modifier = modifier,
-        onDragToIndex = { index -> scope.launch { state.scrollToItem(index) } }
+        onDragToIndex = { index ->
+            dragJob?.cancel()
+            dragJob = scope.launch { state.scrollToItem(index) }
+        }
     )
 }
 
@@ -145,6 +150,7 @@ fun LazyGridScrollIndicator(
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
+    var dragJob by remember { mutableStateOf<Job?>(null) }
     val info by remember {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
@@ -159,7 +165,10 @@ fun LazyGridScrollIndicator(
         visibleCount = info.second,
         totalCount = info.third,
         modifier = modifier,
-        onDragToIndex = { index -> scope.launch { state.scrollToItem(index) } }
+        onDragToIndex = { index ->
+            dragJob?.cancel()
+            dragJob = scope.launch { state.scrollToItem(index) }
+        }
     )
 }
 

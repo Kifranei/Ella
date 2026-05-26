@@ -57,6 +57,12 @@ enum class CoverUsage {
     ShareCard
 }
 
+private sealed class CoverDataState {
+    data object Found : CoverDataState()
+    data object Missing : CoverDataState()
+    data class Error(val message: String?) : CoverDataState()
+}
+
 class MusicRepository(private val context: Context) {
 
     private val scanner = MusicScanner(context)
@@ -94,7 +100,7 @@ class MusicRepository(private val context: Context) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount / 1024
     }
     private val coverArtLock = Any()
-    private val missingCoverKeys = ConcurrentHashMap.newKeySet<String>()
+    private val coverDataStates = ConcurrentHashMap<String, CoverDataState>()
     private val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
     private val remoteAudioCacheDir = File(context.cacheDir, "webdav_audio")
 
@@ -480,23 +486,31 @@ class MusicRepository(private val context: Context) {
 
     fun getCoverArt(song: Song): ByteArray? {
         val cacheKey = song.coverDataCacheKey()
-        if (missingCoverKeys.contains(cacheKey)) return null
+        coverArtCache.get(cacheKey)?.let { return it }
+        when (coverDataStates[cacheKey]) {
+            CoverDataState.Missing,
+            is CoverDataState.Error -> return null
+            CoverDataState.Found,
+            null -> Unit
+        }
         synchronized(coverArtLock) {
             coverArtCache.get(cacheKey)?.let { return it }
-            val art = runCatching {
+            val art = try {
                 audioTagRepository.readEmbeddedCoverDataBlocking(song.effectiveLocalPathForMetadata())
-            }.getOrElse { error ->
+            } catch (error: Throwable) {
                 if (error is OutOfMemoryError) {
                     coverArtCache.evictAll()
                     coverBitmapCache.evictAll()
                 }
                 Log.w("MusicRepo", "Failed to extract cover art for ${song.path}", error)
+                coverDataStates[cacheKey] = CoverDataState.Error(error.message)
                 null
             }
             if (art != null) {
                 coverArtCache.put(cacheKey, art)
+                coverDataStates[cacheKey] = CoverDataState.Found
             } else {
-                missingCoverKeys += cacheKey
+                coverDataStates.putIfAbsent(cacheKey, CoverDataState.Missing)
             }
             return art
         }
@@ -607,7 +621,7 @@ class MusicRepository(private val context: Context) {
         replayGainCache.clear()
         coverArtCache.evictAll()
         coverBitmapCache.evictAll()
-        missingCoverKeys.clear()
+        coverDataStates.clear()
     }
 
     fun clearMetadataCache(song: Song) {
@@ -617,7 +631,7 @@ class MusicRepository(private val context: Context) {
         replayGainCache.remove(song.id)
         audioTagRepository.clear(song.effectiveLocalPathForMetadata())
         val keyPrefix = song.coverCacheKey()
-        missingCoverKeys.removeAll { it.startsWith(keyPrefix) }
+        coverDataStates.keys.removeAll { it.startsWith(keyPrefix) }
         coverArtCache.remove(song.coverDataCacheKey())
         val bitmapKeyPrefix = "${song.coverDataCacheKey()}:"
         val bitmapKeys = mutableListOf<String>()
