@@ -6,13 +6,18 @@ plugins {
 android {
     namespace = "com.lonx.audiotag"
     compileSdk = 37
+    val buildNative = providers.gradleProperty("ellaBuildNative")
+        .map { it.toBoolean() }
+        .getOrElse(false)
 
     defaultConfig {
         minSdk = 28
         consumerProguardFiles("consumer-rules.pro")
-        externalNativeBuild {
-            cmake {
-                cppFlags += ""
+        if (buildNative) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags += ""
+                }
             }
         }
         ndk {
@@ -21,7 +26,7 @@ android {
                 ?.split(",")
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
-                ?: listOf("arm64-v8a", "armeabi-v7a")
+                ?: listOf("arm64-v8a")
             abiFilters += abiIncludes
         }
     }
@@ -41,9 +46,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
+    if (buildNative) {
+        externalNativeBuild {
+            cmake {
+                path = file("src/main/cpp/CMakeLists.txt")
+            }
         }
     }
 }

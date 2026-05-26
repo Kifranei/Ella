@@ -5,6 +5,9 @@ plugins {
 android {
     namespace = "androidx.media3.decoder.ffmpeg"
     compileSdk = 37
+    val buildNative = providers.gradleProperty("ellaBuildNative")
+        .map { it.toBoolean() }
+        .getOrElse(false)
 
     defaultConfig {
         minSdk = 26
@@ -14,7 +17,7 @@ android {
                 ?.split(",")
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
-                ?: listOf("arm64-v8a", "armeabi-v7a")
+                ?: listOf("arm64-v8a")
 
             abiFilters += abiIncludes
         }
@@ -25,7 +28,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    if (file("src/main/jni/ffmpeg").exists()) {
+    if (buildNative && file("src/main/jni/ffmpeg").exists()) {
         externalNativeBuild {
             cmake {
                 path = file("src/main/jni/CMakeLists.txt")

@@ -138,8 +138,31 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "=== FFmpeg build completed successfully ==="
     Write-Host "Static libraries are in: $FFMPEG_MODULE_PATH\jni\ffmpeg\android-libs\"
+    Write-Host "Building libffmpegJNI.so and refreshing the packaged arm64-v8a prebuilt..."
+
+    Push-Location $REPO_ROOT
+    try {
+        .\gradlew.bat :ffmpeg-decoder:assembleRelease -PellaBuildNative=true -PellaAbi=arm64-v8a
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "ERROR: Failed to build libffmpegJNI.so."
+            exit 1
+        }
+
+        $builtSo = Join-Path $REPO_ROOT "ffmpeg-decoder\build\intermediates\stripped_native_libs\release\stripReleaseDebugSymbols\out\lib\arm64-v8a\libffmpegJNI.so"
+        $outputDir = Join-Path $REPO_ROOT "ffmpeg-decoder\src\main\jniLibs\arm64-v8a"
+        if (-not (Test-Path $builtSo)) {
+            Write-Host "ERROR: Built library not found: $builtSo"
+            exit 1
+        }
+        New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+        Copy-Item -LiteralPath $builtSo -Destination (Join-Path $outputDir "libffmpegJNI.so") -Force
+        Write-Host "Copied prebuilt library to $outputDir"
+    } finally {
+        Pop-Location
+    }
+
     Write-Host ""
-    Write-Host "Now rebuild the app: .\gradlew.bat :app:assembleRelease"
+    Write-Host "Now rebuild the app normally: .\gradlew.bat :app:assembleRelease"
 } else {
     Write-Host ""
     Write-Host "=== FFmpeg build FAILED ==="

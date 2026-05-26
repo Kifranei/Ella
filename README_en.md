@@ -20,6 +20,19 @@
 
 ---
 
+## Native Build Notes
+
+Ella packages prebuilt arm64-v8a native libraries by default. Normal `assembleDebug` / `assembleFastRelease` builds do not rebuild FFmpeg or lyrico-audiotag.
+
+To refresh native outputs, run these scripts manually:
+
+- `.\build_ffmpeg.ps1`
+- `.\build_lyrico_taglib.ps1`
+
+The scripts enable `-PellaBuildNative=true`, rebuild the `.so` files, and copy them into each module's `src/main/jniLibs/arm64-v8a/` directory.
+
+---
+
 ## ✨ Overview
 
 **Ella Music** is an Android music player built with **Jetpack Compose, Miuix, and AndroidX Media3**.

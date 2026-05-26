@@ -20,6 +20,19 @@
 
 ---
 
+## Native 构建说明
+
+Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDebug` / `assembleFastRelease` 不会重新编译 FFmpeg 或 lyrico-audiotag。
+
+如果需要更新 native 产物，请手动运行：
+
+- `.\build_ffmpeg.ps1`
+- `.\build_lyrico_taglib.ps1`
+
+脚本会启用 `-PellaBuildNative=true` 重新生成 `.so`，并复制到对应模块的 `src/main/jniLibs/arm64-v8a/`。
+
+---
+
 ## ✨ 项目简介
 
 **Ella Music** 是一款基于 **Jetpack Compose、Miuix 和 AndroidX Media3** 构建的 Android 音乐播放器。
