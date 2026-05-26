@@ -64,6 +64,8 @@ class DesktopLyricService : Service() {
     private var opacityPercent = 100
     private var lyricTextColor = Color.WHITE
     private var shadowStrength = 1f
+    private var statusBarMode = false
+    private var controllerIsPlaying = false
     private var savedX = Int.MIN_VALUE
     private var savedY = Int.MIN_VALUE
     private val settingsManager by lazy { SettingsManager(this) }
@@ -94,10 +96,14 @@ class DesktopLyricService : Service() {
                         controller = result
                         result?.addListener(object : Player.Listener {
                             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                                controllerIsPlaying = isPlaying
                                 updatePlayPauseIcon()
+                                updateStatusBarModeVisibility()
                             }
                         })
+                        controllerIsPlaying = result?.isPlaying == true
                         updatePlayPauseIcon()
+                        updateStatusBarModeVisibility()
                     }
 
                     override fun onFailure(t: Throwable) = Unit
@@ -147,6 +153,7 @@ class DesktopLyricService : Service() {
             return
         }
         if (rootView == null) addLyricView()
+        updateStatusBarModeVisibility()
         lyricView?.setLyric(
             text = intent.getStringExtra(EXTRA_TEXT).orEmpty(),
             pronunciation = intent.getStringExtra(EXTRA_PRONUNCIATION).orEmpty(),
@@ -169,7 +176,16 @@ class DesktopLyricService : Service() {
     }
 
     private fun addLyricView() {
-        val lyricWidth = max(dp(280), resources.displayMetrics.widthPixels - dp(32)).coerceAtMost(dp(660))
+        val lyricWidth = if (statusBarMode) {
+            (resources.displayMetrics.widthPixels - dp(144)).coerceIn(dp(160), dp(520))
+        } else {
+            max(dp(280), resources.displayMetrics.widthPixels - dp(32)).coerceAtMost(dp(660))
+        }
+        val lyricHeight = if (statusBarMode) {
+            max(statusBarHeight() + dp(2), dp(28))
+        } else {
+            dp(150)
+        }
         val lyric = DesktopLyricView(this)
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -196,12 +212,12 @@ class DesktopLyricService : Service() {
             gravity = Gravity.CENTER
 
             // 纯文字悬浮窗：不要黑色背景、不要描边、不要阴影卡片
-            setPadding(dp(8), dp(4), dp(8), dp(4))
+            setPadding(dp(if (statusBarMode) 4 else 8), dp(if (statusBarMode) 0 else 4), dp(if (statusBarMode) 4 else 8), dp(if (statusBarMode) 0 else 4))
             setBackgroundColor(Color.TRANSPARENT)
             elevation = 0f
 
             // Keep the overlay inside the physical screen; fixed dp widths can overflow on high-density phones.
-            addView(lyric, LinearLayout.LayoutParams(lyricWidth, dp(150)))
+            addView(lyric, LinearLayout.LayoutParams(lyricWidth, lyricHeight))
 
             // 控制按钮仍保留，双击歌词时显示
             addView(
@@ -221,19 +237,20 @@ class DesktopLyricService : Service() {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
         }
+        val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             type,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            if (statusBarMode || locked) baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE else baseFlags,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = savedX.takeIf { it != Int.MIN_VALUE } ?: 0
-            y = savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
+            x = if (statusBarMode) 0 else savedX.takeIf { it != Int.MIN_VALUE } ?: 0
+            y = if (statusBarMode) 0 else savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -246,8 +263,13 @@ class DesktopLyricService : Service() {
         applyCurrentSettingsToViews()
         windowManager.addView(root, params)
         clampToScreen(root, params)
-        if (params.x != savedX || params.y != savedY) persistPosition(params.x, params.y)
-        if (locked) setLocked(true) else setPanelVisible(false)
+        if (!statusBarMode && (params.x != savedX || params.y != savedY)) persistPosition(params.x, params.y)
+        if (statusBarMode) {
+            controls.visibility = View.GONE
+            setPanelVisible(false)
+            notificationManager.cancel(NOTIFICATION_ID)
+            updateStatusBarModeVisibility()
+        } else if (locked) setLocked(true) else setPanelVisible(false)
     }
 
     private fun LinearLayout.addControl(label: String, description: String, action: () -> Unit) {
@@ -357,6 +379,7 @@ class DesktopLyricService : Service() {
     }
 
     private fun showControlsWithTimeout() {
+        if (statusBarMode) return
         if (locked) return
         controlsView?.visibility = View.VISIBLE
         setPanelVisible(true)
@@ -379,6 +402,7 @@ class DesktopLyricService : Service() {
         locked = lock
         serviceScope.launch { settingsManager.setDesktopLyricLocked(lock) }
         controlsView?.visibility = when {
+            statusBarMode -> View.GONE
             lock -> View.GONE
             revealControls -> View.VISIBLE
             else -> controlsView?.visibility ?: View.GONE
@@ -386,17 +410,22 @@ class DesktopLyricService : Service() {
         setPanelVisible(!lock && controlsView?.visibility == View.VISIBLE)
         if (!lock && revealControls) scheduleControlsAutoHide()
         val params = layoutParams ?: return
-        params.flags = if (lock) {
+        params.flags = if (lock || statusBarMode) {
             params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         } else {
             params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         }
         rootView?.let { windowManager.updateViewLayout(it, params) }
-        if (lock) postUnlockNotification() else notificationManager.cancel(NOTIFICATION_ID)
+        if (lock && !statusBarMode) postUnlockNotification() else notificationManager.cancel(NOTIFICATION_ID)
     }
 
     private fun setPanelVisible(visible: Boolean) {
         val root = rootView ?: return
+        if (statusBarMode) {
+            root.background = null
+            root.setPadding(dp(4), 0, dp(4), 0)
+            return
+        }
         root.background = if (visible) panelBackground else null
         root.setPadding(
             dp(if (visible) 12 else 8),
@@ -407,6 +436,7 @@ class DesktopLyricService : Service() {
     }
 
     private fun onDrag(view: View, event: MotionEvent): Boolean {
+        if (statusBarMode) return false
         if (locked) return false
         val params = layoutParams ?: return false
         when (event.actionMasked) {
@@ -448,6 +478,11 @@ class DesktopLyricService : Service() {
     }
 
     private fun clampToScreen(view: View, params: WindowManager.LayoutParams) {
+        if (statusBarMode) {
+            params.x = 0
+            params.y = 0
+            return
+        }
         val metrics = resources.displayMetrics
         val halfWidth = ((view.width.takeIf { it > 0 } ?: dp(636)) / 2)
 
@@ -465,6 +500,7 @@ class DesktopLyricService : Service() {
     private fun loadSettingsFromStore() {
         runBlocking(Dispatchers.IO) {
             locked = settingsManager.desktopLyricLocked.first()
+            statusBarMode = settingsManager.desktopLyricStatusBarMode.first()
             fontScale = settingsManager.desktopLyricFontScale.first().coerceIn(80, 220) / 100f
             translationScale = settingsManager.desktopLyricTranslationScale.first().coerceIn(80, 220) / 100f
             opacityPercent = settingsManager.desktopLyricOpacity.first().coerceIn(35, 100)
@@ -476,9 +512,20 @@ class DesktopLyricService : Service() {
     }
 
     private fun applySettingsFromStore() {
+        val oldStatusBarMode = statusBarMode
         loadSettingsFromStore()
+        if (oldStatusBarMode != statusBarMode && rootView != null) {
+            rootView?.let { runCatching { windowManager.removeView(it) } }
+            rootView = null
+            lyricView = null
+            controlsView = null
+            layoutParams = null
+            addLyricView()
+            return
+        }
         applyCurrentSettingsToViews()
         setLocked(locked, revealControls = false)
+        updateStatusBarModeVisibility()
     }
 
     private fun applyCurrentSettingsToViews() {
@@ -487,9 +534,19 @@ class DesktopLyricService : Service() {
             translationScale = translationScale,
             opacityPercent = opacityPercent,
             textColor = lyricTextColor,
-            shadowStrength = shadowStrength
+            shadowStrength = shadowStrength,
+            statusBarMode = statusBarMode
         )
         rootView?.alpha = 1f
+    }
+
+    private fun updateStatusBarModeVisibility() {
+        if (!statusBarMode) {
+            rootView?.visibility = View.VISIBLE
+            return
+        }
+        val isPlaying = controller?.isPlaying ?: true
+        rootView?.visibility = if (isPlaying) View.VISIBLE else View.GONE
     }
 
     private fun persistPosition(x: Int, y: Int) {
@@ -582,6 +639,7 @@ class DesktopLyricService : Service() {
         private var opacity = 1f
         private var textColor = Color.WHITE
         private var shadowStrength = 1f
+        private var statusBarMode = false
         private var positionMs = 0L
         private var words = emptyList<DesktopWord>()
         private var pronunciationWords = emptyList<DesktopWord>()
@@ -592,13 +650,15 @@ class DesktopLyricService : Service() {
             translationScale: Float,
             opacityPercent: Int,
             textColor: Int,
-            shadowStrength: Float
+            shadowStrength: Float,
+            statusBarMode: Boolean = false
         ) {
             this.fontScale = fontScale.coerceIn(0.8f, 2.2f)
             this.translationScale = translationScale.coerceIn(0.8f, 2.2f)
             this.opacity = (opacityPercent.coerceIn(35, 100) / 100f)
             this.textColor = textColor
             this.shadowStrength = shadowStrength.coerceIn(0f, 1.6f)
+            this.statusBarMode = statusBarMode
             pendingPaint.color = colorWithAlpha(textColor, 150)
             activePaint.color = colorWithAlpha(textColor, 255)
             glowPaint.color = colorWithAlpha(textColor, 150)
@@ -659,6 +719,10 @@ class DesktopLyricService : Service() {
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+            if (statusBarMode) {
+                drawStatusBarLyric(canvas)
+                return
+            }
             val hasBackground = backgroundText.isNotBlank() || backgroundWords.isNotEmpty()
             val hasPronunciation = pronunciation.isNotBlank() || pronunciationWords.isNotEmpty()
             val primaryAlign = ttmlAlignForPrimary()
@@ -728,6 +792,30 @@ class DesktopLyricService : Service() {
                     )
                 }
             }
+        }
+
+        private fun drawStatusBarLyric(canvas: Canvas) {
+            val value = lyricText
+                .ifBlank { backgroundText }
+                .ifBlank { translation }
+                .ifBlank { "♪" }
+            val oldSize = activePaint.textSize
+            val oldAlign = activePaint.textAlign
+            activePaint.textSize = 12f * resources.displayMetrics.scaledDensity * fontScale.coerceIn(0.8f, 1.35f)
+            activePaint.textAlign = Paint.Align.CENTER
+            val metrics = activePaint.fontMetrics
+            val baseline = height / 2f - (metrics.ascent + metrics.descent) / 2f
+            drawFittedText(
+                canvas = canvas,
+                value = value,
+                anchorX = width / 2f,
+                baseline = baseline,
+                maxWidth = width * 0.96f,
+                align = AnchorAlign.Center,
+                paint = activePaint
+            )
+            activePaint.textSize = oldSize
+            activePaint.textAlign = oldAlign
         }
 
         private fun maxWidthForAlign(align: AnchorAlign): Float {

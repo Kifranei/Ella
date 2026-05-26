@@ -228,40 +228,39 @@ The script builds FFmpeg through WSL using the Linux Android NDK.
 
 ## 🧩 Ecosystem
 
-| Category | Capability |
-|:--|:--|
-| Local Music | Scanning, searching, playback, custom folders, folder browsing, local playlists, five-star songs, album / artist management |
-| Remote Music | WebDAV Digest authentication, directory browsing, and playback |
-| Online Music | LX Music API source import, search, streaming playback, downloads |
-| Dynamic Covers | Album folder videos, album videos, song videos, fallback videos |
-| Lyrics | LRC, Enhanced LRC, TTML, Lyricify, word-by-word lyrics, translation, romanization, background vocals |
-| System Lyrics | Floating lyrics, lyric barrage, SuperLyricApi, Lyric Getter API, Flyme status bar lyrics (Ticker notification), Bluetooth lyrics |
-| Decoding | Media3, system decoder, FFmpeg extended decoder |
-| Audio Metadata | TagLib, Jaudiotagger, embedded and external lyrics, 163 key decryption, alias / comment, quality label display |
-| Analytics | Format distribution, quality distribution, play count ranking, listening duration ranking, listening history |
+| Category | Capability                                                                                                                                     |
+|:--|:-----------------------------------------------------------------------------------------------------------------------------------------------|
+| Local Music | Scanning, searching, playback, custom folders, folder browsing, local playlists, five-star songs, album / artist management                    |
+| Remote Music | WebDAV Digest authentication, directory browsing, and playback                                                                                 |
+| Online Music | LX Music API source import, search, streaming playback, downloads                                                                              |
+| Dynamic Covers | Album folder videos, album videos, song videos, fallback videos                                                                                |
+| Lyrics | LRC, Enhanced LRC, TTML, Lyricify, word-by-word lyrics, translation, romanization, background vocals                                           |
+| System Lyrics | Floating lyrics, lyric barrage, SuperLyricApi, Lyric Getter API, Flyme status bar lyrics (Ticker notification), Bluetooth lyrics               |
+| Decoding | Media3, system decoder, FFmpeg extended decoder                                                                                                |
+| Audio Metadata | TagLib, Lyrico-Audiotag, embedded and external lyrics, 163 key decryption, alias / comment, quality label display                              |
+| Analytics | Format distribution, quality distribution, play count ranking, listening duration ranking, listening history                                   |
 | UI | Jetpack Compose, Miuix, floating bottom navigation, home dashboard, update page, immersive playback page, landscape lyrics, lyric card sharing |
 
 ---
 
 ## 🧱 Open Source Projects
 
-| Project | Purpose |
-|:--|:--|
-| [Miuix](https://github.com/compose-miuix-ui/miuix) | MIUI / HyperOS-style Compose UI components |
-| [AndroidX Media3](https://github.com/androidx/media) | Playback, media sessions, and ExoPlayer FFmpeg extension |
-| [FFmpeg](https://ffmpeg.org) | Software decoding for ALAC and other audio formats (LGPL-2.1) |
-| [Lyricon](https://github.com/proify/lyricon) | Lyric Provider API and status bar lyrics |
-| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | Publishes lyric data to the SuperLyric ecosystem (LGPL-2.1) |
+| Project | Purpose                                                                         |
+|:--|:--------------------------------------------------------------------------------|
+| [Miuix](https://github.com/compose-miuix-ui/miuix) | MIUI / HyperOS-style Compose UI components                                      |
+| [AndroidX Media3](https://github.com/androidx/media) | Playback, media sessions, and ExoPlayer FFmpeg extension                        |
+| [FFmpeg](https://ffmpeg.org) | Software decoding for ALAC and other audio formats (LGPL-2.1)                   |
+| [Lyricon](https://github.com/proify/lyricon) | Lyric Provider API and status bar lyrics                                        |
+| [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | Publishes lyric data to the SuperLyric ecosystem (LGPL-2.1)                     |
 | [LyricGetter-API](https://github.com/xiaowine/Lyric-Getter-Api) | Passes raw lyric text to the Lyric Getter ecosystem / API adaptation (LGPL-2.1) |
-| [Lyrico](https://github.com/Replica0110/Lyrico) | Tag editor adaptation and log page interaction reference |
-| [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | NetEase Cloud Music 163 key decryption flow reference |
-| [Jaudiotagger](https://github.com/Adonai/jaudiotagger) | Audio tags, embedded lyrics, and embedded covers (LGPL-2.1) |
-| [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib bindings |
-| [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Liquid glass and background blur effects |
-| [Coil](https://github.com/coil-kt/coil) | Compose image loading |
-| [QuickJS wrapper Android](https://github.com/HarlonWang/quickjs-wrapper) | Runtime for LX Music API JavaScript sources |
-| [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API compatibility implementation and reference |
-| [accompanist-lyrics-core](https://github.com/6xingyv/accompanist-lyrics-core) | Lyric parsing and TTML / LRC structure reference (Apache-2.0) |
+| [Lyrico](https://github.com/Replica0110/Lyrico) | Tag read and log page interaction reference                                     |
+| [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | NetEase Cloud Music 163 key decryption flow reference                           |
+| [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib bindings                                                |
+| [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | Liquid glass and background blur effects                                        |
+| [Coil](https://github.com/coil-kt/coil) | Compose image loading                                                           |
+| [QuickJS wrapper Android](https://github.com/HarlonWang/quickjs-wrapper) | Runtime for LX Music API JavaScript sources                                     |
+| [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API compatibility implementation and reference                         |
+| [accompanist-lyrics-core](https://github.com/6xingyv/accompanist-lyrics-core) | Lyric parsing and TTML / LRC structure reference (Apache-2.0)                   |
 
 ---
 
@@ -278,7 +277,6 @@ The Ella Music main project is open-sourced under **Apache-2.0**. Third-party co
 - **BetterLyrics** — Visual reference for blurred cover backgrounds and lyric display.
 - **SPlayer** — Visual reference for playback page animations and lyric experience.
 - **Lyrico** — Reference for external tag editor adaptation and log page interaction.
-- **Retro Music Player** — Reference for jaudiotagger-based tag reading.
 - **LX Music Mobile** — Provides LX Music API compatibility implementation and testing reference.
 - **Light Cone Music** — Interface design and feature implementation reference.
 - Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, Lyrico, 163KeyDecrypter, Jaudiotagger, Kyant TagLib, Backdrop, Coil, accompanist-lyrics-core, and other open source projects used by Ella Music.

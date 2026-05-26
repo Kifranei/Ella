@@ -496,6 +496,11 @@ class MusicScanner(private val context: Context) {
         val file = File(path)
         if (!file.exists()) return null
 
+        val preferTagLib = prefersTagLibEmbeddedMetadata(file)
+        if (preferTagLib) {
+            readTagLibEmbeddedLyrics(file)?.let { return it }
+        }
+
         val audioFileLyrics = readAudioFile(file)
             ?.safeTag(file)
             ?.safeFirst(file, FieldKey.LYRICS)
@@ -505,29 +510,8 @@ class MusicScanner(private val context: Context) {
             return audioFileLyrics
         }
 
-        runCatching {
-            val tagLibLyrics = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                selectBestLyrics(
-                    collectMetadataValues(
-                        fd,
-                        "SYNCEDLYRICS",
-                        "UNSYNCEDLYRICS",
-                        "UNSYNCED LYRICS",
-                        "LYRICS",
-                        "USLT",
-                        "SYLT",
-                        "©lyr",
-                        "\u00a9lyr",
-                        "LYRIC"
-                    )
-                )
-            }
-            if (!tagLibLyrics.isNullOrBlank()) {
-                Log.d(TAG, "Found TagLib lyrics (${tagLibLyrics.length} chars) for ${file.name}")
-                return tagLibLyrics
-            }
-        }.onFailure {
-            Log.w(TAG, "TagLib lyrics extraction failed for $path", it)
+        if (!preferTagLib) {
+            readTagLibEmbeddedLyrics(file)?.let { return it }
         }
 
         return runCatching {
@@ -548,20 +532,18 @@ class MusicScanner(private val context: Context) {
         val file = File(path)
         if (!file.exists()) return null
 
+        val preferTagLib = prefersTagLibEmbeddedMetadata(file)
+        if (preferTagLib) {
+            readTagLibCoverArt(file)?.let { return it }
+        }
+
         val audioFileArt = readAudioFile(file)
             ?.safeTag(file)
             ?.safeFirstArtworkData(file)
         if (audioFileArt != null) return audioFileArt
 
-        runCatching {
-            val tagLibArt = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                val pictures = TagLib.getPictures(fd.dup().detachFd())
-                val frontCover = pictures.firstOrNull { it.pictureType == "Front Cover" } ?: pictures.firstOrNull()
-                frontCover?.data
-            }
-            if (tagLibArt != null) return tagLibArt
-        }.onFailure {
-            Log.w(TAG, "TagLib cover art extraction failed for $path", it)
+        if (!preferTagLib) {
+            readTagLibCoverArt(file)?.let { return it }
         }
 
         return runCatching {
@@ -571,6 +553,46 @@ class MusicScanner(private val context: Context) {
             }
         }.onFailure {
             Log.w(TAG, "Retriever cover art extraction failed for $path", it)
+        }.getOrNull()
+    }
+
+    private fun prefersTagLibEmbeddedMetadata(file: File): Boolean =
+        file.extension.lowercase() in setOf("wav", "wave", "flac", "m4a", "mp4", "alac", "aif", "aiff")
+
+    private fun readTagLibEmbeddedLyrics(file: File): String? {
+        return runCatching {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                selectBestLyrics(
+                    collectMetadataValues(
+                        fd,
+                        "SYNCEDLYRICS",
+                        "UNSYNCEDLYRICS",
+                        "UNSYNCED LYRICS",
+                        "LYRICS",
+                        "USLT",
+                        "SYLT",
+                        "©lyr",
+                        "\u00a9lyr",
+                        "LYRIC"
+                    )
+                )
+            }?.also {
+                Log.d(TAG, "Found TagLib lyrics (${it.length} chars) for ${file.name}")
+            }
+        }.onFailure {
+            Log.w(TAG, "TagLib lyrics extraction failed for ${file.path}", it)
+        }.getOrNull()
+    }
+
+    private fun readTagLibCoverArt(file: File): ByteArray? {
+        return runCatching {
+            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
+                val pictures = TagLib.getPictures(fd.dup().detachFd())
+                val frontCover = pictures.firstOrNull { it.pictureType == "Front Cover" } ?: pictures.firstOrNull()
+                frontCover?.data
+            }
+        }.onFailure {
+            Log.w(TAG, "TagLib cover art extraction failed for ${file.path}", it)
         }.getOrNull()
     }
 

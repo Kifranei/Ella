@@ -46,5 +46,6 @@ miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", 
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
+androidLibrary = { id = "com.android.library", version.ref = "agp" }
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "jetbrains-compose" }

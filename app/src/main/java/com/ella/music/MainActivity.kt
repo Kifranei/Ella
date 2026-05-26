@@ -82,6 +82,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.SettingsManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -387,6 +388,7 @@ fun EllaApp(
     val miniPlayerShowTranslation by settingsManager.miniPlayerLyricTranslation.collectAsState(initial = true)
     val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
     val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.Blur)
 
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
     val miniPlayerLyricText = if (isPlaying && miniPlayerLyricsEnabled) {
@@ -500,6 +502,7 @@ fun EllaApp(
                 bottomDockMode = bottomDockMode,
                 canCompact = canCompactBottomDock,
                 backdrop = backdrop,
+                glassEffect = bottomBarGlassEffect,
                 lyricProgress = miniPlayerLyricProgress,
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
@@ -671,6 +674,7 @@ private fun FloatingBottomControls(
     bottomDockMode: BottomDockMode,
     canCompact: Boolean,
     backdrop: com.kyant.backdrop.Backdrop?,
+    glassEffect: BottomBarGlassEffect,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
     onNavigate: (String) -> Unit,
@@ -704,6 +708,7 @@ private fun FloatingBottomControls(
                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                 currentTab = currentTab,
                 backdrop = if (useGlass) backdrop else null,
+                glassEffect = glassEffect,
                 onOpenPlayer = onNavigatePlayer,
                 onPlayPause = { playerViewModel.togglePlayPause() },
                 onSkipNext = { playerViewModel.skipToNext() },
@@ -728,6 +733,7 @@ private fun FloatingBottomControls(
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
                             backdrop = if (useGlass) backdrop else null,
                             liquidGlass = useGlass,
+                            glassEffect = glassEffect,
                             onClick = onNavigatePlayer,
                             onPlayPause = { playerViewModel.togglePlayPause() },
                             onSkipNext = { playerViewModel.skipToNext() },
@@ -741,7 +747,8 @@ private fun FloatingBottomControls(
                     if (useGlass) {
                         LiquidGlassBottomBar(
                             backdrop = backdrop,
-                            isBlurEnabled = true
+                            isBlurEnabled = true,
+                            glassEffect = glassEffect
                         ) {
                             tabs.forEach { (route, label, icon) ->
                                 LiquidGlassBottomBarItem(
@@ -789,6 +796,7 @@ private fun CompactBottomDock(
     loadCoverArt: ((Song) -> android.graphics.Bitmap?)?,
     currentTab: Triple<String, String, ImageVector>,
     backdrop: com.kyant.backdrop.Backdrop?,
+    glassEffect: BottomBarGlassEffect,
     onOpenPlayer: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
@@ -819,6 +827,7 @@ private fun CompactBottomDock(
             albumArtUri = albumArtUri,
             loadCoverArt = loadCoverArt,
             backdrop = backdrop,
+            glassEffect = glassEffect,
             onClick = onOpenPlayer,
             onPlayPause = onPlayPause,
             onSkipNext = onSkipNext,
@@ -829,6 +838,7 @@ private fun CompactBottomDock(
             label = currentTab.second,
             onClick = onExpand,
             backdrop = backdrop,
+            glassEffect = glassEffect,
             modifier = Modifier.width(68.dp)
         )
     }
@@ -840,12 +850,14 @@ private fun CurrentTabPill(
     label: String,
     onClick: () -> Unit,
     backdrop: com.kyant.backdrop.Backdrop?,
+    glassEffect: BottomBarGlassEffect,
     modifier: Modifier = Modifier
 ) {
     GlassPill(
         backdrop = backdrop,
         modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(32.dp)
+        shape = RoundedCornerShape(32.dp),
+        glassEffect = glassEffect
     ) {
         Box(
             modifier = Modifier

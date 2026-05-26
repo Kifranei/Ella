@@ -21,6 +21,10 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.metadata.AudioTagInfo
+import com.ella.music.data.metadata.AudioTagRepository
+import com.ella.music.data.metadata.LegacyAudioTagReader
+import com.ella.music.data.metadata.LyricoAudioTagReaderWriter
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.scanner.MediaStoreAudioItem
 import com.ella.music.data.scanner.MusicScanner
@@ -45,9 +49,21 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.ConcurrentHashMap
 
+enum class CoverUsage {
+    ListThumbnail,
+    AlbumGrid,
+    Player,
+    Notification,
+    ShareCard
+}
+
 class MusicRepository(private val context: Context) {
 
     private val scanner = MusicScanner(context)
+    private val audioTagRepository = AudioTagRepository(
+        primary = LyricoAudioTagReaderWriter(),
+        legacy = LegacyAudioTagReader(scanner)
+    )
     private val settingsManager = SettingsManager(context)
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -106,6 +122,7 @@ class MusicRepository(private val context: Context) {
                     excludeFolders = excludeFolders,
                     deepMetadata = true
                 ) { count -> _scanProgress.value = count }
+                    .map { song -> song.withRepositoryTags() }
             } else {
                 synchronizeLibrary(
                     minDurationMs = minDurationMs,
@@ -179,7 +196,7 @@ class MusicRepository(private val context: Context) {
                         item = item,
                         minDurationMs = minDurationMs,
                         deepMetadata = true
-                    )
+                    )?.withRepositoryTags()
                 }.onFailure { error ->
                     failedCount++
                     AppLogStore.warn(
@@ -206,10 +223,10 @@ class MusicRepository(private val context: Context) {
                     dateAdded = item.dateAdded.takeIf { it > 0L } ?: cached.dateAdded,
                     trackNumber = item.trackNumber.takeIf { it > 0 } ?: cached.trackNumber,
                     discNumber = item.discNumber.takeIf { it > 0 } ?: cached.discNumber
-                )
+                ).withRepositoryTags()
                 if (reused.duration >= minDurationMs) {
                     mergedSongs += reused
-                    reusedCount++
+                    if (cached.hasSameLibraryTags(reused)) reusedCount++ else updatedCount++
                 }
             }
             _scanProgress.value = index + 1
@@ -297,17 +314,17 @@ class MusicRepository(private val context: Context) {
         }
 
         val effectivePath = song.effectiveLocalPathForMetadata()
-        if (safeMode != SettingsManager.LYRIC_SOURCE_EMBEDDED) {
-            loadExternalLyrics(song, effectivePath)?.let { externalLyrics ->
-                lyricsCache[cacheKey] = externalLyrics
-                return@withContext externalLyrics
-            }
-        }
-
         if (safeMode != SettingsManager.LYRIC_SOURCE_EXTERNAL) {
             loadEmbeddedLyrics(song, effectivePath)?.let { embeddedLyrics ->
                 lyricsCache[cacheKey] = embeddedLyrics
                 return@withContext embeddedLyrics
+            }
+        }
+
+        if (safeMode != SettingsManager.LYRIC_SOURCE_EMBEDDED) {
+            loadExternalLyrics(song, effectivePath)?.let { externalLyrics ->
+                lyricsCache[cacheKey] = externalLyrics
+                return@withContext externalLyrics
             }
         }
 
@@ -325,7 +342,7 @@ class MusicRepository(private val context: Context) {
 
     private fun loadEmbeddedLyrics(song: Song, effectivePath: String): List<LyricLine>? {
         Log.d("MusicRepo", "Trying embedded lyrics for ${song.title}")
-        val embedded = scanner.extractEmbeddedLyrics(effectivePath)
+        val embedded = audioTagRepository.readEmbeddedLyricsBlocking(effectivePath)
         if (!embedded.isNullOrBlank()) {
             Log.d("MusicRepo", "Embedded lyrics found (${embedded.length} chars) for ${song.title}")
             val parsed = LrcParser.parse(embedded)
@@ -392,6 +409,17 @@ class MusicRepository(private val context: Context) {
 
     fun getAudioInfo(song: Song): AudioInfo {
         audioInfoCache[song.id]?.let { return it }
+        audioTagRepository.readQualityInfoBlocking(song.effectiveLocalPathForMetadata())?.let { quality ->
+            val info = AudioInfo(
+                format = song.audioFormatLabel(quality.mimeType),
+                bitRate = quality.bitRate.takeIf { it > 0 } ?: song.estimatedBitRate(),
+                sampleRate = quality.sampleRate,
+                bitDepth = quality.bitDepth,
+                channels = quality.channels
+            )
+            audioInfoCache[song.id] = info
+            return info
+        }
         val info = runCatching {
             val extractor = MediaExtractor()
             try {
@@ -432,7 +460,7 @@ class MusicRepository(private val context: Context) {
         val cacheKey = "${song.id}:${song.dateModified}:${song.fileSize}"
         tagInfoCache[cacheKey]?.let { return it }
         val info = runCatching {
-            scanner.extractSongTagInfo(song.effectiveLocalPathForMetadata())
+            audioTagRepository.readTagsBlocking(song.effectiveLocalPathForMetadata())?.toSongTagInfo() ?: SongTagInfo()
         }.getOrElse {
             Log.w("MusicRepo", "Failed to read tag info for ${song.path}", it)
             SongTagInfo()
@@ -451,12 +479,12 @@ class MusicRepository(private val context: Context) {
     }
 
     fun getCoverArt(song: Song): ByteArray? {
-        val cacheKey = song.coverCacheKey()
+        val cacheKey = song.coverDataCacheKey()
         if (missingCoverKeys.contains(cacheKey)) return null
         synchronized(coverArtLock) {
             coverArtCache.get(cacheKey)?.let { return it }
             val art = runCatching {
-                scanner.extractCoverArt(song.effectiveLocalPathForMetadata())
+                audioTagRepository.readEmbeddedCoverDataBlocking(song.effectiveLocalPathForMetadata())
             }.getOrElse { error ->
                 if (error is OutOfMemoryError) {
                     coverArtCache.evictAll()
@@ -474,9 +502,13 @@ class MusicRepository(private val context: Context) {
         }
     }
 
-    fun getCoverArtBitmap(song: Song, maxSize: Int = 512): Bitmap? {
+    fun getCoverArtBitmap(
+        song: Song,
+        maxSize: Int = 512,
+        usage: CoverUsage = CoverUsage.ListThumbnail
+    ): Bitmap? {
         val targetSize = maxSize.coerceIn(64, 3000)
-        val cacheKey = "${song.coverCacheKey()}:$targetSize"
+        val cacheKey = "${song.coverDataCacheKey()}:${usage.name}:$targetSize"
         coverBitmapCache.get(cacheKey)?.let { return it }
         return synchronized(coverArtLock) {
             coverBitmapCache.get(cacheKey)?.let { return it }
@@ -495,7 +527,7 @@ class MusicRepository(private val context: Context) {
 
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sampleSize.coerceAtLeast(1)
-                inPreferredConfig = Bitmap.Config.RGB_565
+                inPreferredConfig = if (usage == CoverUsage.ListThumbnail) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
             }
             BitmapFactory.decodeByteArray(data, 0, data.size, options)
                 ?.also { coverBitmapCache.put(cacheKey, it) }
@@ -574,8 +606,8 @@ class MusicRepository(private val context: Context) {
         tagInfoCache.clear()
         replayGainCache.clear()
         coverArtCache.evictAll()
-        missingCoverKeys.clear()
         coverBitmapCache.evictAll()
+        missingCoverKeys.clear()
     }
 
     fun clearMetadataCache(song: Song) {
@@ -583,13 +615,15 @@ class MusicRepository(private val context: Context) {
         audioInfoCache.remove(song.id)
         tagInfoCache.keys.removeAll { it.startsWith("${song.id}:") }
         replayGainCache.remove(song.id)
-        missingCoverKeys.remove(song.coverCacheKey())
-        coverArtCache.remove(song.coverCacheKey())
-        val keyPrefix = "${song.coverCacheKey()}:"
+        audioTagRepository.clear(song.effectiveLocalPathForMetadata())
+        val keyPrefix = song.coverCacheKey()
+        missingCoverKeys.removeAll { it.startsWith(keyPrefix) }
+        coverArtCache.remove(song.coverDataCacheKey())
+        val bitmapKeyPrefix = "${song.coverDataCacheKey()}:"
         val bitmapKeys = mutableListOf<String>()
         synchronized(coverArtLock) {
             for (key in coverBitmapCache.snapshot().keys) {
-                if (key.startsWith(keyPrefix)) bitmapKeys += key
+                if (key.startsWith(bitmapKeyPrefix)) bitmapKeys += key
             }
             bitmapKeys.forEach(coverBitmapCache::remove)
         }
@@ -667,14 +701,18 @@ class MusicRepository(private val context: Context) {
         return groupBy { it.albumIdentityId() }
             .map { (albumIdentityId, albumSongs) ->
                 val first = albumSongs.first()
+                val albumOwner = first.albumArtist
+                    .takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }
+                    ?: first.artist.takeIf { it.isUsableTagText() }
+                    ?: "Unknown Artist"
                 Album(
                     id = albumIdentityId,
-                    name = first.album,
-                    artist = first.albumArtist.ifBlank { first.artist },
+                    name = first.album.takeIf { it.isUsableAlbumText() } ?: "Unknown Album",
+                    artist = albumOwner,
                     songCount = albumSongs.size,
                     year = albumSongs.mapNotNull { it.year.extractYearInt() }.minOrNull() ?: 0,
                     artAlbumId = first.albumId,
-                    albumArtist = first.albumArtist
+                    albumArtist = first.albumArtist.takeIf { it.isUsableTagText() }.orEmpty()
                 )
             }
             .sortedWith(
@@ -683,6 +721,66 @@ class MusicRepository(private val context: Context) {
                     .thenBy { it.id }
             )
     }
+
+    private fun Song.withRepositoryTags(): Song {
+        val tagInfo = runCatching {
+            audioTagRepository.readTagsBlocking(effectiveLocalPathForMetadata())
+        }.getOrElse { error ->
+            Log.w("MusicRepo", "Failed to refresh library tags for $path", error)
+            null
+        } ?: return withFinalLibraryFallbacks()
+
+        val mergedArtist = tagInfo.artist.takeIf { it.isUsableTagText() }
+            ?: artist.takeIf { it.isUsableTagText() }
+            ?: "Unknown Artist"
+        val mergedAlbum = tagInfo.album.takeIf { it.isUsableAlbumText() }
+            ?: album.takeIf { it.isUsableAlbumText() && !it.looksLikeLastFolderName(path) }
+            ?: path.parentFolderName().takeIf { it.isUsableAlbumText() }
+            ?: "Unknown Album"
+        val mergedAlbumArtist = tagInfo.albumArtist.takeIf { it.isUsableTagText() }
+            ?: albumArtist.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }
+            ?: mergedArtist
+
+        return copy(
+            title = tagInfo.title.takeIf { it.isUsableTagText() }
+                ?: title.takeIf { it.isUsableTagText() }
+                ?: fileName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
+            artist = mergedArtist,
+            album = mergedAlbum,
+            albumArtist = mergedAlbumArtist,
+            genre = tagInfo.genre.takeIf { it.isUsableTagText() } ?: genre,
+            year = tagInfo.year.takeIf { it.isUsableTagText() } ?: year,
+            composer = tagInfo.composer.takeIf { it.isUsableTagText() } ?: composer,
+            lyricist = tagInfo.lyricist.takeIf { it.isUsableTagText() } ?: lyricist,
+            trackNumber = tagInfo.trackNumber ?: trackNumber,
+            discNumber = tagInfo.discNumber ?: discNumber
+        ).withFinalLibraryFallbacks()
+    }
+
+    private fun Song.withFinalLibraryFallbacks(): Song {
+        val fallbackArtist = artist.takeIf { it.isUsableTagText() } ?: "Unknown Artist"
+        val fallbackAlbum = album.takeIf { it.isUsableAlbumText() && !it.looksLikeLastFolderName(path) }
+            ?: path.parentFolderName().takeIf { it.isUsableAlbumText() }
+            ?: "Unknown Album"
+        return copy(
+            title = title.takeIf { it.isUsableTagText() } ?: fileName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
+            artist = fallbackArtist,
+            album = fallbackAlbum,
+            albumArtist = albumArtist.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() } ?: fallbackArtist
+        )
+    }
+
+    private fun Song.hasSameLibraryTags(other: Song): Boolean =
+        title == other.title &&
+            artist == other.artist &&
+            album == other.album &&
+            albumArtist == other.albumArtist &&
+            genre == other.genre &&
+            year == other.year &&
+            composer == other.composer &&
+            lyricist == other.lyricist &&
+            trackNumber == other.trackNumber &&
+            discNumber == other.discNumber
 
     private fun songsToJsonArray(songs: List<Song>): JSONArray {
         val array = JSONArray()
@@ -825,8 +923,8 @@ class MusicRepository(private val context: Context) {
         return context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
             if (!cursor.moveToFirst()) return@use null
             val tagInfo = runCatching {
-                scanner.extractSongTagInfo(song.effectiveLocalPathForMetadata())
-            }.getOrDefault(SongTagInfo())
+                audioTagRepository.readTagsBlocking(song.effectiveLocalPathForMetadata())?.toSongTagInfo()
+            }.getOrNull() ?: SongTagInfo()
             Song(
                 id = cursor.getLong(0),
                 title = tagInfo.title.usableTagText().ifBlank {
@@ -871,6 +969,9 @@ class MusicRepository(private val context: Context) {
         return source.sha256()
     }
 
+    private fun Song.coverDataCacheKey(): String =
+        "${coverCacheKey()}:$dateModified:$fileSize"
+
     private fun Song.librarySyncKey(): String =
         if (id > 0L) {
             ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString()
@@ -910,6 +1011,48 @@ class MusicRepository(private val context: Context) {
         if ('\uFFFD' in text || "锟斤拷" in text || Regex("""(?:锟|斤|拷){3,}""").containsMatchIn(text)) return ""
         return text
     }
+
+    private fun String?.isUsableTagText(): Boolean =
+        usableTagText().isNotBlank()
+
+    private fun String?.isUsableAlbumText(): Boolean {
+        val text = usableTagText()
+        return text.isNotBlank() &&
+            !text.equals("Unknown", ignoreCase = true) &&
+            !text.equals("Unknown Album", ignoreCase = true)
+    }
+
+    private fun String.isUnknownArtistValue(): Boolean =
+        trim().equals("Unknown", ignoreCase = true) ||
+            trim().equals("Unknown Artist", ignoreCase = true) ||
+            trim() == "<unknown>"
+
+    private fun String.looksLikeLastFolderName(path: String): Boolean {
+        val folderName = path.parentFolderName()
+        return folderName.isNotBlank() && trim().equals(folderName, ignoreCase = true)
+    }
+
+    private fun String.parentFolderName(): String =
+        runCatching { File(this).parentFile?.name.orEmpty() }
+            .getOrDefault("")
+            .trim()
+
+    private fun AudioTagInfo.toSongTagInfo(): SongTagInfo =
+        SongTagInfo(
+            title = title.orEmpty(),
+            artist = artist.orEmpty(),
+            album = album.orEmpty(),
+            albumArtist = albumArtist.orEmpty(),
+            genre = genre.orEmpty(),
+            year = year.orEmpty(),
+            composer = composer.orEmpty(),
+            lyricist = lyricist.orEmpty(),
+            track = trackNumber?.toString().orEmpty(),
+            comment = comment.orEmpty(),
+            copyright = copyright.orEmpty(),
+            neteaseKey = neteaseKey.orEmpty(),
+            rating = rating ?: 0
+        )
 
     private data class LibrarySyncInfo(
         val key: String,

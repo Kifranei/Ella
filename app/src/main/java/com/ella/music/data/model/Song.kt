@@ -36,12 +36,12 @@ data class Song(
 }
 
 fun Song.albumIdentityId(): Long {
-    val albumArtistPart = albumArtist.trim()
-    val key = if (albumArtistPart.isBlank()) {
-        album.normalizedAlbumIdentityPart()
-    } else {
-        "${album.normalizedAlbumIdentityPart()}|${albumArtistPart.normalizedAlbumIdentityPart()}"
-    }
+    val albumName = album.trim().ifBlank { "Unknown Album" }
+    val albumOwner = albumArtist
+        .trim()
+        .takeIf { it.isNotBlank() && !it.equals("Unknown Artist", ignoreCase = true) && !it.equals("Unknown", ignoreCase = true) }
+        ?: artist.trim().ifBlank { "Unknown Artist" }
+    val key = "${albumName.normalizedAlbumIdentityPart()}|${albumOwner.normalizedAlbumIdentityPart()}"
     var hash = -0x340d631b7bdddcdbL
     key.forEach { char ->
         hash = hash xor char.code.toLong()

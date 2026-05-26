@@ -1,0 +1,70 @@
+package com.lonx.audiotag.model
+
+import android.os.Parcelable
+import androidx.annotation.Keep
+import kotlinx.parcelize.Parcelize
+import java.util.ArrayList
+
+@Keep
+@Parcelize
+data class AudioTagData(
+    val title: String? = null,
+    val artist: String? = null,
+    val album: String? = null,
+    val albumArtist: String? = null,
+    val genre: String? = null,
+    val date: String? = null,
+    val language: String? = null,
+    val trackNumber: String? = null,
+    val discNumber: Int? = null,
+
+    val composer: String? = null,
+    val lyricist: String? = null,
+    val comment: String? = null,
+    val lyrics: String? = null,
+    val copyright: String? = null,
+    val rating: Int? = null,
+    val replayGainTrackGain: String? = null,
+    val replayGainTrackPeak: String? = null,
+    val replayGainAlbumGain: String? = null,
+    val replayGainAlbumPeak: String? = null,
+    val replayGainReferenceLoudness: String? = null,
+    val fileName: String = "",
+    val durationMilliseconds: Int = 0,
+    val bitrate: Int = 0,
+    val sampleRate: Int = 0,
+    val channels: Int = 0,
+
+    val rawProperties: Map<String, Array<String>>? = null,
+    val customFields: List<CustomTagField> = emptyList(),
+
+    val pictures: List<AudioPicture> = ArrayList(),
+    val picUrl: String? = null
+): Parcelable
+
+@Keep
+@Parcelize
+data class CustomTagField(
+    val key: String = "",
+    val value: String = ""
+) : Parcelable
+
+@Keep
+@Parcelize
+data class AudioPicture(
+    val data: ByteArray,
+    val mimeType: String = "image/jpeg",
+    val description: String = "",
+    val pictureType: String = "Front Cover"
+): Parcelable {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is AudioPicture) return false
+        if (!data.contentEquals(other.data)) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        return data.contentHashCode()
+    }
+}

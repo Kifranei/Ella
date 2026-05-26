@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 rootProject.name = "Ella"
 include(":app")
 include(":ffmpeg-decoder")
+include(":lyrico-audiotag")

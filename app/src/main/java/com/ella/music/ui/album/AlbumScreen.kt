@@ -262,6 +262,8 @@ fun AlbumScreen(
                             AlbumCard(
                                 album = album,
                                 albumArtUri = mainViewModel.getAlbumArtUri(album.artAlbumId),
+                                representativeSong = mainViewModel.getSongsForAlbum(album.id).firstOrNull(),
+                                loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
                                 summary = album.summaryForSort(sortMode, albumDurations[album.id] ?: 0L),
                                 onClick = { onAlbumClick(album.id) },
                                 onLongClick = {

@@ -320,11 +320,6 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://ffmpeg.org") },
                     )
                     BasicComponent(
-                        title = "Jaudiotagger",
-                        summary = "音频标签、内嵌歌词与封面读取（LGPL-2.1）",
-                        onClick = { uriHandler.openUri("https://github.com/Adonai/jaudiotagger") },
-                    )
-                    BasicComponent(
                         title = "Kyant TagLib",
                         summary = "Android/Kotlin TagLib 绑定（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/Kyant0/TagLib") },
@@ -346,7 +341,7 @@ private fun AboutContent(
                     )
                     BasicComponent(
                         title = "Lyrico",
-                        summary = "标签编辑器与应用日志页面参考（Apache-2.0）",
+                        summary = "歌曲标签读取与应用日志页面参考（Apache-2.0）",
                         onClick = { uriHandler.openUri("https://github.com/Replica0110/Lyrico") },
                     )
                     BasicComponent(

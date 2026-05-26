@@ -107,6 +107,16 @@ fun AlbumDetailScreen(
         }
     }
     val albumArtUri = mainViewModel.getAlbumArtUri(album?.artAlbumId ?: albumSongs.firstOrNull()?.albumId ?: 0L)
+    val albumCoverModel by produceState<Any?>(initialValue = albumArtUri, albumArtUri, albumSongs) {
+        val representative = albumSongs.firstOrNull()
+        value = if (representative != null && representative.prefersEmbeddedCoverForHeader()) {
+            withContext(Dispatchers.IO) {
+                runCatching { mainViewModel.getLargeCoverArtBitmap(representative) }.getOrNull()
+            } ?: albumArtUri
+        } else {
+            albumArtUri
+        }
+    }
     val neteaseAlbumUrl by produceState<String?>(initialValue = null, albumId, albumSongs) {
         value = mainViewModel.getNeteaseAlbumUrlForAlbum(albumId)
     }
@@ -162,7 +172,7 @@ fun AlbumDetailScreen(
             item {
                 AlbumHeader(
                     album = album,
-                    albumArtUri = albumArtUri,
+                    albumCoverModel = albumCoverModel,
                     songCount = sortedAlbumSongs.size,
                     duration = albumDuration,
                     hasNeteaseAlbum = !neteaseAlbumUrl.isNullOrBlank(),
@@ -412,7 +422,7 @@ private fun AlbumSongRow(
         song = song,
         isCurrent = currentSongId == song.id,
         albumArtUri = albumArtUri,
-        loadCoverArt = mainViewModel::getCoverArtBitmap,
+        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
         loadAudioInfo = mainViewModel::getAudioInfo,
         leadingLabel = if (showTrackNumber) song.displayTrackNumber() else null,
         leadingLabelBeforeCover = showTrackNumber,
@@ -430,7 +440,7 @@ private fun AlbumSongRow(
 @Composable
 private fun AlbumHeader(
     album: Album?,
-    albumArtUri: Uri?,
+    albumCoverModel: Any?,
     songCount: Int,
     duration: Long,
     hasNeteaseAlbum: Boolean,
@@ -444,9 +454,9 @@ private fun AlbumHeader(
             .fillMaxWidth()
             .height(448.dp)
     ) {
-        if (albumArtUri != null) {
+        if (albumCoverModel != null) {
             SafeCoverImage(
-                model = albumArtUri,
+                model = albumCoverModel,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -568,6 +578,11 @@ private fun Song.safeDiscNumber(): Int =
 
 private fun Song.displayTrackNumber(): String =
     trackNumber.takeIf { it > 0 }?.toString().orEmpty()
+
+private fun Song.prefersEmbeddedCoverForHeader(): Boolean {
+    val extension = fileName.substringAfterLast('.', path.substringAfterLast('.')).lowercase()
+    return extension in setOf("m4a", "mp4", "alac", "flac", "wav", "wave", "aiff", "aif")
+}
 
 private fun List<Song>.sortedForAlbumDetail(mode: AlbumDetailSongSortMode): List<Song> {
     return when (mode) {

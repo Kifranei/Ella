@@ -101,6 +101,8 @@
     <string name="desktop_lyric_reset_position_summary">把悬浮歌词移回屏幕中上方，避免卡在状态栏影响下拉</string>
     <string name="desktop_lyric_reset_position_done">已重置桌面歌词位置</string>
     <string name="desktop_lyric_overlay_permission_required">请先授予悬浮窗权限</string>
+    <string name="desktop_lyric_status_bar_mode">悬浮窗状态栏歌词</string>
+    <string name="desktop_lyric_status_bar_mode_summary">在状态栏空白处显示迷你歌词，并触摸穿透避免影响下拉</string>
 
     <string name="settings_app">应用</string>
     <string name="settings_preferences">应用偏好</string>
@@ -117,6 +119,11 @@
     <string name="settings_clear_online_cache_done">在线封面歌词缓存已清除</string>
     <string name="settings_logs">日志</string>
     <string name="settings_logs_summary">查看详细日志、警告和闪退记录</string>
+    <string name="settings_bottom_bar_glass_effect">底部栏玻璃效果</string>
+    <string name="settings_bottom_bar_glass_effect_summary_blur">高斯模糊：稳定、省电</string>
+    <string name="settings_bottom_bar_glass_effect_summary_liquid">液态玻璃：模糊与折射效果，更有层次感</string>
+    <string name="bottom_bar_glass_effect_blur">高斯模糊</string>
+    <string name="bottom_bar_glass_effect_liquid">液态玻璃</string>
     <string name="settings_lyric_perspective">立体歌词</string>
     <string name="settings_lyric_perspective_summary">歌词页按距离加入轻微透视和模糊层次，类似 Salt Player 的纵深效果</string>
 

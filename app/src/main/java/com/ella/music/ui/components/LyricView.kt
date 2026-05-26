@@ -353,22 +353,21 @@ fun WordLyricView(
             val perspectiveRotation by animateFloatAsState(
                 targetValue = if (perspectiveEffect && !userBrowsing && !isActive && currentIndex >= 0) {
                     val direction = if (index < currentIndex) -1f else 1f
-                    direction * (4.5f + distance.coerceAtMost(5) * 1.25f)
+                    direction * (9f + distance.coerceAtMost(5) * 3.2f)
                 } else {
                     0f
                 },
                 animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
                 label = "lyric_line_perspective_rotation"
             )
-            val perspectiveOffsetX by animateFloatAsState(
+            val perspectiveOffsetY by animateFloatAsState(
                 targetValue = if (perspectiveEffect && !userBrowsing && !isActive && currentIndex >= 0) {
-                    val direction = if (index < currentIndex) -1f else 1f
-                    direction * distance.coerceAtMost(5) * 3.2f
+                    -distance.coerceAtMost(5) * 1.6f
                 } else {
                     0f
                 },
                 animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                label = "lyric_line_perspective_offset"
+                label = "lyric_line_perspective_offset_y"
             )
 
             Column(
@@ -379,12 +378,12 @@ fun WordLyricView(
                         scaleX = scale
                         scaleY = scale
                         rotationX = perspectiveRotation
-                        translationX = with(density) { perspectiveOffsetX.dp.toPx() }
-                        cameraDistance = 18f * density.density
-                        transformOrigin = when (lineAlignment) {
-                            Alignment.Start -> TransformOrigin(0f, 0.5f)
-                            Alignment.End -> TransformOrigin(1f, 0.5f)
-                            else -> TransformOrigin.Center
+                        translationY = with(density) { perspectiveOffsetY.dp.toPx() }
+                        cameraDistance = 30f * density.density
+                        transformOrigin = when {
+                            !perspectiveEffect || userBrowsing || isActive -> TransformOrigin.Center
+                            index < currentIndex -> TransformOrigin(0.5f, 1f)
+                            else -> TransformOrigin(0.5f, 0f)
                         }
                     }
                     .blur(blur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)

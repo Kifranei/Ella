@@ -51,6 +51,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.ella.music.BuildConfig
 import com.ella.music.R
+import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.PlaybackStatsStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.player.DesktopLyricService
@@ -489,10 +490,12 @@ fun SettingsDetailScreen(
     val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
     val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.Blur)
     val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
     val tickerHideNotification by settingsManager.tickerHideNotification.collectAsState(initial = false)
     val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectAsState(initial = false)
+    val desktopLyricStatusBarMode by settingsManager.desktopLyricStatusBarMode.collectAsState(initial = false)
     val desktopLyricLocked by settingsManager.desktopLyricLocked.collectAsState(initial = false)
     val desktopLyricFontScale by settingsManager.desktopLyricFontScale.collectAsState(initial = 100)
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectAsState(initial = 110)
@@ -539,6 +542,23 @@ fun SettingsDetailScreen(
     val themeLabels = listOf("跟随系统", "浅色", "深色")
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
     val themeEntries = remember { themeLabels.map { DropdownItem(title = it) } }
+    val bottomBarGlassEffects = remember {
+        listOf(BottomBarGlassEffect.Blur, BottomBarGlassEffect.LiquidGlass)
+    }
+    val bottomBarGlassBlurLabel = stringResource(R.string.bottom_bar_glass_effect_blur)
+    val bottomBarGlassLiquidLabel = stringResource(R.string.bottom_bar_glass_effect_liquid)
+    val bottomBarGlassEntries = remember(bottomBarGlassBlurLabel, bottomBarGlassLiquidLabel) {
+        listOf(
+            DropdownItem(title = bottomBarGlassBlurLabel),
+            DropdownItem(title = bottomBarGlassLiquidLabel)
+        )
+    }
+    val selectedBottomBarGlassEffectIndex =
+        bottomBarGlassEffects.indexOf(bottomBarGlassEffect).takeIf { it >= 0 } ?: 0
+    val bottomBarGlassSummary = when (bottomBarGlassEffect) {
+        BottomBarGlassEffect.Blur -> stringResource(R.string.settings_bottom_bar_glass_effect_summary_blur)
+        BottomBarGlassEffect.LiquidGlass -> stringResource(R.string.settings_bottom_bar_glass_effect_summary_liquid)
+    }
     val categoryGridEntries = remember {
         (1..4).map { columns ->
             DropdownItem(
@@ -745,6 +765,17 @@ fun SettingsDetailScreen(
                             selectedIndex = selectedThemeMode,
                             onSelectedIndexChange = { index ->
                                 scope.launch { settingsManager.setThemeMode(index) }
+                            }
+                        )
+                        WindowSpinnerPreference(
+                            title = stringResource(R.string.settings_bottom_bar_glass_effect),
+                            summary = bottomBarGlassSummary,
+                            items = bottomBarGlassEntries,
+                            selectedIndex = selectedBottomBarGlassEffectIndex,
+                            onSelectedIndexChange = { index ->
+                                bottomBarGlassEffects.getOrNull(index)?.let { effect ->
+                                    scope.launch { settingsManager.setBottomBarGlassEffect(effect) }
+                                }
                             }
                         )
                         WindowSpinnerPreference(
@@ -1083,6 +1114,20 @@ fun SettingsDetailScreen(
                             } else {
                                 playerViewModel?.setDesktopLyricEnabled(enabled)
                                     ?: scope.launch { settingsManager.setDesktopLyricEnabled(enabled) }
+                            }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = stringResource(R.string.desktop_lyric_status_bar_mode),
+                        summary = stringResource(R.string.desktop_lyric_status_bar_mode_summary),
+                        enabled = desktopLyricEnabled,
+                        checked = desktopLyricStatusBarMode,
+                        onCheckedChange = { enabled ->
+                            scope.launch {
+                                settingsManager.setDesktopLyricStatusBarMode(enabled)
+                                if (enabled) settingsManager.resetDesktopLyricPosition()
+                                applyDesktopLyricSettings()
                             }
                         }
                     )

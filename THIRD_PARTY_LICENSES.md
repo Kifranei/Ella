@@ -18,6 +18,5 @@ Ella Music main project is licensed under Apache-2.0. Third-party components kee
 | FFmpeg | Software decoding for ALAC and other audio formats | LGPL-2.1 | https://ffmpeg.org | Local FFmpeg build uses an LGPL-2.1 configuration; nonfree and version3 options are disabled |
 | LyricGetter-API | API for passing raw lyric text to the Lyric Getter ecosystem | LGPL-2.1 | https://github.com/xiaowine/Lyric-Getter-Api | Gradle artifact: `com.github.HChenX:Lyric-Getter-Api` |
 | SuperLyricApi | API for publishing lyric data to the SuperLyric ecosystem | LGPL-2.1 | https://github.com/HChenX/SuperLyricApi | Gradle artifact: `com.github.HChenX:SuperLyricApi` |
-| Jaudiotagger | Audio tags, embedded lyrics, and embedded cover reading | LGPL-2.1 | https://github.com/Adonai/jaudiotagger | Gradle artifact: `com.github.Adonai:jaudiotagger` |
 
 LGPL-2.1 components are listed separately here so the Apache-2.0 license of the Ella Music main project is not confused with the licenses of bundled or linked third-party components.

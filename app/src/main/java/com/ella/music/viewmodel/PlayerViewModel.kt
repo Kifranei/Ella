@@ -13,6 +13,7 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
+import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.player.DesktopLyricBridge
 import com.ella.music.player.ExoPlayerManager
@@ -752,7 +753,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song,1200)
+    fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1200, CoverUsage.Player)
 
     fun getAudioInfo(song: Song) = repository.getAudioInfo(song)
 

@@ -55,10 +55,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Constraints
 import com.ella.music.R
+import com.ella.music.data.BottomBarGlassEffect
 import com.ella.music.data.model.Song
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +85,7 @@ fun MiniPlayer(
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
     liquidGlass: Boolean = false,
+    glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipPrevious: () -> Unit = {},
@@ -95,9 +96,16 @@ fun MiniPlayer(
     val shape = RoundedCornerShape(if (liquidGlass) 32.dp else 0.dp)
     val glassBackdrop = if (liquidGlass) backdrop else null
     val useGlassLayout = liquidGlass
-    val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
+    val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val surfaceContainer = MiuixTheme.colorScheme.surfaceContainer
-    val glassSurface = if (isLight) Color(0xFFF8F8FA).copy(alpha = 0.44f) else Color(0xFF111114).copy(alpha = 0.50f)
+    val glassSurface = bottomBarGlassContainerColor(
+        isLight = isLight,
+        glassEffect = glassEffect,
+        lightAlpha = 0.44f,
+        darkAlpha = 0.50f,
+        lightLiquidAlpha = 0.34f,
+        darkLiquidAlpha = 0.38f
+    )
     val textState = rememberMiniPlayerTextState(song, lyricText, lyricTranslation)
     var transitionDirection by remember { mutableIntStateOf(1) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -142,10 +150,30 @@ fun MiniPlayer(
                             backdrop = glassBackdrop,
                             shape = { shape },
                             effects = {
-                                blur(42f.dp.toPx())
+                                applyBottomBarGlassEffect(
+                                    glassEffect = glassEffect,
+                                    blurRadius = 42f,
+                                    liquidBlurRadius = 12f
+                                )
                             },
-                            highlight = { Highlight.Default.copy(alpha = if (isLight) 0.26f else 0.16f) },
-                            shadow = { Shadow.Default.copy(color = Color.Black.copy(alpha = if (isLight) 0.12f else 0.30f)) },
+                            highlight = {
+                                Highlight.Default.copy(
+                                    alpha = when (glassEffect) {
+                                        BottomBarGlassEffect.Blur -> if (isLight) 0.26f else 0.16f
+                                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.36f else 0.24f
+                                    }
+                                )
+                            },
+                            shadow = {
+                                Shadow.Default.copy(
+                                    color = Color.Black.copy(
+                                        alpha = when (glassEffect) {
+                                            BottomBarGlassEffect.Blur -> if (isLight) 0.12f else 0.30f
+                                            BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.40f
+                                        }
+                                    )
+                                )
+                            },
                             onDrawSurface = {
                                 drawRect(glassSurface)
                             }
@@ -235,6 +263,7 @@ fun CompactMiniPlayer(
     albumArtUri: Uri? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
     backdrop: Backdrop? = null,
+    glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     onClick: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit = {},
@@ -247,7 +276,8 @@ fun CompactMiniPlayer(
     GlassPill(
         backdrop = backdrop,
         modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(32.dp)
+        shape = RoundedCornerShape(32.dp),
+        glassEffect = glassEffect
     ) {
         Row(
             modifier = Modifier
@@ -612,10 +642,6 @@ private fun miniMarqueeProgress(
             overflowPx.coerceAtLeast(1f)
         ).coerceIn(0f, 1f)
     return maxOf(lyricDrivenProgress, autoDrivenProgress)
-}
-
-private fun Color.luminance(): Float {
-    return 0.2126f * red + 0.7152f * green + 0.0722f * blue
 }
 
 private data class MiniPlayerTextState(

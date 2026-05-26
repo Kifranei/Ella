@@ -101,6 +101,8 @@
     <string name="desktop_lyric_reset_position_summary">Move floating lyrics back to the upper middle of the screen to avoid blocking the status bar</string>
     <string name="desktop_lyric_reset_position_done">Desktop lyric position reset</string>
     <string name="desktop_lyric_overlay_permission_required">Please grant floating window permission first</string>
+    <string name="desktop_lyric_status_bar_mode">Floating status bar lyrics</string>
+    <string name="desktop_lyric_status_bar_mode_summary">Show compact floating lyrics in the empty status bar area, with touch passthrough for notification shade gestures</string>
 
     <string name="settings_app">App</string>
     <string name="settings_preferences">App preferences</string>
@@ -117,6 +119,11 @@
     <string name="settings_clear_online_cache_done">Online artwork and lyric cache cleared</string>
     <string name="settings_logs">Logs</string>
     <string name="settings_logs_summary">View detailed logs, warnings, and crash records</string>
+    <string name="settings_bottom_bar_glass_effect">Bottom bar glass effect</string>
+    <string name="settings_bottom_bar_glass_effect_summary_blur">Gaussian Blur: stable and power efficient</string>
+    <string name="settings_bottom_bar_glass_effect_summary_liquid">Liquid Glass: blur with refraction for more depth</string>
+    <string name="bottom_bar_glass_effect_blur">Gaussian Blur</string>
+    <string name="bottom_bar_glass_effect_liquid">Liquid Glass</string>
     <string name="settings_lyric_perspective">Perspective lyrics</string>
     <string name="settings_lyric_perspective_summary">Add subtle perspective and depth blur by lyric distance, similar to Salt Player</string>
 

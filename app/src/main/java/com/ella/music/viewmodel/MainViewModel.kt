@@ -33,6 +33,7 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.model.toSong
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.parseNameSplitSetting
+import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.splitGenreNames
 import com.ella.music.data.splitArtistNames
@@ -319,7 +320,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getAlbumArtUri(albumId: Long) = repository.getAlbumArtUri(albumId)
 
-    fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 128)
+    fun getCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 128, CoverUsage.ListThumbnail)
+
+    fun getAlbumCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 512, CoverUsage.AlbumGrid)
+
+    fun getLargeCoverArtBitmap(song: Song) = repository.getCoverArtBitmap(song, 1200, CoverUsage.Player)
 
     fun getReplayGain(song: Song): Float? {
         return repository.getReplayGain(song)

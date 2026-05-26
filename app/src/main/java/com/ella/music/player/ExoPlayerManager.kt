@@ -19,12 +19,13 @@ import androidx.media3.session.SessionToken
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
-import com.ella.music.data.scanner.MusicScanner
+import com.ella.music.data.repository.MusicRepository
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,11 +82,12 @@ class ExoPlayerManager(private val context: Context) {
     private var pendingPlaylist: PendingPlaylist? = null
 
     private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val artworkScanner = MusicScanner(context)
-    private val notificationArtworkCache = object : LruCache<Long, ByteArray>(4 * 1024) {
-        override fun sizeOf(key: Long, value: ByteArray): Int = value.size / 1024
+    private val artworkRepository = MusicRepository(context)
+    private val notificationArtworkCache = object : LruCache<String, ByteArray>(4 * 1024) {
+        override fun sizeOf(key: String, value: ByteArray): Int = value.size / 1024
     }
-    private val missingNotificationArtworkIds = mutableSetOf<Long>()
+    private val missingNotificationArtworkKeys = mutableSetOf<String>()
+    private var notificationArtworkJob: Job? = null
     private var artworkAppliedSongId: Long? = null
     private var sessionMetadataSongId: Long? = null
     private var bluetoothMetadataSongId: Long? = null
@@ -135,6 +137,8 @@ class ExoPlayerManager(private val context: Context) {
         context.stopService(Intent(context, PlaybackService::class.java))
         playlist.clear()
         _playlist.value = emptyList()
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = null
         sessionMetadataSongId = null
         artworkAppliedSongId = null
         bluetoothMetadataSongId = null
@@ -210,7 +214,10 @@ class ExoPlayerManager(private val context: Context) {
         if (songs.isEmpty()) return
         AppLogStore.debug(context, "PlayerQueue", "setPlaylist size=${songs.size} start=$startIndex")
         virtualPlaylistCurrentIndex = null
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = null
         sessionMetadataSongId = null
+        artworkAppliedSongId = null
         bluetoothMetadataSongId = null
         bluetoothMetadataPayload = null
         playlist.clear()
@@ -242,7 +249,10 @@ class ExoPlayerManager(private val context: Context) {
         AppLogStore.debug(context, "PlayerQueue", "playResolvedVirtual size=${songs.size} index=$currentIndex title=${resolvedSong.title}")
         val safeIndex = currentIndex.coerceIn(songs.indices)
         virtualPlaylistCurrentIndex = safeIndex
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = null
         sessionMetadataSongId = null
+        artworkAppliedSongId = null
         bluetoothMetadataSongId = null
         bluetoothMetadataPayload = null
         playlist.clear()
@@ -313,7 +323,10 @@ class ExoPlayerManager(private val context: Context) {
         playlist.clear()
         _playlist.value = emptyList()
         _currentSong.value = null
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = null
         sessionMetadataSongId = null
+        artworkAppliedSongId = null
         bluetoothMetadataSongId = null
         bluetoothMetadataPayload = null
         _currentPosition.value = 0L
@@ -498,7 +511,7 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
-        val metadata = song.mediaMetadata(displayTitle, displayArtist, notificationArtworkCache.get(song.id))
+        val metadata = song.mediaMetadata(displayTitle, displayArtist, notificationArtworkCache.get(song.notificationArtworkKey()))
 
         val newItem = currentItem.buildUpon()
             .setMediaMetadata(metadata)
@@ -555,8 +568,12 @@ class ExoPlayerManager(private val context: Context) {
         }
 
         _currentSong.value = updatedSong
-        notificationArtworkCache.remove(updatedSong.id)
-        missingNotificationArtworkIds.remove(updatedSong.id)
+        notificationArtworkCache.remove(current.notificationArtworkKey())
+        notificationArtworkCache.remove(updatedSong.notificationArtworkKey())
+        missingNotificationArtworkKeys.remove(current.notificationArtworkKey())
+        missingNotificationArtworkKeys.remove(updatedSong.notificationArtworkKey())
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = null
         artworkAppliedSongId = null
         sessionMetadataSongId = null
 
@@ -642,10 +659,16 @@ class ExoPlayerManager(private val context: Context) {
         } else {
             controller.currentMediaItem?.toSong()
         }
-        val previousSongId = _currentSong.value?.id
+        val previousSong = _currentSong.value
         _currentSong.value = restoredSong
         _duration.value = controller.duration.coerceAtLeast(0)
-        if (restoredSong != null && previousSongId != restoredSong.id) {
+        if (!previousSong.isSamePlaybackIdentity(restoredSong)) {
+            notificationArtworkJob?.cancel()
+            notificationArtworkJob = null
+            artworkAppliedSongId = null
+            sessionMetadataSongId = null
+        }
+        if (restoredSong != null && !previousSong.isSamePlaybackIdentity(restoredSong)) {
             refreshCurrentSessionMetadata(controller, restoredSong)
         }
         savePlaybackState(force = true)
@@ -656,13 +679,14 @@ class ExoPlayerManager(private val context: Context) {
         val index = controller.currentMediaItemIndex
         val currentItem = controller.currentMediaItem ?: return
         if (index < 0 || sessionMetadataSongId == song.id) return
+        if (!currentItem.matchesSong(song)) return
 
         runCatching {
             sessionMetadataSongId = song.id
             controller.replaceMediaItem(
                 index,
                 currentItem.buildUpon()
-                    .setMediaMetadata(song.mediaMetadata(artworkData = notificationArtworkCache.get(song.id)))
+                    .setMediaMetadata(song.mediaMetadata(artworkData = notificationArtworkCache.get(song.notificationArtworkKey())))
                     .build()
             )
         }
@@ -674,42 +698,56 @@ class ExoPlayerManager(private val context: Context) {
         val index = controller.currentMediaItemIndex
         if (song == null || index < 0 || artworkAppliedSongId == song.id) return
         if (song.coverUrl.isNotBlank() || song.albumId > 0L) {
-            artworkAppliedSongId = song.id
-            return
+            if (song.coverUrl.isNotBlank()) {
+                artworkAppliedSongId = song.id
+                return
+            }
         }
-        val cached = notificationArtworkCache.get(song.id)
-        if (cached != null) {
-            replaceCurrentItemArtwork(controller, currentItem, index, song, cached)
-            return
-        }
-        if (missingNotificationArtworkIds.contains(song.id)) return
+        if (!currentItem.matchesSong(song)) return
 
-        persistenceScope.launch {
+        val artworkKey = song.notificationArtworkKey()
+        val cached = notificationArtworkCache.get(artworkKey)
+        if (cached != null) {
+            replaceCurrentItemArtwork(controller, index, song, cached)
+            return
+        }
+        if (missingNotificationArtworkKeys.contains(artworkKey)) return
+
+        notificationArtworkJob?.cancel()
+        notificationArtworkJob = persistenceScope.launch {
             val data = runCatching {
-                artworkScanner.extractCoverArt(song.path)
+                artworkRepository.getCoverArt(song)
             }.getOrElse { error ->
                 AppLogStore.warn(context, "PlayerArtwork", "Failed to load notification artwork for ${song.title}", error)
                 null
             }
             if (data == null) {
                 withContext(Dispatchers.Main.immediate) {
-                    missingNotificationArtworkIds += song.id
+                    if (mediaController?.currentMediaItem?.matchesSong(song) == true) {
+                        missingNotificationArtworkKeys += artworkKey
+                    }
                 }
                 return@launch
             }
             if (data.size > MAX_NOTIFICATION_ARTWORK_BYTES) {
                 AppLogStore.warn(context, "PlayerArtwork", "Skip oversized notification artwork for ${song.title}: ${data.size} bytes")
                 withContext(Dispatchers.Main.immediate) {
-                    missingNotificationArtworkIds += song.id
+                    if (mediaController?.currentMediaItem?.matchesSong(song) == true) {
+                        missingNotificationArtworkKeys += artworkKey
+                    }
                 }
                 return@launch
             }
-            notificationArtworkCache.put(song.id, data)
             withContext(Dispatchers.Main.immediate) {
                 val latestController = mediaController ?: return@withContext
                 val latestIndex = latestController.currentMediaItemIndex
-                if (_currentSong.value?.id == song.id && latestIndex >= 0) {
-                    replaceCurrentItemArtwork(latestController, latestController.currentMediaItem ?: return@withContext, latestIndex, song, data)
+                val latestItem = latestController.currentMediaItem ?: return@withContext
+                if (_currentSong.value.isSamePlaybackIdentity(song) &&
+                    latestItem.matchesSong(song) &&
+                    latestIndex >= 0
+                ) {
+                    notificationArtworkCache.put(artworkKey, data)
+                    replaceCurrentItemArtwork(latestController, latestIndex, song, data)
                 }
             }
         }
@@ -717,21 +755,41 @@ class ExoPlayerManager(private val context: Context) {
 
     private fun replaceCurrentItemArtwork(
         controller: MediaController,
-        currentItem: MediaItem,
         index: Int,
         song: Song,
         artworkData: ByteArray
     ) {
+        if (index != controller.currentMediaItemIndex) return
+        val latestItem = controller.currentMediaItem ?: return
+        if (!latestItem.matchesSong(song)) return
         runCatching {
             artworkAppliedSongId = song.id
             controller.replaceMediaItem(
                 index,
-                currentItem.buildUpon()
+                latestItem.buildUpon()
                     .setMediaMetadata(song.mediaMetadata(artworkData = artworkData))
                     .build()
             )
         }
     }
+
+    private fun MediaItem.matchesSong(song: Song): Boolean {
+        if (song.id > 0L && mediaId == song.id.toString()) return true
+        val itemSong = toSongFromMediaItemExtras()
+        if (itemSong != null) {
+            return itemSong.isSamePlaybackIdentity(song)
+        }
+        return localConfiguration?.uri?.toString().orEmpty() == song.path
+    }
+
+    private fun Song?.isSamePlaybackIdentity(other: Song?): Boolean {
+        if (this == null || other == null) return this == other
+        if (id > 0L && id == other.id) return true
+        return path.isNotBlank() && path == other.path
+    }
+
+    private fun Song.notificationArtworkKey(): String =
+        "${id}:${path}:${dateModified}:${fileSize}:${coverUrl}"
 
     private fun shouldUseTrueRandomShuffle(): Boolean =
         shuffleMode == SettingsManager.SHUFFLE_MODE_TRUE_RANDOM && _shuffleEnabled.value

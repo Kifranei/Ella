@@ -23,6 +23,11 @@ data class LxSourceConfig(
     val script: String
 )
 
+enum class BottomBarGlassEffect {
+    Blur,
+    LiquidGlass
+}
+
 class SettingsManager(private val context: Context) {
 
     companion object {
@@ -31,10 +36,12 @@ class SettingsManager(private val context: Context) {
         val KEY_AUTO_SCAN = booleanPreferencesKey("auto_scan")
         val KEY_GAPLESS = booleanPreferencesKey("gapless_playback")
         val KEY_THEME_MODE = intPreferencesKey("theme_mode")
+        val KEY_BOTTOM_BAR_GLASS_EFFECT = stringPreferencesKey("bottom_bar_glass_effect")
         val KEY_TICKER_ENABLED = booleanPreferencesKey("ticker_enabled")
         val KEY_TICKER_HIDE_NOTIFICATION = booleanPreferencesKey("ticker_hide_notification")
         val KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION = booleanPreferencesKey("samsung_floating_lyric_translation")
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_MODE = booleanPreferencesKey("desktop_lyric_status_bar_mode")
         val KEY_DESKTOP_LYRIC_LOCKED = booleanPreferencesKey("desktop_lyric_locked")
         val KEY_DESKTOP_LYRIC_FONT_SCALE = intPreferencesKey("desktop_lyric_font_scale")
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
@@ -164,11 +171,20 @@ class SettingsManager(private val context: Context) {
     val autoScan: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUTO_SCAN] ?: true }
     val gaplessPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_GAPLESS] ?: true }
     val themeMode: Flow<Int> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: 0 }
+    val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
+        runCatching {
+            BottomBarGlassEffect.valueOf(
+                preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.Blur.name
+            )
+        }.getOrDefault(BottomBarGlassEffect.Blur)
+    }
     val tickerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_ENABLED] ?: false }
     val tickerHideNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HIDE_NOTIFICATION] ?: true }
     val samsungFloatingLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_SAMSUNG_FLOATING_LYRIC_TRANSLATION] ?: false }
     val desktopLyricEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_ENABLED] ?: false }
+    val desktopLyricStatusBarMode: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] ?: false }
     val desktopLyricLocked: Flow<Boolean> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_LOCKED] ?: false }
     val desktopLyricFontScale: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_FONT_SCALE] ?: 100 }
     val desktopLyricTranslationScale: Flow<Int> =
@@ -327,6 +343,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_THEME_MODE] = mode }
     }
 
+    suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect) {
+        context.dataStore.edit { it[KEY_BOTTOM_BAR_GLASS_EFFECT] = effect.name }
+    }
+
     suspend fun setTickerEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_TICKER_ENABLED] = enabled }
     }
@@ -341,6 +361,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setDesktopLyricEnabled(enabled: Boolean) {
         context.dataStore.edit { it[KEY_DESKTOP_LYRIC_ENABLED] = enabled }
+    }
+
+    suspend fun setDesktopLyricStatusBarMode(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] = enabled }
     }
 
     suspend fun setDesktopLyricLocked(locked: Boolean) {

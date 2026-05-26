@@ -1,5 +1,6 @@
 package com.ella.music.ui.category
 
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -39,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -97,7 +99,9 @@ import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -268,6 +272,10 @@ fun MetadataCategoryScreen(
                         item = item,
                         sortMode = sortMode,
                         albumArtUri = item.coverAlbumIds.firstOrNull()?.let(mainViewModel::getAlbumArtUri),
+                        representativeSong = remember(type, item.name, songs) {
+                            mainViewModel.getSongsForMetadataCategory(type, item.name).firstOrNull()
+                        },
+                        loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
                         onClick = { onCategoryClick(item.name) },
                         onLongClick = {
                             val ok = requestPinnedEllaShortcut(
@@ -806,15 +814,35 @@ private fun MetadataCategoryCard(
     item: MetadataCategoryItem,
     sortMode: MetadataCategorySortMode,
     albumArtUri: android.net.Uri?,
+    representativeSong: Song? = null,
+    loadCoverArt: ((Song) -> Bitmap?)? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val embeddedCover by produceState<Bitmap?>(
+        initialValue = null,
+        representativeSong?.id,
+        representativeSong?.dateModified,
+        representativeSong?.fileSize,
+        loadCoverArt
+    ) {
+        val song = representativeSong
+        value = if (song == null || loadCoverArt == null || !song.prefersEmbeddedCategoryCover()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) { runCatching { loadCoverArt(song) }.getOrNull() }
+        }
+    }
+    val coverModel: Any? = representativeSong?.coverUrl?.takeIf { it.isNotBlank() }
+        ?: embeddedCover
+        ?: albumArtUri
+
     when (type) {
         "folder" -> {
             FolderCategoryRow(
                 item = item,
                 sortMode = sortMode,
-                albumArtUri = albumArtUri,
+                coverModel = coverModel,
                 onClick = onClick,
                 onLongClick = onLongClick
             )
@@ -824,7 +852,7 @@ private fun MetadataCategoryCard(
             PersonCategoryRow(
                 item = item,
                 sortMode = sortMode,
-                albumArtUri = albumArtUri,
+                coverModel = coverModel,
                 onClick = onClick,
                 onLongClick = onLongClick
             )
@@ -833,7 +861,7 @@ private fun MetadataCategoryCard(
     }
 
     val cardColor = remember(item.name) { item.name.categoryCardColor() }
-    val hasCover = albumArtUri != null
+    val hasCover = coverModel != null
     val isGenreCard = type == "genre"
     Box(
         modifier = Modifier
@@ -859,7 +887,7 @@ private fun MetadataCategoryCard(
                 .matchParentSize()
                 .background(Color.Black.copy(alpha = 0.08f))
         )
-        if (albumArtUri != null) {
+        if (coverModel != null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -874,7 +902,7 @@ private fun MetadataCategoryCard(
                 contentAlignment = Alignment.Center
             ) {
                 SafeCoverImage(
-                    model = albumArtUri,
+                    model = coverModel,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     sizePx = 220
@@ -933,7 +961,7 @@ private fun MetadataCategoryCard(
 private fun FolderCategoryRow(
     item: MetadataCategoryItem,
     sortMode: MetadataCategorySortMode,
-    albumArtUri: android.net.Uri?,
+    coverModel: Any?,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -955,9 +983,9 @@ private fun FolderCategoryRow(
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
         ) {
-            if (albumArtUri != null) {
+            if (coverModel != null) {
                 SafeCoverImage(
-                    model = albumArtUri,
+                    model = coverModel,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     sizePx = 160
@@ -998,7 +1026,7 @@ private fun FolderCategoryRow(
 private fun PersonCategoryRow(
     item: MetadataCategoryItem,
     sortMode: MetadataCategorySortMode,
-    albumArtUri: android.net.Uri?,
+    coverModel: Any?,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -1020,9 +1048,9 @@ private fun PersonCategoryRow(
                 .background(MiuixTheme.colorScheme.surfaceContainer),
             contentAlignment = Alignment.Center
         ) {
-            if (albumArtUri != null) {
+            if (coverModel != null) {
                 SafeCoverImage(
-                    model = albumArtUri,
+                    model = coverModel,
                     contentDescription = null,
                     modifier = Modifier
                         .size(54.dp)
@@ -1078,6 +1106,11 @@ private fun String.categoryCardColor(): Color {
     )
     val index = (lowercase(Locale.ROOT).hashCode() and Int.MAX_VALUE) % palette.size
     return palette[index]
+}
+
+private fun Song.prefersEmbeddedCategoryCover(): Boolean {
+    val extension = fileName.substringAfterLast('.', path.substringAfterLast('.')).lowercase()
+    return extension in setOf("m4a", "mp4", "alac", "flac", "wav", "wave", "aiff", "aif")
 }
 
 private fun Color.darkenCategoryColor(factor: Float): Color {

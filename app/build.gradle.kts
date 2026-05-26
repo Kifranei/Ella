@@ -27,10 +27,10 @@ android {
 
     defaultConfig {
         applicationId = "com.ella.music"
-        minSdk = 31
+        minSdk = 30
         targetSdk = 37
-        versionCode = 17
-        versionName = "1.1.6"
+        versionCode = 18
+        versionName = "1.1.7"
 
         val buildTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date())
         buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
@@ -124,6 +124,7 @@ dependencies {
     implementation(libs.backdrop)
     implementation(libs.taglib)
     implementation(libs.jaudiotagger)
+    implementation(project(":lyrico-audiotag"))
     implementation("wang.harlon.quickjs:wrapper-android:2.4.0")
     implementation(project(":ffmpeg-decoder"))
 

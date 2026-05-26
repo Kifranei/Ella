@@ -26,8 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import com.ella.music.data.BottomBarGlassEffect
 import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -36,39 +36,61 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun LiquidGlassBottomBar(
     backdrop: com.kyant.backdrop.Backdrop?,
     isBlurEnabled: Boolean = true,
+    glassEffect: BottomBarGlassEffect = BottomBarGlassEffect.Blur,
     content: @Composable RowScope.() -> Unit
 ) {
-    val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
+    val shape = RoundedCornerShape(32.dp)
+    val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val hasBackdrop = isBlurEnabled && backdrop != null
-    val containerColor =
-        if (isLight) Color.White.copy(alpha = 0.62f) else Color(0xFF151518).copy(alpha = 0.66f)
+    val containerColor = bottomBarGlassContainerColor(
+        isLight = isLight,
+        glassEffect = glassEffect,
+        lightAlpha = 0.62f,
+        darkAlpha = 0.66f,
+        lightLiquidAlpha = 0.36f,
+        darkLiquidAlpha = 0.40f
+    )
 
     val glassModifier = if (hasBackdrop) {
         Modifier.drawBackdrop(
             backdrop = backdrop,
-            shape = { RoundedCornerShape(32.dp) },
+            shape = { shape },
             effects = {
-                blur(26f.dp.toPx())
+                applyBottomBarGlassEffect(
+                    glassEffect = glassEffect,
+                    blurRadius = 26f,
+                    liquidBlurRadius = 10f
+                )
             },
             highlight = {
-                Highlight.Default.copy(alpha = if (isLight) 0.18f else 0.10f)
+                Highlight.Default.copy(
+                    alpha = when (glassEffect) {
+                        BottomBarGlassEffect.Blur -> if (isLight) 0.18f else 0.10f
+                        BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.34f else 0.24f
+                    }
+                )
             },
             shadow = {
                 Shadow.Default.copy(
-                    color = Color.Black.copy(alpha = if (isLight) 0.10f else 0.26f)
+                    color = Color.Black.copy(
+                        alpha = when (glassEffect) {
+                            BottomBarGlassEffect.Blur -> if (isLight) 0.10f else 0.26f
+                            BottomBarGlassEffect.LiquidGlass -> if (isLight) 0.18f else 0.38f
+                        }
+                    )
                 )
             },
             onDrawSurface = { drawRect(containerColor) }
         )
     } else {
-        Modifier.background(containerColor, RoundedCornerShape(28.dp))
+        Modifier.background(containerColor, shape)
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(32.dp))
+            .clip(shape)
             .then(glassModifier)
             .height(64.dp)
             .padding(horizontal = 4.dp),
@@ -88,7 +110,7 @@ fun RowScope.LiquidGlassBottomBarItem(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val currentOnClick by rememberUpdatedState(onClick)
-    val isLight = MiuixTheme.colorScheme.background.luminance() > 0.5f
+    val isLight = MiuixTheme.colorScheme.background.simpleLuminance() > 0.5f
     val selectedColor = if (isLight) {
         MiuixTheme.colorScheme.primary.copy(alpha = 0.12f)
     } else {
@@ -129,8 +151,4 @@ fun RowScope.LiquidGlassBottomBarItem(
             label()
         }
     }
-}
-
-private fun Color.luminance(): Float {
-    return 0.2126f * red + 0.7152f * green + 0.0722f * blue
 }

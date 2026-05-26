@@ -15,6 +15,8 @@ local.properties
 /app/release
 /.tmp
 /ffmpeg-decoder/build
+/lyrico-audiotag/build
+/lyrico-audiotag/.cxx
 /ffmpeg-decoder/src/main/jni/ffmpeg/*
 !/ffmpeg-decoder/src/main/jni/ffmpeg/android-libs/
 !/ffmpeg-decoder/src/main/jni/ffmpeg/android-libs/**
