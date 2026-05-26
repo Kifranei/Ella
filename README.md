@@ -22,14 +22,14 @@
 
 ## Native 构建说明
 
-Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDebug` / `assembleFastRelease` 不会重新编译 FFmpeg 或 lyrico-audiotag。
+Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDebug` / `assembleFastRelease` 不会重新编译 FFmpeg 或 lyrico-audiotag native。
 
 如果需要更新 native 产物，请手动运行：
 
 - `.\build_ffmpeg.ps1`
 - `.\build_lyrico_taglib.ps1`
 
-脚本会启用 `-PellaBuildNative=true` 重新生成 `.so`，并复制到对应模块的 `src/main/jniLibs/arm64-v8a/`。
+脚本会启用 `-PellaBuildNative=true` 重新生成 `.so`，并复制到对应模块的 `src/main/jniLibs/arm64-v8a/`。当前默认随包打包的 native 目标主要面向 `arm64-v8a`。
 
 ---
 
@@ -37,7 +37,7 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 
 **Ella Music** 是一款基于 **Jetpack Compose、Miuix 和 AndroidX Media3** 构建的 Android 音乐播放器。
 
-它以本地音乐播放为核心，同时集成了本地歌单、WebDAV 远程曲库、LX Music API 在线音源、LRC / 增强 LRC / TTML / Lyricify 歌词解析、动态播放页、沉浸式播放页、桌面歌词悬浮窗、Lyricon 集成、SuperLyricApi 歌词发布、Lyric Getter API 原文歌词传递、Flyme / AOSP 跑马灯歌词、蓝牙歌词、歌词卡片分享、AI 歌曲解读、FFmpeg 扩展解码、应用日志、备份恢复以及音乐库统计分析等能力。
+它以本地音乐播放为核心，同时集成了基础 i18n、本地歌单、WebDAV 远程曲库、LX Music API 在线音源、LRC / 增强 LRC / ELRC / TTML / Lyricify 歌词解析、动态播放页、沉浸式播放页、桌面歌词悬浮窗、Lyricon 集成、SuperLyricApi 歌词发布、Lyric Getter API 原文歌词传递、Flyme / AOSP 跑马灯歌词、蓝牙歌词、歌词卡片分享、AI 歌曲解读、FFmpeg 扩展解码、应用日志、备份恢复以及音乐库统计分析等能力。
 
 应用整体采用接近 **MIUI / HyperOS** 的视觉与交互风格，目标是在 Android 上提供轻量、现代、以歌词体验为重点的音乐播放体验。
 
@@ -50,13 +50,16 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 - 支持本地音乐扫描、搜索、播放和文件夹浏览，可在 Android 媒体库与自定义文件夹扫描模式之间切换。
 - 首页仪表盘、专辑、文件夹、艺术家页面支持搜索、排序、快速索引和多选管理。
 - 支持专辑页、艺术家页、歌曲列表、当前播放队列、迷你播放器和沉浸式播放页。
-- 支持本地歌单导入 / 导出，兼容 Salt Player 歌单、M3U 和 M3U8。
+- 支持本地歌单导入 / 导出，兼容 Salt Player 歌单、M3U、M3U8，并支持 TXT / M3U 导出。
+- 自定义歌单支持创建桌面快捷方式。
 - 支持读取音频文件评分标签，并自动生成“五星歌曲”歌单。
-- 专辑识别会同时考虑专辑名与专辑艺术家，专辑艺术家为空时按专辑名归组；专辑详情支持 Disc 分组、音轨编号、版权显示和按碟号 / 音轨排序。
+- 专辑识别会同时考虑专辑名与专辑艺术家；专辑艺术家为空时回退到艺术家，避免不同艺术家的同名专辑或单曲互相覆盖。专辑详情支持 Disc 分组、音轨编号、版权显示和按碟号 / 音轨排序。
 - 艺术家页支持歌曲、参与专辑和发行专辑分页，并将专辑艺术家纳入艺术家系统。
 - 支持按流派、年份、作曲家和作词家浏览音乐库，并可配置艺术家 / 流派分隔符与“不拆分名单”。
+- 年份详情页的专辑布局已与流派详情页统一为小型专辑列表，降低进入页面时的大图加载卡顿。
 - 中文、日文、韩文等 CJK 标题可通过拉丁化排序键参与 A-Z 排序，并缓存排序键以减少首页卡顿。
 - 支持音乐库统计分析，包括播放次数排行、听歌时长排行、格式分布和音质分布。
+- 快速滚动条支持拖动，已优化拖动初期卡顿和副作用；歌曲、专辑、艺术家和文件夹等列表行为保持一致。
 
 ### 🖼 播放页与动态封面
 
@@ -68,25 +71,28 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 - 提供封面页、歌词页和横屏歌词页。
 - 迷你歌词显示上一行、当前行和下一行，降低误判为无后续歌词的情况。
 - 支持底部操作菜单、播放队列面板、播放模式切换和进度控制。
+- 歌词页面支持安全的景深效果，按距离缩放、淡化并轻微模糊非当前行，不再使用容易裁切单行歌词的强 3D 旋转。
 
 ### 🎤 歌词体验
 
-- 支持 LRC、增强 LRC、TTML 和 Lyricify 歌词解析。
-- 支持逐词歌词、翻译、罗马音 / 发音、背景词、`x-bg` 背景人声和 TTML 对唱布局。
+- 支持 LRC、增强 LRC、ELRC、TTML 和 Lyricify 歌词解析。
+- 支持逐词歌词、翻译、罗马音 / 发音、背景词、`x-bg` 背景人声、TTML 对唱布局和 ELRC V1/V2 对唱标签。
 - 支持读取外部 LRC 文件和内嵌歌词。
 - 对常见中文歌词编码提供回退兼容。
 - 支持延音辉光、连续逐词扫光、换行歌词进度、点击歌词跳转播放进度和双击歌词播放 / 暂停。
 - 逐字歌词会保持当前字清晰高亮，短字不使用会导致发虚的宽羽化扫光。
 - 改进 TTML / Lyricify 逐词尾部、空格、翻译、原文和注音识别，减少缺字与行位错乱。
+- ELRC V1/V2 对唱信息可传给 Lyricon / 词幕，实现左右显示。
 - 支持长按歌词选择多句生成歌词卡片，可在应用偏好里自定义 Via 信息。
 - 歌词页字体支持从系统字体预览选择，也支持导入 TTF / OTF / TTC 字体文件。
 
 ### 🪟 桌面歌词与系统歌词
 
 - 支持桌面歌词悬浮窗。
-- 通过文字阴影提高亮色壁纸上的可读性。
-- 支持双击控制、自动隐藏和限制在屏幕范围内拖动。
+- 支持阴影强度、颜色切换，通过文字阴影提高亮色壁纸上的可读性。
+- 支持双击控制、暂停时隐藏、自动隐藏和限制在屏幕范围内拖动。
 - 桌面歌词控制项包括播放 / 暂停、上一首、下一首、字体大小、锁定和关闭。
+- 悬浮窗状态栏歌词支持顶部偏移、安全区 / 挖孔屏避让、暂停时隐藏、左 / 中 / 右位置，以及关闭 / 翻译 / 注音三选一副行策略。
 - 支持 词幕。
 - 支持通过 SuperLyricApi 向 SuperLyric 生态发布歌词数据。
 - 支持通过 Lyric Getter API 传递歌词原文。
@@ -104,7 +110,8 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 
 ### 🎚 播放、解码与音质
 
-- 支持 WAV、FLAC、M4A、OGG、OPUS 等音频标签读取，并对乱码标签提供回退修正。
+- 本地音频标签主路径迁移到 lyrico-audiotag，Kyant TagLib 作为 fallback；Jaudiotagger 仍仅保留在 legacy fallback 链路中，不再作为主路径。
+- 支持 WAV、FLAC、M4A、ALAC、MP3、OGG、OPUS 等格式的封面、基础标签和内嵌歌词读取，并对乱码标签提供回退修正。
 - 提供系统解码、FFmpeg 解码和自动解码模式，默认使用自动解码模式，如无法解码请切换 FFmpeg 解码器。
 - FFmpeg 扩展解码器可提高 ALAC / AAC 等 M4A 格式兼容性。
 - 支持 ReplayGain 音量标准化。
@@ -112,19 +119,24 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 - 支持音频输出切换器、上一曲按钮重放当前歌曲选项和按日期查看听歌历史。
 - 支持 Dolby Atmos、Master、Apple Lossless、Hi-Res、Lossless、HQ、LQ 等音质标签展示。
 - *音乐库列表中 24-bit / 96 kHz 等规格统一归入 Hi-Res（MQ）体系。*
+- 修复 WAV 通知封面、专辑页封面清晰度、媒体通知串歌、无封面歌曲 fallback 变空白等问题。
+- 修复 163 key 读取：支持独立 tag，也支持从 Comment / Description 中提取；注释字段同时兼容 Comment 和 Description。
 - 改进 WAV、ALAC / M4A、24-bit / 96 kHz 等元数据回退与音质识别。
 
 ### 🎨 界面与设置
 
 - 基于 Miuix 的 MIUI / HyperOS 风格设置页和 UI 组件。
-- 默认使用悬浮底部导航栏，首页、音乐库和设置页可直接切换。
+- 基础 i18n 已接入英文资源，部分高频界面支持英文。
+- 默认使用悬浮底部导航栏，首页、音乐库和设置页可直接切换；支持双底栏 Expanded 形态和滚动后的 Compact 收缩底栏形态。
+- 底部栏和 MiniPlayer 支持高斯模糊 / 液态玻璃效果切换。
 - 音乐库搜索、排序和多选状态支持返回键优先关闭当前状态。
 - 所有主要歌曲列表使用统一的更多菜单、歌曲信息、添加到歌单、下一首播放、分享、编辑标签和删除操作。
-- MiniPlayer 封面会随播放而自动旋转，支持环形进度条和歌曲 / 歌词切换动画。
+- MiniPlayer 封面会随播放而自动旋转，支持封面旋转开关、歌词显示开关、环形进度条和歌曲 / 歌词切换动画。
 - 专辑与艺术家详情页提供大标题、渐变背景和统一信息布局。
 - 支持主题切换，以及常见播放、歌词、扫描、解码器、外部音乐标签刮削软件和歌词打轴软件设置。
-- 支持 GitHub 软件更新页、应用日志查看器、Logcat / 网络日志采集、复制 / 发送详细日志、自动日志保留、应用数据备份。
+- 支持 GitHub 软件更新页、应用日志查看器、Logcat / 网络日志采集、复制 / 发送详细日志、自动日志保留、应用数据备份；已修复“已是最新版本”仍跳 APK 下载链接的问题。
 - 支持Shortcuts，默认提供音乐库、歌单和文件夹入口。
+- 通知 / 控制中心新增收藏和播放模式按钮，并通过 MediaSession 自定义命令接入。
 - 歌曲信息页支持查看音频标签、修改时间、添加时间、163 key 解密信息、alias / comment，并可跳转到网易云歌曲、专辑或歌手页面。
 - 支持使用 OpenAI 兼容接口根据歌曲信息和歌词生成 AI 解读。
 
@@ -134,8 +146,8 @@ Ella 默认打包仓库内预编译的 arm64-v8a native 库，普通 `assembleDe
 
 | 项目 | 要求                              |
 |:--|:--------------------------------|
-| Android 版本 | Android 12 / API 31 或更高版本       |
-| Target SDK | Android 17 / API 37               |
+| Android 版本 | Android 11 / API 30 或更高版本       |
+| Target SDK | Android 17 / API 37             |
 | 默认 ABI | `arm64-v8a`                     |
 | 网络 | WebDAV、LX 在线音源和在线歌词需要网络         |
 | 视频权限 | Android 13+ 使用动态视频封面时可能需要视频媒体权限 |
@@ -218,14 +230,17 @@ RELEASE_KEY_PASSWORD
 
 如果未设置这些变量，会使用项目根目录下的 `release.jks`；如果没有可用的 release keystore，则 release 构建会直接失败，避免误产出 debug 签名的 release 包。
 
+日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。提交后请同时推送 GitHub 与 GitLab 远端。
+
 ---
 
-## 🎧 FFmpeg
+## 🎧 FFmpeg 与 native 库
 
-预构建的 FFmpeg 静态库位于：
+预编译的 FFmpeg 与 lyrico-audiotag native 库默认位于：
 
 ```text
-ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
+ffmpeg-decoder/src/main/jniLibs/arm64-v8a/libffmpegJNI.so
+lyrico-audiotag/src/main/jniLibs/arm64-v8a/liblyrico_taglib.so
 ```
 
 如需在 Windows 上重新构建，请运行：
@@ -234,7 +249,13 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 .\build_ffmpeg.ps1
 ```
 
-该脚本会通过 WSL 使用 Linux Android NDK 构建 FFmpeg。
+如需更新 lyrico-audiotag / TagLib native 产物，请运行：
+
+```powershell
+.\build_lyrico_taglib.ps1
+```
+
+普通 `assembleDebug` 不会默认重新编译 native；发版前确认 APK 内包含所需 arm64-v8a `.so`。
 
 ---
 
@@ -246,10 +267,10 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 | 远程音乐 | WebDAV Digest 认证、目录浏览及播放                                      |
 | 在线音乐 | LX Music API 音源导入、搜索、串流播放、下载                                |
 | 动态封面 | 专辑文件夹视频、专辑视频、歌曲视频、fallback 视频                                |
-| 歌词 | LRC、增强 LRC、TTML、Lyricify、逐词歌词、翻译、罗马音、背景人声                    |
+| 歌词 | LRC、增强 LRC、ELRC、TTML、Lyricify、逐词歌词、翻译、罗马音、背景人声、对唱标签        |
 | 系统歌词 | 桌面歌词、词幕、SuperLyricApi、Lyric Getter API、FLYme 状态栏歌词（Ticker 通知）、蓝牙歌词 |
 | 解码 | Media3、系统解码器、FFmpeg 扩展解码器                                    |
-| 音频元数据 | TagLib、Jaudiotagger、读取内嵌和外置歌词、163 key 解密、alias / comment、显示音质标签 |
+| 音频元数据 | lyrico-audiotag 主路径、Kyant TagLib fallback、Jaudiotagger legacy fallback、读取内嵌和外置歌词、163 key 解密、alias / comment、显示音质标签 |
 | 统计分析 | 格式分布、音质分布、播放次数排行、听歌时长排行、听歌历史                                |
 | UI | Jetpack Compose、Miuix、悬浮底部导航、首页仪表盘、更新页、沉浸式播放页、横屏歌词、歌词卡片分享  |
 
@@ -264,15 +285,18 @@ ffmpeg-decoder/src/main/jni/ffmpeg/android-libs
 | [FFmpeg](https://ffmpeg.org) | 用于 ALAC 等音频格式的软件解码（LGPL-2.1）                 |
 | [Lyricon](https://github.com/proify/lyricon) | Lyric Provider API 和状态栏歌词                    |
 | [SuperLyricApi](https://github.com/HChenX/SuperLyricApi) | 用于向 SuperLyric 生态发布歌词数据（LGPL-2.1）            |
-| [LyricGetter-API](https://github.com/xiaowine/Lyric-Getter-Api) | 用于向 Lyric Getter 生态传递歌词原文 / API 适配（LGPL-2.1） |
-| [Lyrico](https://github.com/Replica0110/Lyrico) | 标签读取与日志页面交互参考                                |
-| [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | 网易云音乐 163 key 解密流程参考                         |
-| [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib 绑定                   |
+| [LyricGetter-API](https://github.com/xiaowine/Lyric-Getter-Api) | 用于向 Lyric Getter 生态传递歌词原文的 API 适配（LGPL-2.1） |
+| [lyrico-audiotag / Lyrico](https://github.com/Replica0110/Lyrico) | 本地标签读取 / 写入主路径与外部标签编辑器适配参考                  |
+| [TagLib](https://taglib.org/) | lyrico-audiotag 底层标签读写能力（LGPL/MPL）              |
+| [163KeyDecrypter](https://github.com/lycode404/163KeyDecrypter) | 网易云音乐 163 key 解密流程参考（MIT）                    |
+| [Kyant TagLib](https://github.com/Kyant0/TagLib) | Android / Kotlin TagLib 绑定，作为标签读取 fallback      |
 | [Kyant Backdrop](https://github.com/Kyant0/AndroidLiquidGlass) | 液态玻璃与背景模糊效果                                  |
 | [Coil](https://github.com/coil-kt/coil) | Compose 图片加载                                 |
 | [QuickJS wrapper Android](https://github.com/HarlonWang/quickjs-wrapper) | 运行 LX Music API JavaScript 音源                |
 | [LX Music Mobile](https://github.com/lyswhut/lx-music-mobile) | LX Music API 兼容实现与参考                         |
 | [accompanist-lyrics-core](https://github.com/6xingyv/accompanist-lyrics-core) | 歌词解析与 TTML / LRC 结构参考（Apache-2.0）            |
+
+MusicFree 相关代码已从当前项目中移除。Jaudiotagger 如仍存在于构建依赖中，仅作为 legacy fallback，不是当前本地标签读取主路径。
 
 ---
 
