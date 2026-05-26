@@ -44,6 +44,7 @@ class SettingsManager(private val context: Context) {
         val KEY_DESKTOP_LYRIC_ENABLED = booleanPreferencesKey("desktop_lyric_enabled")
         val KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED = booleanPreferencesKey("desktop_lyric_hide_when_paused")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MODE = booleanPreferencesKey("desktop_lyric_status_bar_mode")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET = intPreferencesKey("desktop_lyric_status_bar_top_offset")
         val KEY_DESKTOP_LYRIC_LOCKED = booleanPreferencesKey("desktop_lyric_locked")
         val KEY_DESKTOP_LYRIC_FONT_SCALE = intPreferencesKey("desktop_lyric_font_scale")
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
@@ -190,6 +191,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_HIDE_WHEN_PAUSED] ?: false }
     val desktopLyricStatusBarMode: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] ?: false }
+    val desktopLyricStatusBarTopOffset: Flow<Int> =
+        context.dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET] ?: 16).coerceIn(0, 120) }
     val desktopLyricLocked: Flow<Boolean> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_LOCKED] ?: false }
     val desktopLyricFontScale: Flow<Int> = context.dataStore.data.map { it[KEY_DESKTOP_LYRIC_FONT_SCALE] ?: 100 }
     val desktopLyricTranslationScale: Flow<Int> =
@@ -378,6 +381,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setDesktopLyricStatusBarMode(enabled: Boolean) {
         context.dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MODE] = enabled }
+    }
+
+    suspend fun setDesktopLyricStatusBarTopOffset(offsetDp: Int) {
+        context.dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_TOP_OFFSET] = offsetDp.coerceIn(0, 120) }
     }
 
     suspend fun setDesktopLyricLocked(locked: Boolean) {

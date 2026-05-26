@@ -65,6 +65,7 @@ class DesktopLyricService : Service() {
     private var lyricTextColor = Color.WHITE
     private var shadowStrength = 1f
     private var statusBarMode = false
+    private var statusBarTopOffsetDp = 16
     private var controllerIsPlaying = false
     private var savedX = Int.MIN_VALUE
     private var savedY = Int.MIN_VALUE
@@ -250,7 +251,7 @@ class DesktopLyricService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = if (statusBarMode) 0 else savedX.takeIf { it != Int.MIN_VALUE } ?: 0
-            y = if (statusBarMode) 0 else savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
+            y = if (statusBarMode) statusBarLyricTopY() else savedY.takeIf { it != Int.MIN_VALUE } ?: dp(96)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -480,7 +481,7 @@ class DesktopLyricService : Service() {
     private fun clampToScreen(view: View, params: WindowManager.LayoutParams) {
         if (statusBarMode) {
             params.x = 0
-            params.y = 0
+            params.y = statusBarLyricTopY()
             return
         }
         val metrics = resources.displayMetrics
@@ -497,10 +498,22 @@ class DesktopLyricService : Service() {
         return if (id > 0) resources.getDimensionPixelSize(id) else dp(24)
     }
 
+    private fun displayCutoutSafeInsetTop(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager.currentWindowMetrics.windowInsets.displayCutout?.safeInsetTop ?: 0
+        } else {
+            0
+        }
+    }
+
+    private fun statusBarLyricTopY(): Int =
+        statusBarHeight() + displayCutoutSafeInsetTop() + dp(statusBarTopOffsetDp)
+
     private fun loadSettingsFromStore() {
         runBlocking(Dispatchers.IO) {
             locked = settingsManager.desktopLyricLocked.first()
             statusBarMode = settingsManager.desktopLyricStatusBarMode.first()
+            statusBarTopOffsetDp = settingsManager.desktopLyricStatusBarTopOffset.first()
             fontScale = settingsManager.desktopLyricFontScale.first().coerceIn(80, 220) / 100f
             translationScale = settingsManager.desktopLyricTranslationScale.first().coerceIn(80, 220) / 100f
             opacityPercent = settingsManager.desktopLyricOpacity.first().coerceIn(35, 100)
@@ -525,6 +538,14 @@ class DesktopLyricService : Service() {
         }
         applyCurrentSettingsToViews()
         setLocked(locked, revealControls = false)
+        if (statusBarMode) {
+            val view = rootView
+            val params = layoutParams
+            if (view != null && params != null) {
+                clampToScreen(view, params)
+                windowManager.updateViewLayout(view, params)
+            }
+        }
         updateStatusBarModeVisibility()
     }
 

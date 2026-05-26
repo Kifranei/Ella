@@ -498,6 +498,7 @@ fun SettingsDetailScreen(
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectAsState(initial = false)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectAsState(initial = false)
     val desktopLyricStatusBarMode by settingsManager.desktopLyricStatusBarMode.collectAsState(initial = false)
+    val desktopLyricStatusBarTopOffset by settingsManager.desktopLyricStatusBarTopOffset.collectAsState(initial = 16)
     val desktopLyricLocked by settingsManager.desktopLyricLocked.collectAsState(initial = false)
     val desktopLyricFontScale by settingsManager.desktopLyricFontScale.collectAsState(initial = 100)
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectAsState(initial = 110)
@@ -1144,6 +1145,37 @@ fun SettingsDetailScreen(
                                 ?: scope.launch { settingsManager.setDesktopLyricHideWhenPaused(enabled) }
                         }
                     )
+
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                        Text(
+                            text = stringResource(R.string.settings_status_lyric_top_offset_value, desktopLyricStatusBarTopOffset),
+                            fontSize = 15.sp,
+                            color = MiuixTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.settings_status_lyric_top_offset_summary),
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Slider(
+                            value = (desktopLyricStatusBarTopOffset.coerceIn(0, 120).toFloat() / 120f).coerceIn(0f, 1f),
+                            onValueChange = { fraction ->
+                                val offset = (fraction * 120f).toInt().coerceIn(0, 120)
+                                scope.launch {
+                                    settingsManager.setDesktopLyricStatusBarTopOffset(offset)
+                                    applyDesktopLyricSettings()
+                                }
+                            },
+                            enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(text = "0dp", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(text = "120dp", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                        }
+                    }
 
                     SwitchPreference(
                         title = "锁定桌面歌词",

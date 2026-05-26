@@ -107,6 +107,8 @@
     <string name="settings_status_lyric_hide_when_paused_summary">暂停播放时清空状态栏歌词，恢复播放后自动显示</string>
     <string name="settings_floating_lyric_hide_when_paused">桌面歌词暂停时隐藏</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">暂停播放时隐藏悬浮歌词，恢复播放后自动显示</string>
+    <string name="settings_status_lyric_top_offset_value">状态栏歌词顶部偏移 %1$ddp</string>
+    <string name="settings_status_lyric_top_offset_summary">为挖孔屏和状态栏预留额外垂直距离</string>
 
     <string name="settings_app">应用</string>
     <string name="settings_preferences">应用偏好</string>
