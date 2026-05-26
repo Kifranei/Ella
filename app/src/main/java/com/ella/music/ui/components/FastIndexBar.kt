@@ -21,7 +21,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +35,8 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -121,8 +122,6 @@ fun LazyListScrollIndicator(
     state: LazyListState,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    var dragJob by remember { mutableStateOf<Job?>(null) }
     val info by remember {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
@@ -138,8 +137,7 @@ fun LazyListScrollIndicator(
         totalCount = info.third,
         modifier = modifier,
         onDragToIndex = { index ->
-            dragJob?.cancel()
-            dragJob = scope.launch { state.scrollToItem(index) }
+            state.scrollToItem(index)
         }
     )
 }
@@ -149,8 +147,6 @@ fun LazyGridScrollIndicator(
     state: LazyGridState,
     modifier: Modifier = Modifier
 ) {
-    val scope = rememberCoroutineScope()
-    var dragJob by remember { mutableStateOf<Job?>(null) }
     val info by remember {
         derivedStateOf {
             val layoutInfo = state.layoutInfo
@@ -166,8 +162,7 @@ fun LazyGridScrollIndicator(
         totalCount = info.third,
         modifier = modifier,
         onDragToIndex = { index ->
-            dragJob?.cancel()
-            dragJob = scope.launch { state.scrollToItem(index) }
+            state.scrollToItem(index)
         }
     )
 }
@@ -178,20 +173,14 @@ private fun ScrollIndicator(
     visibleCount: Int,
     totalCount: Int,
     modifier: Modifier = Modifier,
-    onDragToIndex: ((Int) -> Unit)? = null
+    onDragToIndex: (suspend (Int) -> Unit)? = null
 ) {
     if (totalCount <= 0 || visibleCount <= 0 || totalCount <= visibleCount) return
     val visibleFraction = (visibleCount.toFloat() / totalCount.toFloat()).coerceIn(0.08f, 1f)
     val maxFirst = max(1, totalCount - visibleCount)
     val offsetFraction = (firstVisibleIndex.toFloat() / maxFirst.toFloat()).coerceIn(0f, 1f)
     var trackHeightPx by remember(totalCount, visibleCount) { mutableStateOf(1) }
-
-    fun dragTo(y: Float) {
-        val targetIndex = ((y.coerceIn(0f, trackHeightPx.toFloat()) / trackHeightPx.toFloat()) * maxFirst)
-            .roundToInt()
-            .coerceIn(0, maxFirst)
-        onDragToIndex?.invoke(targetIndex)
-    }
+    val currentOnDragToIndex by rememberUpdatedState(onDragToIndex)
 
     BoxWithConstraints(
         modifier = modifier
@@ -199,20 +188,51 @@ private fun ScrollIndicator(
             .fillMaxHeight()
             .padding(horizontal = 4.dp, vertical = 28.dp)
             .onSizeChanged { trackHeightPx = it.height.coerceAtLeast(1) }
-            .pointerInput(totalCount, visibleCount, maxFirst, onDragToIndex) {
-                if (onDragToIndex == null) return@pointerInput
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    dragTo(down.position.y)
-                    down.consume()
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (change.changedToUpIgnoreConsumed()) break
-                        if (change.pressed) {
-                            dragTo(change.position.y)
-                            change.consume()
+            .pointerInput(totalCount, visibleCount, maxFirst, trackHeightPx) {
+                if (currentOnDragToIndex == null) return@pointerInput
+                coroutineScope {
+                    val targetIndices = Channel<Int>(Channel.CONFLATED)
+                    val scrollWorker = launch {
+                        for (targetIndex in targetIndices) {
+                            currentOnDragToIndex?.invoke(targetIndex)
                         }
+                    }
+                    try {
+                        awaitEachGesture {
+                            var lastIndex = -1
+                            var lastDispatchTimeMs = 0L
+
+                            fun calculateIndex(y: Float): Int =
+                                ((y.coerceIn(0f, trackHeightPx.toFloat()) / trackHeightPx.toFloat()) * maxFirst)
+                                    .roundToInt()
+                                    .coerceIn(0, maxFirst)
+
+                            fun dispatch(y: Float, force: Boolean = false) {
+                                val targetIndex = calculateIndex(y)
+                                val now = SystemClock.uptimeMillis()
+                                if (!force && targetIndex == lastIndex) return
+                                if (!force && now - lastDispatchTimeMs < SCROLL_THUMB_DRAG_THROTTLE_MS) return
+                                lastIndex = targetIndex
+                                lastDispatchTimeMs = now
+                                targetIndices.trySend(targetIndex)
+                            }
+
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            down.consume()
+                            dispatch(down.position.y, force = true)
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull() ?: break
+                                if (change.changedToUpIgnoreConsumed()) break
+                                if (change.pressed) {
+                                    change.consume()
+                                    dispatch(change.position.y)
+                                }
+                            }
+                        }
+                    } finally {
+                        targetIndices.close()
+                        scrollWorker.cancel()
                     }
                 }
             }
@@ -230,3 +250,5 @@ private fun ScrollIndicator(
         )
     }
 }
+
+private const val SCROLL_THUMB_DRAG_THROTTLE_MS = 16L
