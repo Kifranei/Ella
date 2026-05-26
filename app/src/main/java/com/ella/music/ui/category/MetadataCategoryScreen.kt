@@ -1290,7 +1290,7 @@ private fun MetadataAlbumRow(
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    sizePx = 256
+                    sizePx = 128
                 )
             } else {
                 DefaultAlbumCover(modifier = Modifier.fillMaxSize())
