@@ -7,6 +7,7 @@ import android.media.MediaFormat
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import android.util.LruCache
+import com.ella.music.data.looksLikeNeteaseKeyValue
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.scanner.MusicScanner
 import com.lonx.audiotag.model.AudioPicture
@@ -239,6 +240,20 @@ class LyricoAudioTagReaderWriter : AudioTagReader, AudioTagWriter {
     override suspend fun readTags(path: String): AudioTagInfo? = withPfd(path, ParcelFileDescriptor.MODE_READ_ONLY) { pfd ->
         val data = LyricoReader.read(pfd, readPictures = false)
         val raw = data.rawProperties.orEmpty().mapValues { (_, values) -> values.toList() }
+        val resolvedComment = data.comment.cleanTagValue()
+            ?: raw.firstTagValue(
+                "COMMENT",
+                "Comment",
+                "DESCRIPTION",
+                "Description",
+                "DESC",
+                "desc",
+                "COMM",
+                "©cmt",
+                "\u00a9cmt",
+                "\\u00a9cmt"
+            )
+        val resolvedNeteaseKey = raw.bestNeteaseKey(resolvedComment)
         AudioTagInfo(
             title = data.title,
             artist = data.artist,
@@ -250,19 +265,10 @@ class LyricoAudioTagReaderWriter : AudioTagReader, AudioTagWriter {
             year = data.date,
             trackNumber = data.trackNumber?.substringBefore('/')?.toIntOrNull(),
             discNumber = data.discNumber,
-            comment = data.comment,
+            comment = resolvedComment,
             lyrics = data.lyrics?.ifBlank { null } ?: raw.bestLyrics(),
             copyright = data.copyright,
-            neteaseKey = raw.firstTagValue(
-                "163KEY",
-                "163 KEY",
-                "NETEASEKEY",
-                "NETEASE_KEY",
-                "NETEASE_CLOUD_MUSIC_KEY",
-                "CLOUDMUSICKEY",
-                "CLOUDMUSIC_KEY",
-                "MUSIC163KEY"
-            ),
+            neteaseKey = resolvedNeteaseKey,
             rating = data.rating,
             replayGainTrackGain = data.replayGainTrackGain,
             replayGainTrackPeak = data.replayGainTrackPeak,
@@ -354,8 +360,11 @@ class LegacyAudioTagReader(
         scanner.extractEmbeddedLyrics(path)
     }
 
-    private fun SongTagInfo.toAudioTagInfo(): AudioTagInfo =
-        AudioTagInfo(
+    private fun SongTagInfo.toAudioTagInfo(): AudioTagInfo {
+        val resolvedComment = comment.cleanTagValue()
+        val resolvedNeteaseKey = neteaseKey.cleanTagValue()?.extractNeteaseKeyCandidate()
+            ?: resolvedComment?.extractNeteaseKeyCandidate()
+        return AudioTagInfo(
             title = title.takeIf { it.isNotBlank() },
             artist = artist.takeIf { it.isNotBlank() },
             album = album.takeIf { it.isNotBlank() },
@@ -365,11 +374,12 @@ class LegacyAudioTagReader(
             genre = genre.takeIf { it.isNotBlank() },
             year = year.takeIf { it.isNotBlank() },
             trackNumber = track.substringBefore('/').toIntOrNull(),
-            comment = comment.takeIf { it.isNotBlank() },
+            comment = resolvedComment,
             copyright = copyright.takeIf { it.isNotBlank() },
-            neteaseKey = neteaseKey.takeIf { it.isNotBlank() },
+            neteaseKey = resolvedNeteaseKey,
             rating = rating.takeIf { it > 0 }
         )
+    }
 
     private fun AudioTagInfo.hasLegacyTagData(): Boolean =
         listOf(title, artist, album, albumArtist, composer, lyricist, genre, year, comment, copyright, neteaseKey)
@@ -389,15 +399,64 @@ private fun Map<String, List<String>>.bestLyrics(): String? =
         "LYRIC"
     )
 
+private fun Map<String, List<String>>.bestNeteaseKey(comment: String?): String? {
+    firstTagValue(
+        "163KEY",
+        "163 KEY",
+        "NETEASEKEY",
+        "NETEASE_KEY",
+        "NETEASE_CLOUD_MUSIC_KEY",
+        "CLOUDMUSICKEY",
+        "CLOUDMUSIC_KEY",
+        "MUSIC163KEY",
+        "MUSIC_163_KEY"
+    )?.extractNeteaseKeyCandidate()?.let { return it }
+
+    sequenceOf(
+        comment,
+        firstTagValue("COMMENT", "DESCRIPTION", "DESC", "COMM", "©cmt", "\u00a9cmt", "\\u00a9cmt")
+    ).forEach { value ->
+        value?.extractNeteaseKeyCandidate()?.let { return it }
+    }
+
+    values.asSequence()
+        .flatMap { it.asSequence() }
+        .forEach { value ->
+            value.extractNeteaseKeyCandidate()?.let { return it }
+        }
+    return null
+}
+
 private fun Map<String, List<String>>.firstTagValue(vararg keys: String): String? {
     keys.forEach { requested ->
         val value = entries.firstOrNull { (key, _) -> key.equals(requested, ignoreCase = true) }
             ?.value
             ?.firstOrNull { it.isNotBlank() }
-            ?.trim()
+            .cleanTagValue()
         if (!value.isNullOrBlank()) return value
     }
     return null
+}
+
+private fun String?.cleanTagValue(): String? =
+    this?.trim('\uFEFF', '\u0000', ' ', '\t', '\r', '\n')?.takeIf { it.isNotBlank() }
+
+private fun String.extractNeteaseKeyCandidate(): String? {
+    val text = cleanTagValue() ?: return null
+    val patterns = listOf(
+        Regex(
+            """(?i)(163\s*key|163key|netease\s*key|neteasecloudmusic|cloudmusic\s*key|music163key|网易云(?:音乐)?)[\s:=：]+(.+)"""
+        ),
+        Regex("""(?i)(music\.163\.com[^\s]+)""")
+    )
+    for (pattern in patterns) {
+        val value = pattern.find(text)
+            ?.groupValues
+            ?.lastOrNull()
+            ?.cleanTagValue()
+        if (!value.isNullOrBlank()) return value
+    }
+    return if (text.looksLikeNeteaseKeyValue()) text else null
 }
 
 private fun sniffImageMimeType(bytes: ByteArray): String? = when {
