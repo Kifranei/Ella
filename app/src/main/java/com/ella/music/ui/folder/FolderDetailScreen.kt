@@ -105,6 +105,8 @@ fun FolderDetailScreen(
     val currentSong by playerViewModel.currentSong.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
+    val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
+    val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
     val scope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
@@ -115,6 +117,7 @@ fun FolderDetailScreen(
     var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
     var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var folderToBlock by remember { mutableStateOf<String?>(null) }
     val sortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.folderDetailSongSortIndex)
     val sortMode = FolderSongSortMode.entries.getOrElse(sortIndex) { FolderSongSortMode.Title }
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
@@ -157,8 +160,9 @@ fun FolderDetailScreen(
 
     val folderName = normalizedFolderPath.substringAfterLast('/')
 
-    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded) {
+    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded || folderToBlock != null) {
         when {
+            folderToBlock != null -> folderToBlock = null
             selectionMode -> {
                 selectedIds = emptySet()
                 selectionMode = false
@@ -398,7 +402,8 @@ fun FolderDetailScreen(
                             items(childFolders, key = { it.path }) { folder ->
                                 ChildFolderRow(
                                     folder = folder,
-                                    onClick = { onFolderClick(folder.path) }
+                                    onClick = { onFolderClick(folder.path) },
+                                    onLongClick = { folderToBlock = folder.path }
                                 )
                             }
                         }
@@ -465,6 +470,22 @@ fun FolderDetailScreen(
                         .padding(end = 22.dp, bottom = 118.dp)
                 )
             }
+        }
+
+        folderToBlock?.let { folderPath ->
+            FolderBlockDialog(
+                folderPath = folderPath,
+                onDismiss = { folderToBlock = null },
+                onBlock = {
+                    scope.launch {
+                        mainViewModel.settingsManager.setScanExcludeFolders(
+                            (blockedFolders + folderPath.normalizeFolderPath()).distinct().joinToString("；")
+                        )
+                        mainViewModel.scanMusic()
+                    }
+                    folderToBlock = null
+                }
+            )
         }
 
         SongMoreActionHost(
@@ -698,7 +719,8 @@ private fun Song.releaseYearOrNull(): Int? =
 @Composable
 private fun ChildFolderRow(
     folder: FolderTreeEntry,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -706,7 +728,10 @@ private fun ChildFolderRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(MiuixTheme.colorScheme.surfaceContainer)
-            .combinedClickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 18.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)

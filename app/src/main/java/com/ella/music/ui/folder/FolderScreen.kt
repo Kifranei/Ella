@@ -921,7 +921,7 @@ private fun BlockedFoldersEntryCard(
 }
 
 @Composable
-private fun FolderBlockDialog(
+internal fun FolderBlockDialog(
     folderPath: String,
     onDismiss: () -> Unit,
     onBlock: () -> Unit
@@ -1071,7 +1071,7 @@ internal fun WebDavItem.toRemoteSong(): Song {
     )
 }
 
-private fun String.toFolderSettingList(): List<String> =
+internal fun String.toFolderSettingList(): List<String> =
     split('；', ';')
         .map { it.trim() }
         .filter { it.isNotBlank() }
