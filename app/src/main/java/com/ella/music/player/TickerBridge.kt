@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import com.ella.music.R
 
@@ -16,8 +17,12 @@ class TickerBridge(private val context: Context) {
 
         // 换一个新的 Channel ID，避免旧通知渠道配置缓存影响测试
         private const val CHANNEL_ID = "ella_flyme_ticker_lyrics_v2"
+        private const val CHANNEL_ID_HEADS_UP_LYRICS = "ella_heads_up_lyrics_v1"
         private const val NOTIFICATION_ID = 0x454c4c41
+        private const val HEADS_UP_NOTIFICATION_BASE_ID = 0x454c5000
         private const val LEGACY_HIDDEN_NOTIFICATION_ID = 1001
+        private const val HEADS_UP_MIN_INTERVAL_MS = 800L
+        private const val HEADS_UP_TIMEOUT_MS = 1800L
         private const val FLAG_ALWAYS_SHOW_TICKER_FALLBACK = 0x1000000
         private const val FLAG_ONLY_UPDATE_TICKER_FALLBACK = 0x2000000
         private const val ACTION_SEND_LYRIC = "com.meizu.flyme.ticker.ACTION_SEND"
@@ -27,8 +32,12 @@ class TickerBridge(private val context: Context) {
 
     private var enabled = false
     private var hideNotification = false
+    private var headsUpLyricsEnabled = false
     private var lastPayload: Pair<String?, String?>? = null
     private var hardCancelStandalonePending = true
+    private var headsUpNotificationSeq = 0
+    private var lastHeadsUpNotificationId = 0
+    private var lastHeadsUpPostTimeMs = 0L
 
     private val notificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -55,12 +64,18 @@ class TickerBridge(private val context: Context) {
 
     fun setHideNotification(enabled: Boolean) {
         hideNotification = enabled
-        if (enabled) {
+        if (enabled && !shouldUseHeadsUpLyrics()) {
             hardCancelStandalonePending = true
             cancelStandaloneTickerNotifications()
         } else {
             PlaybackTickerState.clear()
         }
+        lastPayload = null
+    }
+
+    fun setHeadsUpLyricsEnabled(enabled: Boolean) {
+        headsUpLyricsEnabled = enabled
+        if (!enabled) cancelHeadsUpLyricNotification()
         lastPayload = null
     }
 
@@ -89,7 +104,10 @@ class TickerBridge(private val context: Context) {
             }
 
             sendFlymeBroadcast(intent)
-            if (hideNotification) {
+            if (shouldUseHeadsUpLyrics()) {
+                PlaybackTickerState.clear()
+                postHeadsUpLyricNotification(text, cleanTranslation)
+            } else if (hideNotification) {
                 PlaybackTickerState.update(text, cleanTranslation)
                 cancelStandaloneTickerNotifications()
             } else {
@@ -115,6 +133,7 @@ class TickerBridge(private val context: Context) {
             sendFlymeBroadcast(intent)
             PlaybackTickerState.clear()
             cancelStandaloneTickerNotifications()
+            cancelHeadsUpLyricNotification()
         } catch (_: Exception) {
         }
     }
@@ -149,6 +168,54 @@ class TickerBridge(private val context: Context) {
                 notificationManager.cancel(null, NOTIFICATION_ID)
                 notificationManager.cancel("ranker_group", Int.MAX_VALUE)
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun postHeadsUpLyricNotification(text: String, translation: String?) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastHeadsUpPostTimeMs < HEADS_UP_MIN_INTERVAL_MS) return
+        lastHeadsUpPostTimeMs = now
+
+        ensureHeadsUpNotificationChannel()
+        cancelHeadsUpLyricNotification()
+        headsUpNotificationSeq = (headsUpNotificationSeq + 1) % 1000
+        val notificationId = HEADS_UP_NOTIFICATION_BASE_ID + headsUpNotificationSeq
+
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(context, CHANNEL_ID_HEADS_UP_LYRICS)
+        } else {
+            Notification.Builder(context)
+        }
+
+        val notification = builder
+            .setSmallIcon(R.drawable.ic_flyme_ticker)
+            .setContentTitle(text)
+            .setContentText(translation.orEmpty())
+            .setTicker(text)
+            .setOngoing(false)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(false)
+            .setShowWhen(false)
+            .setLocalOnly(true)
+            .setDefaults(0)
+            .setSound(null)
+            .setVibrate(null)
+            .setPriority(Notification.PRIORITY_MAX)
+            .setCategory(Notification.CATEGORY_STATUS)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setTimeoutAfter(HEADS_UP_TIMEOUT_MS)
+            .build()
+
+        lastHeadsUpNotificationId = notificationId
+        notificationManager.notify(notificationId, notification)
+        Log.d(TAG, "Heads-up lyric notification posted: $text")
+    }
+
+    private fun cancelHeadsUpLyricNotification() {
+        if (lastHeadsUpNotificationId != 0) {
+            notificationManager.cancel(lastHeadsUpNotificationId)
+            lastHeadsUpNotificationId = 0
         }
     }
 
@@ -208,6 +275,25 @@ class TickerBridge(private val context: Context) {
         notificationManager.notify(notificationId, notification)
     }
 
+    private fun ensureHeadsUpNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (notificationManager.getNotificationChannel(CHANNEL_ID_HEADS_UP_LYRICS) != null) return
+
+        val channel = NotificationChannel(
+            CHANNEL_ID_HEADS_UP_LYRICS,
+            context.getString(R.string.notification_channel_heads_up_lyrics),
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = context.getString(R.string.notification_channel_heads_up_lyrics_description)
+            setSound(null, null)
+            enableVibration(false)
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+
+        notificationManager.createNotificationChannel(channel)
+    }
+
     private fun ensureNotificationChannel(channelId: String) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (notificationManager.getNotificationChannel(channelId) != null) return
@@ -227,7 +313,20 @@ class TickerBridge(private val context: Context) {
     }
 
     private fun isFlymeTickerSupported(): Boolean {
-        return flagAlwaysShowTicker > 0 && flagOnlyUpdateTicker > 0
+        return isFlymeDevice() && flagAlwaysShowTicker > 0 && flagOnlyUpdateTicker > 0
+    }
+
+    private fun shouldUseHeadsUpLyrics(): Boolean {
+        return headsUpLyricsEnabled && !isFlymeTickerSupported()
+    }
+
+    private fun isFlymeDevice(): Boolean {
+        val manufacturer = Build.MANUFACTURER.orEmpty()
+        val brand = Build.BRAND.orEmpty()
+        val display = Build.DISPLAY.orEmpty()
+        return manufacturer.contains("meizu", ignoreCase = true) ||
+            brand.contains("meizu", ignoreCase = true) ||
+            display.contains("flyme", ignoreCase = true)
     }
 
     private fun getNotificationFlag(name: String): Int {

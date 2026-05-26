@@ -105,6 +105,10 @@
     <string name="desktop_lyric_status_bar_mode_summary">在状态栏空白处显示迷你歌词，并触摸穿透避免影响下拉</string>
     <string name="settings_status_lyric_hide_when_paused">状态栏歌词暂停时隐藏</string>
     <string name="settings_status_lyric_hide_when_paused_summary">暂停播放时清空状态栏歌词，恢复播放后自动显示</string>
+    <string name="settings_heads_up_lyric_notifications">浮动通知歌词</string>
+    <string name="settings_heads_up_lyric_notifications_summary">在非 Flyme 设备上通过系统浮动通知显示歌词，可能需要允许该通知类别弹出</string>
+    <string name="notification_channel_heads_up_lyrics">浮动通知歌词</string>
+    <string name="notification_channel_heads_up_lyrics_description">在非 Flyme 设备上通过系统浮动通知显示歌词</string>
     <string name="settings_floating_lyric_hide_when_paused">桌面歌词暂停时隐藏</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">暂停播放时隐藏悬浮歌词，恢复播放后自动显示</string>
     <string name="settings_status_lyric_top_offset_value">状态栏歌词顶部偏移 %1$ddp</string>

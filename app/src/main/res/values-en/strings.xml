@@ -105,6 +105,10 @@
     <string name="desktop_lyric_status_bar_mode_summary">Show compact floating lyrics in the empty status bar area, with touch passthrough for notification shade gestures</string>
     <string name="settings_status_lyric_hide_when_paused">Hide status lyrics when paused</string>
     <string name="settings_status_lyric_hide_when_paused_summary">Clear status bar lyrics while playback is paused, then restore them when playback resumes</string>
+    <string name="settings_heads_up_lyric_notifications">Heads-up lyric notifications</string>
+    <string name="settings_heads_up_lyric_notifications_summary">Shows lyrics via Android heads-up notifications on non-Flyme devices. You may need to allow pop-up notifications for this channel.</string>
+    <string name="notification_channel_heads_up_lyrics">Heads-up lyric notifications</string>
+    <string name="notification_channel_heads_up_lyrics_description">Shows lyrics via Android heads-up notifications on non-Flyme devices</string>
     <string name="settings_floating_lyric_hide_when_paused">Hide desktop lyrics when paused</string>
     <string name="settings_floating_lyric_hide_when_paused_summary">Hide floating lyrics while playback is paused, then restore them when playback resumes</string>
     <string name="settings_status_lyric_top_offset_value">Status lyric top offset %1$ddp</string>

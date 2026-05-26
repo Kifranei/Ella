@@ -498,6 +498,7 @@ fun SettingsDetailScreen(
     val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
     val tickerHideNotification by settingsManager.tickerHideNotification.collectAsState(initial = false)
     val tickerHideWhenPaused by settingsManager.tickerHideWhenPaused.collectAsState(initial = false)
+    val tickerHeadsUpLyrics by settingsManager.tickerHeadsUpLyrics.collectAsState(initial = false)
     val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectSettingsState(initialValue = false)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectSettingsState(initialValue = false)
@@ -1452,6 +1453,17 @@ fun SettingsDetailScreen(
                         onCheckedChange = { enabled ->
                             playerViewModel?.setTickerHideWhenPaused(enabled)
                                 ?: scope.launch { settingsManager.setTickerHideWhenPaused(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_heads_up_lyric_notifications),
+                        summary = stringResource(R.string.settings_heads_up_lyric_notifications_summary),
+                        enabled = tickerEnabled,
+                        checked = tickerHeadsUpLyrics,
+                        onCheckedChange = { enabled ->
+                            playerViewModel?.setTickerHeadsUpLyrics(enabled)
+                                ?: scope.launch { settingsManager.setTickerHeadsUpLyrics(enabled) }
                         }
                     )
 

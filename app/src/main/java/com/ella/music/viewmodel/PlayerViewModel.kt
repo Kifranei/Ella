@@ -162,6 +162,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             tickerHideWhenPausedEnabled = settingsManager.tickerHideWhenPaused.first()
             samsungFloatingLyricTranslationEnabled = settingsManager.samsungFloatingLyricTranslation.first() && !hideNotification
             tickerBridge.setHideNotification(hideNotification)
+            tickerBridge.setHeadsUpLyricsEnabled(settingsManager.tickerHeadsUpLyrics.first())
             tickerBridge.setEnabled(enabled)
             if (enabled) resendTickerLyric()
         }
@@ -186,6 +187,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 } else if (tickerBridge.isEnabled()) {
                     resendTickerLyric(force = true)
                 }
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.tickerHeadsUpLyrics.distinctUntilChanged().collect { enabled ->
+                tickerBridge.setHeadsUpLyricsEnabled(enabled)
+                lastTickerPayload = null
+                if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
             }
         }
         viewModelScope.launch {
@@ -922,6 +930,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             settingsManager.setTickerEnabled(enabled)
             tickerBridge.setHideNotification(settingsManager.tickerHideNotification.first())
+            tickerBridge.setHeadsUpLyricsEnabled(settingsManager.tickerHeadsUpLyrics.first())
             tickerBridge.setEnabled(enabled)
             lastTickerPayload = null
             if (enabled) resendTickerLyric()
@@ -952,6 +961,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } else if (tickerBridge.isEnabled()) {
                 resendTickerLyric(force = true)
             }
+        }
+    }
+
+    fun setTickerHeadsUpLyrics(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setTickerHeadsUpLyrics(enabled)
+            tickerBridge.setHeadsUpLyricsEnabled(enabled)
+            lastTickerPayload = null
+            if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
         }
     }
 
