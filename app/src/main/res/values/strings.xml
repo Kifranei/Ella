@@ -130,8 +130,8 @@
     <string name="settings_bottom_bar_glass_effect_summary_liquid">液态玻璃：模糊与折射效果，更有层次感</string>
     <string name="bottom_bar_glass_effect_blur">高斯模糊</string>
     <string name="bottom_bar_glass_effect_liquid">液态玻璃</string>
-    <string name="settings_lyric_perspective">立体歌词</string>
-    <string name="settings_lyric_perspective_summary">歌词页按距离加入轻微透视和模糊层次，类似 Salt Player 的纵深效果</string>
+    <string name="settings_lyric_perspective">歌词景深效果</string>
+    <string name="settings_lyric_perspective_summary">当前行保持清晰，远离当前行的歌词逐渐缩小、变淡并轻微模糊</string>
 
     <string name="share_song">分享歌曲</string>
     <string name="share_no_available_app">没有可用的分享应用</string>

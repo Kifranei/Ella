@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -241,6 +240,8 @@ fun WordLyricView(
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
+    val safeHorizontalPadding = if (horizontalPadding < 32.dp) 32.dp else horizontalPadding
+    val safeLineHorizontalPadding = if (lineHorizontalPadding < 16.dp) 16.dp else lineHorizontalPadding
     var userBrowsing by remember { mutableStateOf(false) }
     var autoScrolling by remember { mutableStateOf(false) }
     var lastUserScrollMs by remember { mutableLongStateOf(0L) }
@@ -296,7 +297,7 @@ fun WordLyricView(
                     drawRect(fade, blendMode = BlendMode.DstIn)
                 }
             }
-            .padding(horizontal = horizontalPadding),
+            .padding(horizontal = safeHorizontalPadding),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item { Box(modifier = Modifier.height(topSpacer)) }
@@ -313,19 +314,38 @@ fun WordLyricView(
                 index < currentIndex -> currentIndex - index
                 else -> index - currentIndex
             }
-            val targetAlpha = when {
-                userBrowsing -> 0.92f
-                isActive -> 1f
-                distance == 1 -> 0.54f
-                distance == 2 -> 0.32f
-                else -> 0.18f
+            val depthEnabled = perspectiveEffect && !userBrowsing && currentIndex >= 0
+            val targetAlpha = if (depthEnabled) {
+                when {
+                    isActive -> 1f
+                    distance == 1 -> 0.55f
+                    distance == 2 -> 0.32f
+                    else -> 0.18f
+                }
+            } else {
+                when {
+                    userBrowsing -> 0.92f
+                    isActive -> 1f
+                    distance == 1 -> 0.66f
+                    distance == 2 -> 0.46f
+                    else -> 0.30f
+                }
             }
-            val targetScale = when {
-                userBrowsing -> 1f
-                isActive -> 1.018f
-                distance == 1 -> 0.972f
-                distance == 2 -> 0.94f
-                else -> 0.92f
+            val targetScale = if (depthEnabled) {
+                when {
+                    isActive -> 1.08f
+                    distance == 1 -> 0.96f
+                    distance == 2 -> 0.90f
+                    else -> 0.86f
+                }
+            } else {
+                when {
+                    userBrowsing -> 1f
+                    isActive -> 1.018f
+                    distance == 1 -> 0.972f
+                    distance == 2 -> 0.94f
+                    else -> 0.92f
+                }
             }
             val lineAlpha by animateFloatAsState(
                 targetValue = targetAlpha,
@@ -341,33 +361,28 @@ fun WordLyricView(
                 label = "lyric_line_scale"
             )
             val blur by animateFloatAsState(
-                targetValue = when {
-                    userBrowsing || isActive -> 0f
-                    index < currentIndex -> LYRIC_PLAYED_LINE_BLUR_DP
-                    else -> (distance * LYRIC_UPCOMING_LINE_BLUR_STEP_DP)
-                        .coerceAtMost(LYRIC_UPCOMING_LINE_MAX_BLUR_DP)
+                targetValue = if (depthEnabled) {
+                    when {
+                        isActive -> 0f
+                        distance == 1 -> 1.5f
+                        distance == 2 -> 3f
+                        else -> 5f
+                    }
+                } else {
+                    0f
                 },
                 animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
                 label = "lyric_line_blur"
             )
-            val perspectiveRotation by animateFloatAsState(
-                targetValue = if (perspectiveEffect && !userBrowsing && !isActive && currentIndex >= 0) {
+            val depthOffsetY by animateFloatAsState(
+                targetValue = if (depthEnabled && !isActive) {
                     val direction = if (index < currentIndex) -1f else 1f
-                    direction * (9f + distance.coerceAtMost(5) * 3.2f)
+                    direction * distance.coerceAtMost(4) * 4f
                 } else {
                     0f
                 },
                 animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                label = "lyric_line_perspective_rotation"
-            )
-            val perspectiveOffsetY by animateFloatAsState(
-                targetValue = if (perspectiveEffect && !userBrowsing && !isActive && currentIndex >= 0) {
-                    -distance.coerceAtMost(5) * 1.6f
-                } else {
-                    0f
-                },
-                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                label = "lyric_line_perspective_offset_y"
+                label = "lyric_line_depth_offset_y"
             )
 
             Column(
@@ -377,14 +392,7 @@ fun WordLyricView(
                         alpha = lineAlpha
                         scaleX = scale
                         scaleY = scale
-                        rotationX = perspectiveRotation
-                        translationY = with(density) { perspectiveOffsetY.dp.toPx() }
-                        cameraDistance = 30f * density.density
-                        transformOrigin = when {
-                            !perspectiveEffect || userBrowsing || isActive -> TransformOrigin.Center
-                            index < currentIndex -> TransformOrigin(0.5f, 1f)
-                            else -> TransformOrigin(0.5f, 0f)
-                        }
+                        translationY = with(density) { depthOffsetY.dp.toPx() }
                     }
                     .blur(blur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     .pointerInput(line) {
@@ -395,8 +403,8 @@ fun WordLyricView(
                         )
                     }
                     .padding(
-                        horizontal = lineHorizontalPadding,
-                        vertical = if (isActive) 6.dp else 2.dp
+                        horizontal = safeLineHorizontalPadding,
+                        vertical = if (isActive) 10.dp else 8.dp
                     ),
                 horizontalAlignment = lineAlignment
             ) {
@@ -877,9 +885,6 @@ private fun LyricLine.isBackgroundVisibleAt(positionMs: Long): Boolean {
 }
 
 private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.045f
-private const val LYRIC_PLAYED_LINE_BLUR_DP = 1.2f
-private const val LYRIC_UPCOMING_LINE_BLUR_STEP_DP = 1.35f
-private const val LYRIC_UPCOMING_LINE_MAX_BLUR_DP = 4.2f
 private const val LYRIC_GLOW_PRE_PLAY_ALPHA = 0.22f
 private const val LYRIC_GLOW_MAX_ALPHA = 1f
 private val LYRIC_EDGE_GUARD_DP = 10.dp

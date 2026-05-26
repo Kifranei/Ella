@@ -130,8 +130,8 @@
     <string name="settings_bottom_bar_glass_effect_summary_liquid">Liquid Glass: blur with refraction for more depth</string>
     <string name="bottom_bar_glass_effect_blur">Gaussian Blur</string>
     <string name="bottom_bar_glass_effect_liquid">Liquid Glass</string>
-    <string name="settings_lyric_perspective">Perspective lyrics</string>
-    <string name="settings_lyric_perspective_summary">Add subtle perspective and depth blur by lyric distance, similar to Salt Player</string>
+    <string name="settings_lyric_perspective">Lyric depth effect</string>
+    <string name="settings_lyric_perspective_summary">Keep the current line clear while distant lines shrink, fade, and blur slightly</string>
 
     <string name="share_song">Share song</string>
     <string name="share_no_available_app">No sharing apps available</string>
