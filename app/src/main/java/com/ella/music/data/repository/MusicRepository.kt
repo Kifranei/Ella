@@ -8,6 +8,7 @@ import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
 import android.util.LruCache
@@ -32,13 +33,17 @@ import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import java.io.File
 import java.security.MessageDigest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -62,6 +67,9 @@ private sealed class CoverDataState {
     data object Missing : CoverDataState()
     data class Error(val message: String?) : CoverDataState()
 }
+
+private const val SCAN_PROGRESS_BATCH = 100
+private const val TAG_ENRICHMENT_BATCH = 200
 
 class MusicRepository(private val context: Context) {
 
@@ -103,6 +111,9 @@ class MusicRepository(private val context: Context) {
     private val coverDataStates = ConcurrentHashMap<String, CoverDataState>()
     private val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
     private val remoteAudioCacheDir = File(context.cacheDir, "webdav_audio")
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var libraryEnrichmentJob: Job? = null
+    private var pendingLibraryEnrichmentItems: List<MediaStoreAudioItem> = emptyList()
 
     suspend fun scanMusic(
         minDurationMs: Long = 0,
@@ -121,24 +132,19 @@ class MusicRepository(private val context: Context) {
                 "Start scan mode=$mode minDuration=${minDurationMs}ms include=${includeFolders.size} exclude=${excludeFolders.size} fullRescan=$fullRescan deepRescan=$deepRescan",
                 AppLogType.LIBRARY
             )
-            val scannedSongs = if (fullRescan || deepRescan) {
-                scanner.scanAllSongs(
-                    minDurationMs = minDurationMs,
-                    includeFolders = includeFolders,
-                    excludeFolders = excludeFolders,
-                    deepMetadata = true
-                ) { count -> _scanProgress.value = count }
-                    .map { song -> song.withRepositoryTags() }
-            } else {
-                synchronizeLibrary(
-                    minDurationMs = minDurationMs,
-                    includeFolders = includeFolders,
-                    excludeFolders = excludeFolders
-                )
-            }
+            libraryEnrichmentJob?.cancel()
+            val scannedSongs = synchronizeLibrary(
+                minDurationMs = minDurationMs,
+                includeFolders = includeFolders,
+                excludeFolders = excludeFolders,
+                forceRefreshAll = fullRescan || deepRescan
+            )
             _songs.value = scannedSongs
             _albums.value = scannedSongs.toAlbums()
             saveLibraryCache(scannedSongs, _albums.value)
+            val enrichmentItems = pendingLibraryEnrichmentItems
+            pendingLibraryEnrichmentItems = emptyList()
+            scheduleLibraryTagEnrichment(enrichmentItems)
             AppLogStore.info(
                 context,
                 "MusicScanner",
@@ -163,34 +169,41 @@ class MusicRepository(private val context: Context) {
     private suspend fun synchronizeLibrary(
         minDurationMs: Long,
         includeFolders: List<String>,
-        excludeFolders: List<String>
+        excludeFolders: List<String>,
+        forceRefreshAll: Boolean
     ): List<Song> = withContext(Dispatchers.IO) {
+        val startedAt = SystemClock.elapsedRealtime()
         val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: readCachedSongs()
         val cachedBySyncKey = cachedSongs.associateBy { it.librarySyncKey() }
         val cachedByPath = cachedSongs.associateBy { it.path }
+        val enumerateStartedAt = SystemClock.elapsedRealtime()
         val currentItems = scanner.enumerateAudioFiles(
             includeFolders = includeFolders,
             excludeFolders = excludeFolders
         )
+        val enumerateElapsed = SystemClock.elapsedRealtime() - enumerateStartedAt
         val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
         val currentPaths = currentItems.map { it.path }.toSet()
         val mergedSongs = ArrayList<Song>(currentItems.size)
+        val enrichmentItems = ArrayList<MediaStoreAudioItem>()
         var addedCount = 0
         var updatedCount = 0
         var reusedCount = 0
         var failedCount = 0
+        var lastProgress = 0
 
         currentItems.forEachIndexed { index, item ->
             val cached = cachedBySyncKey[item.librarySyncKey()] ?: cachedByPath[item.path]
             val mediaStoreSaysTooShort = item.duration > 0L && item.duration < minDurationMs
             if (mediaStoreSaysTooShort) {
-                _scanProgress.value = index + 1
+                lastProgress = publishScanProgress(index + 1, lastProgress)
                 return@forEachIndexed
             }
 
             val currentInfo = item.toLibrarySyncInfo()
             val cachedInfo = cached?.toLibrarySyncInfo()
-            val needsUpdate = cachedInfo == null ||
+            val needsUpdate = forceRefreshAll ||
+                cachedInfo == null ||
                 cachedInfo.key != currentInfo.key ||
                 cachedInfo.path != currentInfo.path ||
                 cachedInfo.fileSize != currentInfo.fileSize ||
@@ -198,17 +211,13 @@ class MusicRepository(private val context: Context) {
 
             if (needsUpdate) {
                 val scanned = runCatching {
-                    scanner.scanAudioItem(
-                        item = item,
-                        minDurationMs = minDurationMs,
-                        deepMetadata = true
-                    )?.withRepositoryTags()
+                    item.toFastLibrarySong(cached, minDurationMs)
                 }.onFailure { error ->
                     failedCount++
                     AppLogStore.warn(
                         context,
                         "MusicScanner",
-                        "Incremental item failed path=${item.path}: ${error.message ?: error.javaClass.name}",
+                        "Fast item scan failed path=${item.path}: ${error.message ?: error.javaClass.name}",
                         type = AppLogType.LIBRARY
                     )
                 }.getOrNull()
@@ -217,6 +226,7 @@ class MusicRepository(private val context: Context) {
                     cached?.let(::clearMetadataCache)
                     clearMetadataCache(scanned)
                     mergedSongs += scanned
+                    enrichmentItems += item
                     if (cached == null) addedCount++ else updatedCount++
                 } else if (cached != null) {
                     mergedSongs += cached
@@ -229,14 +239,15 @@ class MusicRepository(private val context: Context) {
                     dateAdded = item.dateAdded.takeIf { it > 0L } ?: cached.dateAdded,
                     trackNumber = item.trackNumber.takeIf { it > 0 } ?: cached.trackNumber,
                     discNumber = item.discNumber.takeIf { it > 0 } ?: cached.discNumber
-                ).withRepositoryTags()
+                )
                 if (reused.duration >= minDurationMs) {
                     mergedSongs += reused
                     if (cached.hasSameLibraryTags(reused)) reusedCount++ else updatedCount++
                 }
             }
-            _scanProgress.value = index + 1
+            lastProgress = publishScanProgress(index + 1, lastProgress)
         }
+        if (lastProgress != currentItems.size) _scanProgress.value = currentItems.size
 
         val deletedSongs = cachedSongs.filter { song ->
             song.librarySyncKey() !in currentKeys && song.path !in currentPaths
@@ -252,9 +263,76 @@ class MusicRepository(private val context: Context) {
         )
         Log.d(
             "MusicScanner",
-            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount"
+            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount enumerate=${enumerateElapsed}ms elapsed=${SystemClock.elapsedRealtime() - startedAt}ms"
         )
+        pendingLibraryEnrichmentItems = enrichmentItems
         mergedSongs
+    }
+
+    private fun publishScanProgress(value: Int, previous: Int): Int {
+        return if (value == previous || (value < previous + SCAN_PROGRESS_BATCH && value % SCAN_PROGRESS_BATCH != 0)) {
+            previous
+        } else {
+            _scanProgress.value = value
+            value
+        }
+    }
+
+    private fun scheduleLibraryTagEnrichment(items: List<MediaStoreAudioItem>) {
+        if (items.isEmpty()) return
+        libraryEnrichmentJob?.cancel()
+        libraryEnrichmentJob = repositoryScope.launch {
+            val startedAt = SystemClock.elapsedRealtime()
+            val updates = LinkedHashMap<String, Song>()
+            var successCount = 0
+            var failedCount = 0
+
+            items.forEachIndexed { index, item ->
+                val enriched = runCatching {
+                    scanner.scanAudioItem(
+                        item = item,
+                        minDurationMs = 0L,
+                        deepMetadata = true
+                    )?.withRepositoryTags()
+                }.onFailure { error ->
+                    failedCount++
+                    AppLogStore.warn(
+                        context,
+                        "MusicScanner",
+                        "Background tag enrichment failed path=${item.path}: ${error.message ?: error.javaClass.name}",
+                        type = AppLogType.LIBRARY
+                    )
+                }.getOrNull()
+
+                if (enriched != null) {
+                    successCount++
+                    updates[enriched.librarySyncKey()] = enriched
+                    updates[enriched.path] = enriched
+                }
+
+                if (updates.size >= TAG_ENRICHMENT_BATCH || index == items.lastIndex) {
+                    applyEnrichedSongs(updates)
+                    updates.clear()
+                }
+            }
+
+            AppLogStore.info(
+                context,
+                "MusicScanner",
+                "Background tag enrichment finished total=${items.size} updated=$successCount failed=$failedCount elapsed=${SystemClock.elapsedRealtime() - startedAt}ms",
+                AppLogType.LIBRARY
+            )
+        }
+    }
+
+    private suspend fun applyEnrichedSongs(updates: Map<String, Song>) {
+        if (updates.isEmpty()) return
+        val nextSongs = _songs.value.map { song ->
+            updates[song.librarySyncKey()] ?: updates[song.path] ?: song
+        }
+        _songs.value = nextSongs
+        _albums.value = nextSongs.toAlbums()
+        saveLibraryCache(nextSongs, _albums.value)
     }
 
     suspend fun refreshSongAfterExternalEdit(song: Song): Song? = withContext(Dispatchers.IO) {
@@ -768,6 +846,48 @@ class MusicRepository(private val context: Context) {
             lyricist = tagInfo.lyricist.takeIf { it.isUsableTagText() } ?: lyricist,
             trackNumber = tagInfo.trackNumber ?: trackNumber,
             discNumber = tagInfo.discNumber ?: discNumber
+        ).withFinalLibraryFallbacks()
+    }
+
+    private fun MediaStoreAudioItem.toFastLibrarySong(cached: Song?, minDurationMs: Long): Song? {
+        if (duration > 0L && duration < minDurationMs) return null
+        val displayName = fileName.ifBlank { path.substringAfterLast('/') }
+        val fastArtist = artist.takeIf { it.isUsableTagText() }
+            ?: cached?.artist?.takeIf { it.isUsableTagText() }
+            ?: "Unknown Artist"
+        val fastAlbum = album.takeIf { it.isUsableAlbumText() }
+            ?: cached?.album?.takeIf { it.isUsableAlbumText() }
+            ?: path.parentFolderName().takeIf { it.isUsableAlbumText() }
+            ?: "Unknown Album"
+        val fastAlbumArtist = cached?.albumArtist?.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }
+            ?: fastArtist
+        return Song(
+            id = id,
+            title = title.takeIf { it.isUsableTagText() }
+                ?: cached?.title?.takeIf { it.isUsableTagText() }
+                ?: displayName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
+            artist = fastArtist,
+            album = fastAlbum,
+            albumId = albumId,
+            duration = duration,
+            path = path,
+            fileName = displayName,
+            fileSize = fileSize,
+            mimeType = mimeType,
+            dateAdded = dateAdded,
+            dateModified = dateModified,
+            trackNumber = trackNumber.takeIf { it > 0 } ?: cached?.trackNumber ?: 0,
+            discNumber = discNumber.takeIf { it > 0 } ?: cached?.discNumber ?: 0,
+            albumArtist = fastAlbumArtist,
+            genre = cached?.genre.orEmpty(),
+            year = cached?.year.orEmpty(),
+            composer = cached?.composer.orEmpty(),
+            lyricist = cached?.lyricist.orEmpty(),
+            coverUrl = cached?.coverUrl.orEmpty(),
+            onlineSource = cached?.onlineSource.orEmpty(),
+            onlineId = cached?.onlineId.orEmpty(),
+            onlineLyrics = cached?.onlineLyrics.orEmpty(),
+            onlineLyricTranslation = cached?.onlineLyricTranslation.orEmpty()
         ).withFinalLibraryFallbacks()
     }
 
