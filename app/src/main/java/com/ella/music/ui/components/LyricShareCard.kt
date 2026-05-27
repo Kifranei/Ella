@@ -29,6 +29,7 @@ fun shareLyricCard(
     line: LyricLine,
     cover: Bitmap?,
     backgroundColors: List<Int>,
+    annotation: String = "",
     customInfo: String = ""
 ) {
     shareLyricCard(
@@ -37,6 +38,7 @@ fun shareLyricCard(
         lines = listOf(line),
         cover = cover,
         backgroundColors = backgroundColors,
+        annotation = annotation,
         customInfo = customInfo
     )
 }
@@ -47,13 +49,14 @@ fun shareLyricCard(
     lines: List<LyricLine>,
     cover: Bitmap?,
     backgroundColors: List<Int>,
+    annotation: String = "",
     customInfo: String = ""
 ) {
     runCatching {
         val shareLines = lines.filter { it.sharePrimaryText().isNotBlank() }.ifEmpty {
             lines.take(1)
         }
-        val bitmap = createLyricShareCard(song, shareLines, cover, backgroundColors, customInfo)
+        val bitmap = createLyricShareCard(song, shareLines, cover, backgroundColors, annotation, customInfo)
         val uri = writeLyricShareCard(context, bitmap)
         bitmap.recycle()
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -74,6 +77,7 @@ private fun createLyricShareCard(
     lines: List<LyricLine>,
     cover: Bitmap?,
     backgroundColors: List<Int>,
+    annotation: String,
     customInfo: String
 ): Bitmap {
     val width = 1080
@@ -102,6 +106,13 @@ private fun createLyricShareCard(
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
         setShadowLayer(12f, 0f, 4f, Color.argb(72, 0, 0, 0))
     }
+    val annotationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(218, 255, 255, 255)
+        textSize = 34f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        setShadowLayer(12f, 0f, 4f, Color.argb(76, 0, 0, 0))
+    }
+    val hasAnnotation = annotation.isNotBlank()
     drawSingleLine(
         canvas = canvas,
         text = song?.title?.takeIf { it.isNotBlank() } ?: "未知歌曲",
@@ -110,12 +121,22 @@ private fun createLyricShareCard(
         y = coverRect.top + 60f,
         maxWidth = headerWidth
     )
+    if (hasAnnotation) {
+        drawSingleLine(
+            canvas = canvas,
+            text = annotation,
+            paint = annotationPaint,
+            x = headerLeft,
+            y = coverRect.top + 104f,
+            maxWidth = headerWidth
+        )
+    }
     drawSingleLine(
         canvas = canvas,
         text = song?.artist?.takeIf { it.isNotBlank() } ?: "未知艺术家",
         paint = artistPaint,
         x = headerLeft,
-        y = coverRect.top + 108f,
+        y = coverRect.top + if (hasAnnotation) 146f else 108f,
         maxWidth = headerWidth
     )
 
@@ -136,7 +157,7 @@ private fun createLyricShareCard(
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
         setShadowLayer(12f, 0f, 5f, Color.argb(72, 0, 0, 0))
     }
-    val lyricTop = 344f
+    val lyricTop = if (hasAnnotation) 368f else 344f
     val lyricWidth = (width - edge * 2).toInt()
     val footerTop = height - 170f
     var nextTop = lyricTop

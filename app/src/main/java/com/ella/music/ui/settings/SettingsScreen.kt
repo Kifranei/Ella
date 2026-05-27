@@ -493,13 +493,14 @@ fun SettingsDetailScreen(
     val autoScan by settingsManager.autoScan.collectAsState(initial = true)
     val lyriconEnabled by settingsManager.lyriconEnabled.collectAsState(initial = false)
     val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
+    val lyriconPronunciation by settingsManager.lyriconPronunciation.collectAsState(initial = false)
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.Blur)
     val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
     val tickerHideNotification by settingsManager.tickerHideNotification.collectAsState(initial = false)
-    val tickerHideWhenPaused by settingsManager.tickerHideWhenPaused.collectAsState(initial = false)
     val tickerHeadsUpLyrics by settingsManager.tickerHeadsUpLyrics.collectAsState(initial = false)
     val samsungFloatingLyricTranslation by settingsManager.samsungFloatingLyricTranslation.collectAsState(initial = false)
+    val statusBarAllowPhonetic by settingsManager.statusBarAllowPhonetic.collectAsState(initial = false)
     val desktopLyricEnabled by settingsManager.desktopLyricEnabled.collectSettingsState(initialValue = false)
     val desktopLyricHideWhenPaused by settingsManager.desktopLyricHideWhenPaused.collectSettingsState(initialValue = false)
     val desktopLyricStatusBarMode by settingsManager.desktopLyricStatusBarMode.collectSettingsState(initialValue = false)
@@ -514,6 +515,7 @@ fun SettingsDetailScreen(
     val desktopLyricShadowStrength by settingsManager.desktopLyricShadowStrength.collectSettingsState(initialValue = 100)
     val superLyricEnabled by settingsManager.superLyricEnabled.collectAsState(initial = false)
     val superLyricTranslation by settingsManager.superLyricTranslation.collectAsState(initial = true)
+    val superLyricPronunciation by settingsManager.superLyricPronunciation.collectAsState(initial = false)
     val lyricGetterEnabled by settingsManager.lyricGetterEnabled.collectAsState(initial = false)
     val bluetoothLyricEnabled by settingsManager.bluetoothLyricEnabled.collectAsState(initial = false)
     val bluetoothLyricTranslation by settingsManager.bluetoothLyricTranslation.collectAsState(initial = false)
@@ -1117,6 +1119,17 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
+                        title = "词幕传递注音",
+                        summary = "开启后向词幕传递注音/罗马音副行",
+                        enabled = lyriconEnabled,
+                        checked = lyriconPronunciation,
+                        onCheckedChange = { enabled ->
+                            playerViewModel?.setLyriconPronunciation(enabled)
+                                ?: scope.launch { settingsManager.setLyriconPronunciation(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
                         title = "启用桌面歌词",
                         summary = "通过悬浮窗在其他应用上方显示当前歌词",
                         checked = desktopLyricEnabled,
@@ -1412,6 +1425,17 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
+                        title = "SuperLyric 传递注音",
+                        summary = "开启后通过 SuperLyricApi 传递注音/罗马音副行",
+                        enabled = superLyricEnabled,
+                        checked = superLyricPronunciation,
+                        onCheckedChange = { enabled ->
+                            playerViewModel?.setSuperLyricPronunciation(enabled)
+                                ?: scope.launch { settingsManager.setSuperLyricPronunciation(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
                         title = "启用 Lyric Getter",
                         summary = "通过 Lyric Getter API 传递当前原文歌词",
                         checked = lyricGetterEnabled,
@@ -1446,17 +1470,6 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = stringResource(R.string.settings_status_lyric_hide_when_paused),
-                        summary = stringResource(R.string.settings_status_lyric_hide_when_paused_summary),
-                        enabled = tickerEnabled,
-                        checked = tickerHideWhenPaused,
-                        onCheckedChange = { enabled ->
-                            playerViewModel?.setTickerHideWhenPaused(enabled)
-                                ?: scope.launch { settingsManager.setTickerHideWhenPaused(enabled) }
-                        }
-                    )
-
-                    SwitchPreference(
                         title = stringResource(R.string.settings_heads_up_lyric_notifications),
                         summary = stringResource(R.string.settings_heads_up_lyric_notifications_summary),
                         enabled = tickerEnabled,
@@ -1479,6 +1492,17 @@ fun SettingsDetailScreen(
                         onCheckedChange = { enabled ->
                             playerViewModel?.setSamsungFloatingLyricTranslation(enabled)
                                 ?: scope.launch { settingsManager.setSamsungFloatingLyricTranslation(enabled) }
+                        }
+                    )
+
+                    SwitchPreference(
+                        title = "状态栏显示注音/副行",
+                        summary = "开启后将注音或翻译副行作为状态栏歌词的第二行传递。",
+                        enabled = tickerEnabled,
+                        checked = statusBarAllowPhonetic,
+                        onCheckedChange = { enabled ->
+                            playerViewModel?.setStatusBarAllowPhonetic(enabled)
+                                ?: scope.launch { settingsManager.setStatusBarAllowPhonetic(enabled) }
                         }
                     )
 

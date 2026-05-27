@@ -79,10 +79,12 @@ class TickerBridge(private val context: Context) {
         lastPayload = null
     }
 
-    fun sendLyric(text: String?, translation: String? = null) {
+    fun sendLyric(text: String?, translation: String? = null, pronunciation: String? = null) {
         if (!enabled) return
         val cleanTranslation = translation?.takeIf { it.isNotBlank() }
-        val payload = text to cleanTranslation
+        val cleanPronunciation = pronunciation?.takeIf { it.isNotBlank() }
+        val effectiveTranslation = cleanPronunciation ?: cleanTranslation
+        val payload = text to effectiveTranslation
         if (payload == lastPayload) return
         lastPayload = payload
 
@@ -101,18 +103,21 @@ class TickerBridge(private val context: Context) {
                 putExtra("package", context.packageName)
                 putExtra("ticker_app_name", "Ella Music")
                 putExtra("app_name", "Ella Music")
+                if (effectiveTranslation != null) {
+                    putExtra("translation", effectiveTranslation)
+                }
             }
 
             sendFlymeBroadcast(intent)
             if (shouldUseHeadsUpLyrics()) {
                 PlaybackTickerState.clear()
-                postHeadsUpLyricNotification(text, cleanTranslation)
+                postHeadsUpLyricNotification(text, effectiveTranslation)
             } else if (hideNotification) {
-                PlaybackTickerState.update(text, cleanTranslation)
+                PlaybackTickerState.update(text, effectiveTranslation)
                 cancelStandaloneTickerNotifications()
             } else {
                 PlaybackTickerState.clear()
-                postTickerNotification(text, cleanTranslation)
+                postTickerNotification(text, effectiveTranslation)
             }
 
             Log.d(TAG, "Ticker lyric sent: $text")

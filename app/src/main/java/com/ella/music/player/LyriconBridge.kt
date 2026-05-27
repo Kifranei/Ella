@@ -21,6 +21,7 @@ class LyriconBridge(private val context: Context) {
     private var provider: LyriconProvider? = null
     private var enabled = false
     private var displayTranslation = true
+    private var allowPhonetic = false
 
     private var lastSongId: String? = null
     private var lastSong: Song? = null
@@ -88,6 +89,11 @@ class LyriconBridge(private val context: Context) {
         resendLastSong()
     }
 
+    fun setAllowPhonetic(allow: Boolean) {
+        allowPhonetic = allow
+        resendLastSong()
+    }
+
     fun sendSong(song: Song, lyrics: List<LyricLine>, force: Boolean = false) {
         if (!enabled) return
         val p = provider ?: return
@@ -134,7 +140,8 @@ class LyriconBridge(private val context: Context) {
                     words = words.ifEmpty { null },
                     secondary = line.backgroundText,
                     secondaryWords = backgroundWords.ifEmpty { null },
-                    translation = line.translationForLyricon()
+                    translation = line.translationForLyricon(),
+                    roma = line.pronunciationForLyricon()
                 )
             }
 
@@ -195,7 +202,8 @@ class LyriconBridge(private val context: Context) {
                         translationMap[line.timeMs] ?: line.backgroundTranslation
                     } else {
                         null
-                    }
+                    },
+                    roma = line.pronunciationForLyricon()
                 )
             }
 
@@ -266,6 +274,7 @@ class LyriconBridge(private val context: Context) {
             lyricHash = 31 * lyricHash + line.endMs.hashCode()
             lyricHash = 31 * lyricHash + line.text.hashCode()
             lyricHash = 31 * lyricHash + line.translation.hashCode()
+            lyricHash = 31 * lyricHash + line.pronunciation.hashCode()
             lyricHash = 31 * lyricHash + line.backgroundText.hashCode()
             lyricHash = 31 * lyricHash + line.backgroundTranslation.hashCode()
             line.words.forEach { word ->
@@ -287,13 +296,19 @@ class LyriconBridge(private val context: Context) {
             path,
             lyrics.size,
             lyricHash,
-            displayTranslation
+            displayTranslation,
+            allowPhonetic
         ).joinToString("|")
     }
 
     private fun LyricLine.translationForLyricon(): String? {
         if (!displayTranslation) return null
         return translation ?: backgroundTranslation
+    }
+
+    private fun LyricLine.pronunciationForLyricon(): String? {
+        if (!allowPhonetic) return null
+        return pronunciation?.takeIf { it.isNotBlank() }
     }
 
     private fun List<com.ella.music.data.model.LyricWord>.withLineSpacing(

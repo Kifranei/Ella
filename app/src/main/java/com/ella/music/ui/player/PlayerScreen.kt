@@ -399,6 +399,13 @@ fun PlayerScreen(
     val palette by produceState(initialValue = PlayerPalette.Default, paletteBitmap) {
         value = withContext(Dispatchers.Default) { PlayerPalette.from(paletteBitmap) }
     }
+    val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
+        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
+    }
+    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
+        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getSongTagInfo) }
+    }
+    val songAnnotation = tagInfo?.displayComment.orEmpty()
     var lyricShareInitialLine by remember { mutableStateOf<LyricLine?>(null) }
     fun openLyricSharePicker(line: LyricLine) {
         lyricShareInitialLine = line
@@ -414,17 +421,11 @@ fun PlayerScreen(
                 palette.middle.toArgb(),
                 palette.bottom.toArgb()
             ),
+            annotation = songAnnotation,
             customInfo = lyricShareCustomInfo
         )
         lyricShareInitialLine = null
     }
-    val audioInfo by produceState<AudioInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
-        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
-    }
-    val tagInfo by produceState<SongTagInfo?>(initialValue = null, song?.id, song?.dateModified, song?.fileSize) {
-        value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getSongTagInfo) }
-    }
-    val songAnnotation = tagInfo?.displayComment.orEmpty()
     val neteaseInfo = remember(tagInfo?.neteaseKey) { decodeNeteaseKey(tagInfo?.neteaseKey.orEmpty()) }
     fun navigateToArtistOrChoose(artistText: String) {
         val artists = splitArtistNames(artistText)
@@ -944,6 +945,7 @@ fun PlayerScreen(
                 initialLine = initialLine,
                 cover = embeddedCover ?: paletteBitmap,
                 backgroundColors = listOf(palette.top, palette.middle, palette.bottom),
+                annotation = songAnnotation,
                 onDismiss = { lyricShareInitialLine = null },
                 onShare = ::shareSelectedLyrics
             )
@@ -5305,7 +5307,7 @@ private fun com.ella.music.data.model.LyricLine.isMiniBackgroundVisibleAt(positi
 
 private fun com.ella.music.data.model.LyricLine.previewTextAlign(): TextAlign {
     if (agent.isNullOrBlank()) {
-        return if (isTtml && backgroundText.isNullOrBlank() && backgroundWords.isEmpty()) TextAlign.Center else TextAlign.Start
+        return TextAlign.Start
     }
     return if (agent.equals("v2", ignoreCase = true)) TextAlign.End else TextAlign.Start
 }
@@ -5320,7 +5322,6 @@ private fun com.ella.music.data.model.LyricLine.previewBackgroundTextAlign(): Te
 private fun com.ella.music.data.model.LyricLine.previewHorizontalAlignment(): Alignment.Horizontal {
     return when (previewTextAlign()) {
         TextAlign.End -> Alignment.End
-        TextAlign.Center -> Alignment.CenterHorizontally
         else -> Alignment.Start
     }
 }

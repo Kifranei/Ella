@@ -240,8 +240,8 @@ fun WordLyricView(
 
     val listState = rememberLazyListState()
     val density = LocalDensity.current
-    val safeHorizontalPadding = if (horizontalPadding < 32.dp) 32.dp else horizontalPadding
-    val safeLineHorizontalPadding = if (lineHorizontalPadding < 16.dp) 16.dp else lineHorizontalPadding
+    val safeHorizontalPadding = horizontalPadding.coerceAtLeast(0.dp)
+    val safeLineHorizontalPadding = lineHorizontalPadding.coerceAtLeast(0.dp)
     var userBrowsing by remember { mutableStateOf(false) }
     var autoScrolling by remember { mutableStateOf(false) }
     var lastUserScrollMs by remember { mutableLongStateOf(0L) }

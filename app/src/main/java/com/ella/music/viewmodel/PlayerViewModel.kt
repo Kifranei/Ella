@@ -106,8 +106,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var bluetoothLyricEnabled = false
     private var bluetoothLyricTranslationEnabled = false
     private var samsungFloatingLyricTranslationEnabled = false
+    private var statusBarAllowPhoneticEnabled = false
     private var tickerHideNotificationEnabled = false
-    private var tickerHideWhenPausedEnabled = false
     private var desktopLyricHideWhenPausedEnabled = false
     private var superLyricTranslationEnabled = true
     private var lyricSourceMode = SettingsManager.LYRIC_SOURCE_AUTO
@@ -149,8 +149,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val enabled = settingsManager.lyriconEnabled.first()
             val translation = settingsManager.lyriconTranslation.first()
             lyriconBridge.setDisplayTranslation(translation)
+            lyriconBridge.setAllowPhonetic(settingsManager.lyriconPronunciation.first())
             lyriconBridge.setEnabled(enabled)
             if (enabled) resendExternalLyrics()
+        }
+        viewModelScope.launch {
+            settingsManager.lyriconPronunciation.distinctUntilChanged().collect { enabled ->
+                lyriconBridge.setAllowPhonetic(enabled)
+                if (lyriconBridge.isEnabled()) resendExternalLyrics(force = true)
+            }
         }
     }
 
@@ -159,8 +166,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val enabled = settingsManager.tickerEnabled.first()
             val hideNotification = settingsManager.tickerHideNotification.first()
             tickerHideNotificationEnabled = hideNotification
-            tickerHideWhenPausedEnabled = settingsManager.tickerHideWhenPaused.first()
             samsungFloatingLyricTranslationEnabled = settingsManager.samsungFloatingLyricTranslation.first() && !hideNotification
+            statusBarAllowPhoneticEnabled = settingsManager.statusBarAllowPhonetic.first()
             tickerBridge.setHideNotification(hideNotification)
             tickerBridge.setHeadsUpLyricsEnabled(settingsManager.tickerHeadsUpLyrics.first())
             tickerBridge.setEnabled(enabled)
@@ -179,17 +186,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
         viewModelScope.launch {
-            settingsManager.tickerHideWhenPaused.distinctUntilChanged().collect { enabled ->
-                tickerHideWhenPausedEnabled = enabled
-                lastTickerPayload = null
-                if (enabled && !isPlaying.value) {
-                    tickerBridge.clearLyric()
-                } else if (tickerBridge.isEnabled()) {
-                    resendTickerLyric(force = true)
-                }
-            }
-        }
-        viewModelScope.launch {
             settingsManager.tickerHeadsUpLyrics.distinctUntilChanged().collect { enabled ->
                 tickerBridge.setHeadsUpLyricsEnabled(enabled)
                 lastTickerPayload = null
@@ -201,6 +197,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 samsungFloatingLyricTranslationEnabled = enabled && !tickerHideNotificationEnabled
                 lastTickerPayload = null
                 if (tickerBridge.isEnabled()) resendTickerLyric()
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.statusBarAllowPhonetic.distinctUntilChanged().collect { enabled ->
+                statusBarAllowPhoneticEnabled = enabled
+                lastTickerPayload = null
+                if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
             }
         }
     }
@@ -227,6 +230,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun initSuperLyric() {
         viewModelScope.launch {
             val enabled = settingsManager.superLyricEnabled.first()
+            superLyricBridge.setAllowPhonetic(settingsManager.superLyricPronunciation.first())
             superLyricBridge.setEnabled(enabled)
             if (enabled) resendSuperLyric()
         }
@@ -234,6 +238,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             settingsManager.superLyricTranslation.distinctUntilChanged().collect { enabled ->
                 superLyricTranslationEnabled = enabled
                 if (superLyricBridge.isEnabled()) resendSuperLyric()
+            }
+        }
+        viewModelScope.launch {
+            settingsManager.superLyricPronunciation.distinctUntilChanged().collect { enabled ->
+                superLyricBridge.setAllowPhonetic(enabled)
+                if (superLyricBridge.isEnabled()) resendSuperLyric(force = true)
             }
         }
     }
@@ -420,9 +430,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     lastSentPlayingState = playing
                     lyriconBridge.sendPlaybackState(playing)
                     if (!playing) {
-                        if (tickerHideWhenPausedEnabled) {
-                            tickerBridge.clearLyric()
-                        }
+                        tickerBridge.clearLyric()
                         if (desktopLyricHideWhenPausedEnabled) {
                             desktopLyricBridge.clearLyric()
                         } else {
@@ -951,19 +959,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun setTickerHideWhenPaused(enabled: Boolean) {
-        viewModelScope.launch {
-            settingsManager.setTickerHideWhenPaused(enabled)
-            tickerHideWhenPausedEnabled = enabled
-            lastTickerPayload = null
-            if (enabled && !isPlaying.value) {
-                tickerBridge.clearLyric()
-            } else if (tickerBridge.isEnabled()) {
-                resendTickerLyric(force = true)
-            }
-        }
-    }
-
     fun setTickerHeadsUpLyrics(enabled: Boolean) {
         viewModelScope.launch {
             settingsManager.setTickerHeadsUpLyrics(enabled)
@@ -980,6 +975,23 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             samsungFloatingLyricTranslationEnabled = safeEnabled
             lastTickerPayload = null
             if (tickerBridge.isEnabled()) resendTickerLyric()
+        }
+    }
+
+    fun setStatusBarAllowPhonetic(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setStatusBarAllowPhonetic(enabled)
+            statusBarAllowPhoneticEnabled = enabled
+            lastTickerPayload = null
+            if (tickerBridge.isEnabled()) resendTickerLyric(force = true)
+        }
+    }
+
+    fun setLyriconPronunciation(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setLyriconPronunciation(enabled)
+            lyriconBridge.setAllowPhonetic(enabled)
+            if (lyriconBridge.isEnabled()) resendExternalLyrics(force = true)
         }
     }
 
@@ -1035,6 +1047,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun setSuperLyricPronunciation(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsManager.setSuperLyricPronunciation(enabled)
+            superLyricBridge.setAllowPhonetic(enabled)
+            if (superLyricBridge.isEnabled()) resendSuperLyric(force = true)
+        }
+    }
+
     fun setBluetoothLyricEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settingsManager.setBluetoothLyricEnabled(enabled)
@@ -1065,7 +1085,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (payload == lastTickerPayload) return
 
         lastTickerPayload = payload
-        tickerBridge.sendLyric(payload.first, payload.second)
+        val pronunciation = if (statusBarAllowPhoneticEnabled) {
+            lyrics.getOrNull(index)?.pronunciation?.takeIf { it.isNotBlank() }
+        } else {
+            null
+        }
+        tickerBridge.sendLyric(payload.first, payload.second, pronunciation)
     }
 
     private fun LyricLine?.secondaryLyricText(includeTranslation: Boolean): String? {

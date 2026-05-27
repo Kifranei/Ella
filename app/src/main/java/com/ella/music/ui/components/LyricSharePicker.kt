@@ -57,6 +57,7 @@ fun LyricSharePicker(
     initialLine: LyricLine,
     cover: Bitmap?,
     backgroundColors: List<Color>,
+    annotation: String = "",
     onDismiss: () -> Unit,
     onShare: (List<LyricLine>) -> Unit
 ) {
@@ -178,6 +179,16 @@ fun LyricSharePicker(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (annotation.isNotBlank()) {
+                        Text(
+                            text = annotation,
+                            color = Color.White.copy(alpha = 0.74f),
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
                     Text(
                         text = song?.artist?.takeIf { it.isNotBlank() } ?: "未知艺术家",
                         color = Color.White.copy(alpha = 0.62f),

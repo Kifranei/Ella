@@ -1,5 +1,6 @@
 package com.ella.music.player
 
+import android.os.Bundle
 import android.util.Log
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -11,6 +12,7 @@ import com.hchen.superlyricapi.SuperLyricWord
 class SuperLyricBridge {
     private var enabled = false
     private var registered = false
+    private var allowPhonetic = false
     private var lastKey: String? = null
     private var lastSongKey: String? = null
     private var lastSong: Song? = null
@@ -32,6 +34,10 @@ class SuperLyricBridge {
 
     fun isEnabled(): Boolean = enabled
 
+    fun setAllowPhonetic(allow: Boolean) {
+        allowPhonetic = allow
+    }
+
     fun sendSong(song: Song) {
         if (!enabled) return
         val songKey = song.superLyricSongKey()
@@ -45,12 +51,14 @@ class SuperLyricBridge {
     fun sendLyric(line: LyricLine?, positionMs: Long, showTranslation: Boolean, force: Boolean = false) {
         if (!enabled || line == null) return
         val song = lastSong
+        val effectiveTranslation = line.translation ?: line.backgroundTranslation
+        val pronunciation = line.pronunciation?.takeIf { allowPhonetic && it.isNotBlank() }
         val translationKey = if (showTranslation) {
-            line.translation ?: line.backgroundTranslation.orEmpty()
+            effectiveTranslation.orEmpty()
         } else {
             ""
         }
-        val key = "${song?.id}:${line.timeMs}:${line.endMs}:$showTranslation:$translationKey"
+        val key = "${song?.id}:${line.timeMs}:${line.endMs}:$showTranslation:$translationKey:$pronunciation"
         if (force && !registered) lastKey = null
         if (key == lastKey) return
         lastKey = key
@@ -75,13 +83,19 @@ class SuperLyricBridge {
                     })
                     .setTranslation(
                         if (showTranslation) {
-                            (line.translation ?: line.backgroundTranslation)?.takeIf { it.isNotBlank() }?.let {
+                            effectiveTranslation?.takeIf { it.isNotBlank() }?.let {
                                 SuperLyricLine(it, line.timeMs, end)
                             }
                         } else {
                             null
                         }
                     )
+                    .setExtra(pronunciation?.let {
+                        Bundle().apply {
+                            putString("pronunciation", it)
+                            putString("phonetic", it)
+                        }
+                    })
             )
         }.onFailure {
             Log.w(TAG, "Failed to send SuperLyric", it)
