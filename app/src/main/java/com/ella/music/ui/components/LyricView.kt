@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -302,13 +303,19 @@ fun WordLyricView(
     ) {
         item { Box(modifier = Modifier.height(topSpacer)) }
 
-        itemsIndexed(lyrics) { index, line ->
+        itemsIndexed(
+            items = lyrics,
+            key = { index, line -> "$index:${line.lyricRenderKey()}" }
+        ) { index, line ->
             val isActive = index == currentIndex || line.isActiveAt(smoothPositionMs)
             val nextLine = lyrics.getOrNull(index + 1)
             val lineTextAlign = line.ttmlTextAlign()
             val backgroundTextAlign = line.ttmlBackgroundTextAlign()
             val backgroundAfterMain = line.isBackgroundAfterMain()
             val lineAlignment = line.ttmlAlignment()
+            val lineTransformOrigin = line.ttmlTransformOrigin()
+            val displayPronunciation = line.displayPronunciationText()
+            val displayTranslation = line.displayTranslationText()
             val distance = when {
                 currentIndex < 0 -> 2
                 index < currentIndex -> currentIndex - index
@@ -333,18 +340,18 @@ fun WordLyricView(
             }
             val targetScale = if (depthEnabled) {
                 when {
-                    isActive -> 1.08f
-                    distance == 1 -> 0.96f
-                    distance == 2 -> 0.90f
-                    else -> 0.86f
+                    isActive -> 1.04f
+                    distance == 1 -> 0.975f
+                    distance == 2 -> 0.94f
+                    else -> 0.91f
                 }
             } else {
                 when {
                     userBrowsing -> 1f
-                    isActive -> 1.018f
-                    distance == 1 -> 0.972f
-                    distance == 2 -> 0.94f
-                    else -> 0.92f
+                    isActive -> 1.012f
+                    distance == 1 -> 0.982f
+                    distance == 2 -> 0.96f
+                    else -> 0.94f
                 }
             }
             val lineAlpha by animateFloatAsState(
@@ -360,26 +367,21 @@ fun WordLyricView(
                 ),
                 label = "lyric_line_scale"
             )
-            val blur by animateFloatAsState(
-                targetValue = if (depthEnabled) {
-                    when {
-                        isActive -> 0f
-                        distance == 1 -> 1.5f
-                        distance == 2 -> 3f
-                        else -> 5f
-                    }
-                } else {
-                    when {
-                        userBrowsing -> 0f
-                        isActive -> 0f
-                        distance == 1 -> 0.45f
-                        distance == 2 -> 0.9f
-                        else -> 1.35f
-                    }
-                },
-                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                label = "lyric_line_blur"
-            )
+            val blur = if (depthEnabled) {
+                when {
+                    isActive || userBrowsing -> 0f
+                    distance == 1 -> 0.8f
+                    distance == 2 -> 1.15f
+                    else -> 1.35f
+                }
+            } else {
+                when {
+                    userBrowsing || isActive -> 0f
+                    distance == 1 -> 0.35f
+                    distance == 2 -> 0.7f
+                    else -> 1.0f
+                }
+            }
             val depthOffsetY by animateFloatAsState(
                 targetValue = if (depthEnabled && !isActive) {
                     val direction = if (index < currentIndex) -1f else 1f
@@ -398,7 +400,9 @@ fun WordLyricView(
                         alpha = lineAlpha
                         scaleX = scale
                         scaleY = scale
+                        transformOrigin = lineTransformOrigin
                         translationY = with(density) { depthOffsetY.dp.toPx() }
+                        clip = false
                     }
                     .blur(blur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     .pointerInput(line) {
@@ -414,15 +418,15 @@ fun WordLyricView(
                     ),
                 horizontalAlignment = lineAlignment
             ) {
-                if (showPronunciation && !line.pronunciation.isNullOrBlank()) {
+                if (showPronunciation && !displayPronunciation.isNullOrBlank()) {
                     val pronunciationColor = when {
                         isActive -> Color.White.copy(alpha = 0.62f)
                         index < currentIndex -> Color.White.copy(alpha = 0.28f)
                         else -> Color.White.copy(alpha = 0.40f)
                     }
-                    if (isActive && line.pronunciationWords.isNotEmpty()) {
+                    if (isActive && !line.pronunciation.isNullOrBlank() && line.pronunciationWords.isNotEmpty()) {
                         WordLine(
-                            displayText = line.pronunciation.orEmpty(),
+                            displayText = displayPronunciation,
                             words = line.pronunciationWords,
                             currentPositionMs = smoothPositionMs,
                             textAlign = lineTextAlign,
@@ -436,8 +440,8 @@ fun WordLyricView(
                         )
                     } else {
                         Text(
-                            text = line.pronunciation.orEmpty().lineBreakSafeText(),
-                            fontSize = fittedLyricFontSp(line.pronunciation.orEmpty(), scaledLyricFontSp(if (isActive) 14 else 11, fontScale, minSp = 9), minSp = 9).sp,
+                            text = displayPronunciation.lineBreakSafeText(),
+                            fontSize = fittedLyricFontSp(displayPronunciation, scaledLyricFontSp(if (isActive) 14 else 11, fontScale, minSp = 9), minSp = 9).sp,
                             fontFamily = fontFamily,
                             color = pronunciationColor,
                             textAlign = lineTextAlign,
@@ -499,15 +503,15 @@ fun WordLyricView(
                             .padding(vertical = if (isActive) 4.dp else 0.dp)
                     )
                 }
-                if (showTranslation && !line.translation.isNullOrBlank()) {
+                if (showTranslation && !displayTranslation.isNullOrBlank()) {
                     val translationColor = when {
                         isActive -> Color.White.copy(alpha = 0.72f)
                         index < currentIndex -> Color.White.copy(alpha = 0.38f)
                         else -> Color.White.copy(alpha = 0.58f)
                     }
                     Text(
-                        text = line.translation.orEmpty().lineBreakSafeText(),
-                        fontSize = fittedLyricFontSp(line.translation.orEmpty(), scaledLyricFontSp(if (isActive) 18 else 13, fontScale, minSp = 8), minSp = 8).sp,
+                        text = displayTranslation.lineBreakSafeText(),
+                        fontSize = fittedLyricFontSp(displayTranslation, scaledLyricFontSp(if (isActive) 18 else 13, fontScale, minSp = 8), minSp = 8).sp,
                         fontFamily = fontFamily,
                         color = translationColor,
                         textAlign = lineTextAlign,
@@ -784,9 +788,10 @@ private fun SimpleBackgroundLyricBlock(
             modifier = lineModifier.padding(top = 2.dp)
         )
     }
-    if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) {
+    val displayBackgroundTranslation = line.displayBackgroundTranslationText()
+    if (showTranslation && !displayBackgroundTranslation.isNullOrBlank()) {
         Text(
-            text = line.backgroundTranslation.orEmpty().lineBreakSafeText(),
+            text = displayBackgroundTranslation.lineBreakSafeText(),
             fontSize = if (isActive) 13.sp else 11.sp,
             fontFamily = fontFamily,
             color = textColor.copy(alpha = 0.48f),
@@ -853,15 +858,16 @@ private fun WordBackgroundLyricBlock(
                     )
                 }
             }
-            if (showTranslation && !line.backgroundTranslation.isNullOrBlank()) {
+            val displayBackgroundTranslation = line.displayBackgroundTranslationText()
+            if (showTranslation && !displayBackgroundTranslation.isNullOrBlank()) {
                 val backgroundTranslationColor = when {
                     isActive -> Color.White.copy(alpha = 0.44f)
                     index < currentIndex -> Color.White.copy(alpha = 0.24f)
                     else -> Color.White.copy(alpha = 0.36f)
                 }
                 Text(
-                    text = line.backgroundTranslation.orEmpty().lineBreakSafeText(),
-                    fontSize = fittedLyricFontSp(line.backgroundTranslation.orEmpty(), scaledLyricFontSp(if (isActive) 12 else 10, fontScale, minSp = 8), minSp = 8).sp,
+                    text = displayBackgroundTranslation.lineBreakSafeText(),
+                    fontSize = fittedLyricFontSp(displayBackgroundTranslation, scaledLyricFontSp(if (isActive) 12 else 10, fontScale, minSp = 8), minSp = 8).sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight.softenedLyricWeight(),
                     color = backgroundTranslationColor,
@@ -962,6 +968,64 @@ private fun LyricLine.ttmlAlignment(): Alignment.Horizontal {
     if (agent.isNullOrBlank()) return Alignment.Start
     return if (agent.equals("v2", ignoreCase = true)) Alignment.End else Alignment.Start
 }
+
+private fun LyricLine.ttmlTransformOrigin(): TransformOrigin {
+    if (agent.equals("v2", ignoreCase = true)) return TransformOrigin(1f, 0.5f)
+    return TransformOrigin(0f, 0.5f)
+}
+
+private fun LyricLine.displayPronunciationText(): String? {
+    pronunciation?.takeIf { it.isNotBlank() }?.let { return it }
+    return romanizationSecondaryCandidate()
+}
+
+private fun LyricLine.displayTranslationText(): String? {
+    val value = translation?.takeIf { it.isNotBlank() } ?: return null
+    if (pronunciation.isNullOrBlank() && isLikelyRomanizationSecondary(text, value)) return null
+    return value
+}
+
+private fun LyricLine.displayBackgroundTranslationText(): String? {
+    val value = backgroundTranslation?.takeIf { it.isNotBlank() } ?: return null
+    val primary = backgroundText?.takeIf { it.isNotBlank() } ?: text
+    if (pronunciation.isNullOrBlank() && isLikelyRomanizationSecondary(primary, value)) return null
+    return value
+}
+
+private fun LyricLine.romanizationSecondaryCandidate(): String? {
+    translation?.takeIf { isLikelyRomanizationSecondary(text, it) }?.let { return it }
+    val primary = backgroundText?.takeIf { it.isNotBlank() } ?: text
+    return backgroundTranslation?.takeIf { isLikelyRomanizationSecondary(primary, it) }
+}
+
+private fun isLikelyRomanizationSecondary(primary: String?, candidate: String?): Boolean {
+    val primaryText = primary?.takeIf { it.isNotBlank() } ?: return false
+    val secondary = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return false
+    if (!primaryText.hasCjkKanaOrHangul()) return false
+    if (!secondary.any { it.isLatinLetter() }) return false
+    if (secondary.hasCjkKanaOrHangul()) return false
+    val useful = secondary.filterNot { it.isWhitespace() }
+    if (useful.isEmpty()) return false
+    val romanChars = useful.count { it.isLatinLetter() || it in "-'.`·・" }
+    return romanChars.toFloat() / useful.length >= 0.82f
+}
+
+private fun String.hasCjkKanaOrHangul(): Boolean = any { char ->
+    when (Character.UnicodeBlock.of(char)) {
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+        Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+        Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS,
+        Character.UnicodeBlock.HIRAGANA,
+        Character.UnicodeBlock.KATAKANA,
+        Character.UnicodeBlock.HANGUL_SYLLABLES,
+        Character.UnicodeBlock.HANGUL_JAMO,
+        Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO -> true
+        else -> false
+    }
+}
+
+private fun Char.isLatinLetter(): Boolean = this in 'A'..'Z' || this in 'a'..'z'
 
 private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
     val end = endMs ?: return false

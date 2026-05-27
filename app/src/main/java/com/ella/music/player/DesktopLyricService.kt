@@ -738,12 +738,26 @@ class DesktopLyricService : Service() {
             backgroundWordEnds: LongArray
         ) {
             this.lyricText = text.ifBlank { if (backgroundText.isBlank()) "♪" else "" }
-            this.pronunciation = pronunciation
-            this.translation = translation
+            val inferredPronunciation = pronunciation.ifBlank {
+                when {
+                    isLikelyRomanizationSecondary(text, translation) -> translation
+                    isLikelyRomanizationSecondary(backgroundText.ifBlank { text }, backgroundTranslation) -> backgroundTranslation
+                    else -> ""
+                }
+            }
+            this.pronunciation = inferredPronunciation
+            this.translation = if (pronunciation.isBlank() && isLikelyRomanizationSecondary(text, translation)) "" else translation
             this.agent = agent
             this.isTtml = isTtml
             this.backgroundText = backgroundText
-            this.backgroundTranslation = backgroundTranslation
+            this.backgroundTranslation = if (
+                pronunciation.isBlank() &&
+                isLikelyRomanizationSecondary(backgroundText.ifBlank { text }, backgroundTranslation)
+            ) {
+                ""
+            } else {
+                backgroundTranslation
+            }
             this.positionMs = positionMs
             words = wordTexts.mapIndexedNotNull { index, word ->
                 val start = wordStarts.getOrNull(index) ?: return@mapIndexedNotNull null
@@ -776,18 +790,20 @@ class DesktopLyricService : Service() {
             val primaryMaxWidth = maxWidthForAlign(primaryAlign)
             val backgroundMaxWidth = maxWidthForAlign(backgroundAlign)
             if (hasPronunciation && !hasBackground) {
+                val hasTranslation = translation.isNotBlank()
+                val baselines = centeredPrimaryBaselines(hasPronunciation = true, hasTranslation = hasTranslation)
                 drawSmallLine(
                     canvas = canvas,
                     fallbackText = pronunciation,
                     lineWords = pronunciationWords,
                     anchorX = width / 2f,
-                    baseline = height * 0.24f,
+                    baseline = baselines.pronunciation,
                     maxWidth = width * 0.88f,
                     align = AnchorAlign.Center
                 )
-                drawLine(canvas, lyricText, words, width / 2f, height * 0.54f, width * 0.9f, AnchorAlign.Center, true)
-                if (translation.isNotBlank()) {
-                    drawTranslationText(canvas, translation, width / 2f, height * 0.82f, width * 0.88f, AnchorAlign.Center)
+                drawLine(canvas, lyricText, words, width / 2f, baselines.primary, width * 0.9f, AnchorAlign.Center, true)
+                if (hasTranslation) {
+                    drawTranslationText(canvas, translation, width / 2f, baselines.translation, width * 0.88f, AnchorAlign.Center)
                 }
             } else if (hasBackground) {
                 val hasTranslation = translation.isNotBlank() || backgroundTranslation.isNotBlank()
@@ -825,19 +841,67 @@ class DesktopLyricService : Service() {
                     )
                 }
             } else {
-                val baseline = height / 2f - if (translation.isBlank()) -5f else 10f
+                val baselines = if (translation.isNotBlank()) {
+                    centeredPrimaryBaselines(hasPronunciation = false, hasTranslation = true)
+                } else {
+                    null
+                }
+                val baseline = if (baselines == null) {
+                    height / 2f + 5f
+                } else {
+                    baselines.primary
+                }
                 drawLine(canvas, lyricText, words, primaryAlign.anchorX(width), baseline, primaryMaxWidth, primaryAlign, true)
                 if (translation.isNotBlank()) {
                     drawTranslationText(
                         canvas = canvas,
                         value = translation,
                         anchorX = primaryAlign.anchorX(width),
-                        baseline = baseline + 25f * resources.displayMetrics.scaledDensity,
+                        baseline = baselines?.translation ?: baseline,
                         maxWidth = primaryMaxWidth,
                         align = primaryAlign
                     )
                 }
             }
+        }
+
+        private fun centeredPrimaryBaselines(hasPronunciation: Boolean, hasTranslation: Boolean): LyricBaselines {
+            val oldPronunciationSize = pronunciationPaint.textSize
+            val oldPrimarySize = activePaint.textSize
+            val oldTranslationSize = translationPaint.textSize
+            pronunciationPaint.textSize = 12f * resources.displayMetrics.scaledDensity * fontScale
+            activePaint.textSize = 20f * resources.displayMetrics.scaledDensity * fontScale
+            translationPaint.textSize = 15f * resources.displayMetrics.scaledDensity * fontScale * translationScale
+
+            val topGap = 5f * resources.displayMetrics.density
+            val bottomGap = 6f * resources.displayMetrics.density
+            val pronunciationMetrics = pronunciationPaint.fontMetrics
+            val primaryMetrics = activePaint.fontMetrics
+            val translationMetrics = translationPaint.fontMetrics
+            val pronunciationHeight = pronunciationMetrics.height()
+            val primaryHeight = primaryMetrics.height()
+            val translationHeight = translationMetrics.height()
+            val totalHeight =
+                (if (hasPronunciation) pronunciationHeight + topGap else 0f) +
+                    primaryHeight +
+                    (if (hasTranslation) bottomGap + translationHeight else 0f)
+            var top = (height - totalHeight) / 2f
+
+            val pronunciationBaseline = if (hasPronunciation) {
+                val baseline = top - pronunciationMetrics.ascent
+                top += pronunciationHeight + topGap
+                baseline
+            } else {
+                0f
+            }
+            val primaryBaseline = top - primaryMetrics.ascent
+            top += primaryHeight + bottomGap
+            val translationBaseline = if (hasTranslation) top - translationMetrics.ascent else 0f
+
+            pronunciationPaint.textSize = oldPronunciationSize
+            activePaint.textSize = oldPrimarySize
+            translationPaint.textSize = oldTranslationSize
+            return LyricBaselines(pronunciationBaseline, primaryBaseline, translationBaseline)
         }
 
         private fun drawStatusBarLyric(canvas: Canvas) {
@@ -1116,6 +1180,37 @@ class DesktopLyricService : Service() {
                 Character.UnicodeBlock.HANGUL_SYLLABLES
             )
 
+        private fun isLikelyRomanizationSecondary(primary: String, candidate: String): Boolean {
+            val primaryText = primary.takeIf { it.isNotBlank() } ?: return false
+            val secondary = candidate.trim().takeIf { it.isNotBlank() } ?: return false
+            if (!primaryText.hasCjkKanaOrHangul()) return false
+            if (!secondary.any { it.isLatinLetter() }) return false
+            if (secondary.hasCjkKanaOrHangul()) return false
+            val useful = secondary.filterNot { it.isWhitespace() }
+            if (useful.isEmpty()) return false
+            val romanChars = useful.count { it.isLatinLetter() || it in "-'.`·・" }
+            return romanChars.toFloat() / useful.length >= 0.82f
+        }
+
+        private fun String.hasCjkKanaOrHangul(): Boolean = any { char ->
+            when (Character.UnicodeBlock.of(char)) {
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A,
+                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B,
+                Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS,
+                Character.UnicodeBlock.HIRAGANA,
+                Character.UnicodeBlock.KATAKANA,
+                Character.UnicodeBlock.HANGUL_SYLLABLES,
+                Character.UnicodeBlock.HANGUL_JAMO,
+                Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO -> true
+                else -> false
+            }
+        }
+
+        private fun Char.isLatinLetter(): Boolean = this in 'A'..'Z' || this in 'a'..'z'
+
+        private fun Paint.FontMetrics.height(): Float = descent - ascent
+
         private fun ttmlAlignForPrimary(): AnchorAlign {
             return AnchorAlign.Center
         }
@@ -1126,6 +1221,7 @@ class DesktopLyricService : Service() {
     }
 
     private data class DesktopWord(val text: String, val startMs: Long, val endMs: Long)
+    private data class LyricBaselines(val pronunciation: Float, val primary: Float, val translation: Float)
 
     private enum class AnchorAlign(val paintAlign: Paint.Align) {
         Left(Paint.Align.LEFT),
