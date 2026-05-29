@@ -158,6 +158,14 @@
 
     <string name="share_song">Share song</string>
     <string name="share_no_available_app">No sharing apps available</string>
+    <string name="lyric_share_picker_title">Choose lyrics</string>
+    <string name="lyric_share_selected_count">Selected %1$d / %2$d lines</string>
+    <string name="lyric_share_chooser_title">Share lyrics</string>
+    <string name="lyric_share_failed">Failed to share lyrics</string>
+    <string name="lyric_share_unknown_song">Unknown song</string>
+    <string name="lyric_share_unknown_artist">Unknown artist</string>
+    <string name="lyric_share_footer_default">via Ella Music</string>
+    <string name="lyric_share_footer_custom">via @%1$s</string>
     <string name="aspect_pro_requires_local_audio">Aspect Pro requires a local audio file</string>
     <string name="aspect_pro_open_failed">Could not open Aspect Pro. Make sure it is installed</string>
 

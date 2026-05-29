@@ -158,6 +158,14 @@
 
     <string name="share_song">分享歌曲</string>
     <string name="share_no_available_app">没有可用的分享应用</string>
+    <string name="lyric_share_picker_title">选择歌词</string>
+    <string name="lyric_share_selected_count">已选择 %1$d / %2$d 句</string>
+    <string name="lyric_share_chooser_title">分享歌词</string>
+    <string name="lyric_share_failed">分享歌词失败</string>
+    <string name="lyric_share_unknown_song">未知歌曲</string>
+    <string name="lyric_share_unknown_artist">未知艺术家</string>
+    <string name="lyric_share_footer_default">via Ella Music</string>
+    <string name="lyric_share_footer_custom">via @%1$s</string>
     <string name="aspect_pro_requires_local_audio">Aspect Pro 需要本地音频文件</string>
     <string name="aspect_pro_open_failed">未能打开 Aspect Pro，请确认已安装</string>
 
