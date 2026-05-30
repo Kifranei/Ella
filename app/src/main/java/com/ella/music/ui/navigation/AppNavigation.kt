@@ -434,6 +434,7 @@ fun AppNavigation(
         composable(Screen.PlaybackHistory.route) {
             PlaybackHistoryScreen(
                 mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() }
             )
         }

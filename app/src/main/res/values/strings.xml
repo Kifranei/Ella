@@ -215,6 +215,13 @@
     <string name="category_folder_tree">文件夹层次结构</string>
     <string name="category_playlist">歌单</string>
     <string name="category_analytics">听歌统计</string>
+    <string name="listening_calendar_title">听歌日历</string>
+    <string name="listening_calendar_total">累计播放 %1$d 首，累计时长 %2$s</string>
+    <string name="listening_calendar_play_all">播放全部</string>
+    <string name="listening_calendar_shuffle">随机播放</string>
+    <string name="listening_calendar_empty_day">今日无播放记录</string>
+    <string name="listening_calendar_records_total">%1$d 条播放记录</string>
+    <string name="listening_calendar_unique_songs">%1$d 首不同歌曲</string>
     <string name="category_genre">流派</string>
     <string name="category_year">年份</string>
     <string name="category_composer">作曲家</string>

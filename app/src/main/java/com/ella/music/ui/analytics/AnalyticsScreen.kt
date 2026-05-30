@@ -48,6 +48,7 @@ import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
+import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
@@ -154,112 +155,14 @@ fun AnalyticsScreen(
 @Composable
 fun PlaybackHistoryScreen(
     mainViewModel: MainViewModel,
+    playerViewModel: PlayerViewModel,
     onBack: () -> Unit
 ) {
-    val playbackHistory by mainViewModel.playbackHistory.collectAsState()
-    val groupedHistory = remember(playbackHistory) {
-        playbackHistory
-            .sortedByDescending { it.playedAt }
-            .groupBy { historyDateKey(it.playedAt) }
-    }
-    val dateKeys = remember(groupedHistory) { groupedHistory.keys.toList() }
-    var selectedDateKey by remember { mutableStateOf<String?>(null) }
-    val activeDateKey = selectedDateKey.takeIf { it in groupedHistory } ?: dateKeys.firstOrNull()
-    val activeHistory = activeDateKey?.let { groupedHistory[it].orEmpty() }.orEmpty()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(ellaPageBackground())
-            .windowInsetsPadding(WindowInsets.statusBars)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
-                    tint = MiuixTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Column(modifier = Modifier.padding(start = 8.dp)) {
-                Text(
-                    text = "听歌历史",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = if (playbackHistory.isEmpty()) "暂无记录" else "共 ${playbackHistory.size} 条记录",
-                    fontSize = 12.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-        }
-
-        if (playbackHistory.isEmpty()) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = "播放歌曲后会在这里按日期保存历史记录",
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        } else {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(dateKeys, key = { it }) { dateKey ->
-                    DateChip(
-                        dateKey = dateKey,
-                        count = groupedHistory[dateKey].orEmpty().size,
-                        selected = dateKey == activeDateKey,
-                        onClick = { selectedDateKey = dateKey }
-                    )
-                }
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 32.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                item(key = "active-date") {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = activeDateKey?.let(::formatHistoryDateTitle).orEmpty(),
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MiuixTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "${activeHistory.size} 次播放",
-                                fontSize = 12.sp,
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                modifier = Modifier.padding(top = 3.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            activeHistory.forEach { entry ->
-                                HistoryRow(entry = entry, timeText = formatHistoryClock(entry.playedAt))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    ListeningCalendarHistoryScreen(
+        mainViewModel = mainViewModel,
+        playerViewModel = playerViewModel,
+        onBack = onBack
+    )
 }
 
 @Composable

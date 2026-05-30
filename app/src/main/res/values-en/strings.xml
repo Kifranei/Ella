@@ -215,6 +215,13 @@
     <string name="category_folder_tree">Folder tree</string>
     <string name="category_playlist">Playlists</string>
     <string name="category_analytics">Listening stats</string>
+    <string name="listening_calendar_title">Listening calendar</string>
+    <string name="listening_calendar_total">%1$d plays, total %2$s</string>
+    <string name="listening_calendar_play_all">Play all</string>
+    <string name="listening_calendar_shuffle">Shuffle</string>
+    <string name="listening_calendar_empty_day">No listening history today</string>
+    <string name="listening_calendar_records_total">%1$d playback records</string>
+    <string name="listening_calendar_unique_songs">%1$d unique songs</string>
     <string name="category_genre">Genres</string>
     <string name="category_year">Years</string>
     <string name="category_composer">Composers</string>
