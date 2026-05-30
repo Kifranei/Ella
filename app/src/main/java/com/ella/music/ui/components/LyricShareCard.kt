@@ -28,13 +28,75 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 private const val SHARE_CARD_WIDTH = 1080
-private const val SHARE_CARD_MIN_HEIGHT = 820
-private const val SHARE_CARD_MAX_HEIGHT = 1720
+private const val SHARE_CARD_MIN_HEIGHT = 720
+private const val SHARE_CARD_MAX_HEIGHT = 1920
 private const val SHARE_CARD_HORIZONTAL_PADDING = 92f
 private const val SHARE_CARD_TOP_PADDING = 88f
 private const val SHARE_CARD_BOTTOM_PADDING = 72f
 private const val SHARE_CARD_COVER_SIZE = 120f
-private const val SHARE_CARD_MAX_BLOCKS = 8
+private const val SHARE_CARD_HEADER_GAP = 60f
+private const val SHARE_CARD_FOOTER_GAP = 60f
+private const val SHARE_CARD_SECONDARY_GAP = 10f
+private const val SHARE_CARD_MIN_BLOCK_GAP = 20f
+private const val SHARE_CARD_MAX_BLOCK_GAP = 34f
+private const val SHARE_CARD_MAX_BLOCKS = 10
+
+internal data class ShareLyricBlock(
+    val primary: String,
+    val secondary: List<String>
+)
+
+internal data class LyricShareCardContent(
+    val title: String,
+    val artist: String,
+    val annotation: String,
+    val footerText: String,
+    val blocks: List<ShareLyricBlock>,
+    val backgroundColors: List<Int>
+)
+
+internal data class MeasuredTextBlock(
+    val layout: StaticLayout,
+    val gapAfter: Float
+)
+
+internal data class MeasuredShareLyricBlock(
+    val primary: MeasuredTextBlock,
+    val secondary: List<MeasuredTextBlock>,
+    val gapAfter: Float
+)
+
+internal data class LyricShareCardLayout(
+    val canvasWidth: Int,
+    val adaptiveCanvasHeight: Int,
+    val safePadding: Float,
+    val headerTop: Float,
+    val headerHeight: Float,
+    val lyricsTop: Float,
+    val lyricsHeight: Float,
+    val footerTop: Float,
+    val footerHeight: Float,
+    val viaTextBaseline: Float,
+    val songInfoTop: Float,
+    val songInfoHeight: Float,
+    val coverRect: RectF,
+    val titleLayout: StaticLayout,
+    val annotationLayout: StaticLayout?,
+    val artistLayout: StaticLayout,
+    val lyricBlocks: List<MeasuredShareLyricBlock>,
+    val footerPaint: TextPaint,
+    val footerText: String
+)
+
+private data class LyricSizingCandidate(
+    val primarySize: Float,
+    val secondarySize: Float,
+    val primaryMaxLines: Int,
+    val secondaryMaxLines: Int,
+    val primaryLineSpacingAdd: Float,
+    val secondaryLineSpacingAdd: Float,
+    val blockGap: Float
+)
 
 fun shareLyricCard(
     context: Context,
@@ -66,13 +128,10 @@ fun shareLyricCard(
     customInfo: String = ""
 ) {
     runCatching {
-        val shareLines = lines.filter { it.sharePrimaryText().isNotBlank() }.ifEmpty {
-            lines.take(1)
-        }
         val bitmap = createLyricShareCard(
             context = context,
             song = song,
-            lines = shareLines,
+            lines = lines,
             cover = cover,
             backgroundColors = backgroundColors,
             annotation = annotation,
@@ -93,6 +152,187 @@ fun shareLyricCard(
     }
 }
 
+internal fun buildLyricShareCardContent(
+    context: Context,
+    song: Song?,
+    lines: List<LyricLine>,
+    backgroundColors: List<Int>,
+    annotation: String,
+    customInfo: String
+): LyricShareCardContent {
+    val blocks = lines
+        .filter { it.sharePrimaryText().isNotBlank() }
+        .mapNotNull { it.toShareLyricBlock() }
+        .ifEmpty { listOf(ShareLyricBlock("\u266a", emptyList())) }
+        .take(SHARE_CARD_MAX_BLOCKS)
+
+    return LyricShareCardContent(
+        title = song?.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lyric_share_unknown_song),
+        artist = song?.artist?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lyric_share_unknown_artist),
+        annotation = annotation.trim(),
+        footerText = lyricShareFooter(context, customInfo),
+        blocks = blocks,
+        backgroundColors = backgroundColors
+    )
+}
+
+internal fun calculateLyricShareLayout(
+    content: LyricShareCardContent,
+    canvasWidth: Int = SHARE_CARD_WIDTH,
+    minHeight: Int = SHARE_CARD_MIN_HEIGHT,
+    maxHeight: Int = SHARE_CARD_MAX_HEIGHT
+): LyricShareCardLayout {
+    val safePadding = SHARE_CARD_HORIZONTAL_PADDING
+    val coverRect = RectF(
+        safePadding,
+        SHARE_CARD_TOP_PADDING,
+        safePadding + SHARE_CARD_COVER_SIZE,
+        SHARE_CARD_TOP_PADDING + SHARE_CARD_COVER_SIZE
+    )
+    val textLeft = coverRect.right + 28f
+    val textWidth = (canvasWidth - textLeft - safePadding).roundToInt()
+
+    val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = 38f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        setShadowLayer(18f, 0f, 8f, Color.argb(76, 0, 0, 0))
+    }
+    val annotationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(214, 255, 255, 255)
+        textSize = 27f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val artistPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(168, 255, 255, 255)
+        textSize = 26f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+    }
+    val titleLayout = buildLayout(
+        text = content.title,
+        paint = titlePaint,
+        width = textWidth,
+        maxLines = 2,
+        lineSpacingAdd = 4f,
+        lineSpacingMult = 1.02f
+    )
+    val annotationLayout = content.annotation.takeIf { it.isNotBlank() }?.let {
+        buildLayout(
+            text = it,
+            paint = annotationPaint,
+            width = textWidth,
+            maxLines = 1,
+            lineSpacingAdd = 2f,
+            lineSpacingMult = 1f
+        )
+    }
+    val artistLayout = buildLayout(
+        text = content.artist,
+        paint = artistPaint,
+        width = textWidth,
+        maxLines = 2,
+        lineSpacingAdd = 2f,
+        lineSpacingMult = 1f
+    )
+    val songInfoHeight = max(
+        SHARE_CARD_COVER_SIZE,
+        (
+            titleLayout.height +
+                (annotationLayout?.height?.plus(10) ?: 0) +
+                12 +
+                artistLayout.height
+            ).toFloat()
+    )
+    val headerTop = SHARE_CARD_TOP_PADDING
+    val headerHeight = songInfoHeight
+    val songInfoTop = headerTop
+
+    val footerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(112, 255, 255, 255)
+        textSize = 24f
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+    }
+    val footerHeight = footerPaint.fontMetrics.run { bottom - top } + 8f
+    val lyricsTop = headerTop + headerHeight + SHARE_CARD_HEADER_GAP
+    val maxLyricsHeight = (
+        maxHeight -
+            SHARE_CARD_BOTTOM_PADDING -
+            footerHeight -
+            SHARE_CARD_FOOTER_GAP -
+            lyricsTop
+        ).coerceAtLeast(120f).roundToInt()
+
+    val candidates = buildLyricSizingCandidates(content.blocks)
+    val measuredLyrics = candidates
+        .firstNotNullOfOrNull { candidate ->
+            measureLyricBlocks(
+                blocks = content.blocks,
+                width = (canvasWidth - safePadding * 2).roundToInt(),
+                candidate = candidate,
+                availableHeight = maxLyricsHeight.toFloat()
+            )?.takeIf { it.first.isNotEmpty() }
+        }
+        ?: measureLyricBlocks(
+            blocks = content.blocks,
+            width = (canvasWidth - safePadding * 2).roundToInt(),
+            candidate = candidates.last(),
+            availableHeight = maxLyricsHeight.toFloat(),
+            forceTruncate = true
+        )
+        ?: (emptyList<MeasuredShareLyricBlock>() to 0f)
+
+    val lyricsHeight = measuredLyrics.second
+    val footerTop = (lyricsTop + lyricsHeight + SHARE_CARD_FOOTER_GAP)
+        .coerceAtLeast(lyricsTop + lyricsHeight + 48f)
+    val adaptiveCanvasHeight = (
+        footerTop +
+            footerHeight +
+            SHARE_CARD_BOTTOM_PADDING
+        ).roundToInt().coerceIn(minHeight, maxHeight)
+    val viaTextBaseline = adaptiveCanvasHeight - SHARE_CARD_BOTTOM_PADDING - footerPaint.fontMetrics.descent
+
+    return LyricShareCardLayout(
+        canvasWidth = canvasWidth,
+        adaptiveCanvasHeight = adaptiveCanvasHeight,
+        safePadding = safePadding,
+        headerTop = headerTop,
+        headerHeight = headerHeight,
+        lyricsTop = lyricsTop,
+        lyricsHeight = lyricsHeight,
+        footerTop = footerTop,
+        footerHeight = footerHeight,
+        viaTextBaseline = viaTextBaseline,
+        songInfoTop = songInfoTop,
+        songInfoHeight = songInfoHeight,
+        coverRect = coverRect,
+        titleLayout = titleLayout,
+        annotationLayout = annotationLayout,
+        artistLayout = artistLayout,
+        lyricBlocks = measuredLyrics.first,
+        footerPaint = footerPaint,
+        footerText = content.footerText
+    )
+}
+
+internal fun renderLyricShareCardBitmap(
+    content: LyricShareCardContent,
+    layout: LyricShareCardLayout,
+    cover: Bitmap?
+): Bitmap {
+    val bitmap = Bitmap.createBitmap(layout.canvasWidth, layout.adaptiveCanvasHeight, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    drawShareBackground(
+        canvas = canvas,
+        width = layout.canvasWidth,
+        height = layout.adaptiveCanvasHeight,
+        colors = content.backgroundColors
+    )
+    drawShareHeader(canvas, layout, cover)
+    drawShareLyrics(canvas, layout)
+    drawShareFooter(canvas, layout)
+    return bitmap
+}
+
 private fun createLyricShareCard(
     context: Context,
     song: Song?,
@@ -102,255 +342,158 @@ private fun createLyricShareCard(
     annotation: String,
     customInfo: String
 ): Bitmap {
-    val palette = cover.extractSharePalette(backgroundColors)
-    val blocks = lines
-        .mapNotNull { it.toShareLyricBlock() }
-        .ifEmpty { listOf(ShareLyricBlock("\u266a", emptyList())) }
-        .take(SHARE_CARD_MAX_BLOCKS)
-
-    val header = measureShareHeader(
-        title = song?.title?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lyric_share_unknown_song),
+    val content = buildLyricShareCardContent(
+        context = context,
+        song = song,
+        lines = lines,
+        backgroundColors = cover.extractSharePalette(backgroundColors),
         annotation = annotation,
-        artist = song?.artist?.takeIf { it.isNotBlank() } ?: context.getString(R.string.lyric_share_unknown_artist)
+        customInfo = customInfo
     )
-    val lyricMeasure = measureShareLyrics(blocks)
-    val footerMeasure = measureShareFooter(lyricShareFooter(context, customInfo))
-    val lyricTopBase = SHARE_CARD_TOP_PADDING + header.height + 68f
-    val contentHeight = (
-        lyricTopBase +
-            lyricMeasure.height +
-            footerMeasure.height +
-            SHARE_CARD_BOTTOM_PADDING
-        ).roundToInt()
-    val height = contentHeight.coerceIn(SHARE_CARD_MIN_HEIGHT, SHARE_CARD_MAX_HEIGHT)
-    val bitmap = Bitmap.createBitmap(SHARE_CARD_WIDTH, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bitmap)
-
-    drawShareBackground(canvas, SHARE_CARD_WIDTH, height, cover, palette)
-
-    val headerTop = SHARE_CARD_TOP_PADDING
-    val lyricsExtraSpace = (height - contentHeight).coerceAtLeast(0)
-    val lyricTop = lyricTopBase + lyricsExtraSpace * 0.24f
-    val footerBaseline = height - SHARE_CARD_BOTTOM_PADDING - footerMeasure.paint.fontMetrics.descent
-
-    drawShareHeader(
-        canvas = canvas,
-        cover = cover,
-        measure = header,
-        top = headerTop
-    )
-    drawShareLyrics(canvas, lyricMeasure, top = lyricTop)
-    drawShareFooter(canvas, footerMeasure, footerBaseline)
-    return bitmap
+    val layout = calculateLyricShareLayout(content)
+    return renderLyricShareCardBitmap(content, layout, cover)
 }
 
-private data class ShareHeaderMeasure(
-    val titleLayout: StaticLayout,
-    val annotationLayout: StaticLayout?,
-    val artistLayout: StaticLayout,
-    val contentLeft: Float,
-    val coverRect: RectF,
-    val height: Float
-)
-
-private data class MeasuredLyricLayout(
-    val layout: StaticLayout,
-    val paint: TextPaint
-)
-
-private data class MeasuredShareBlock(
-    val primary: MeasuredLyricLayout,
-    val secondary: List<MeasuredLyricLayout>,
-    val spacingAfter: Float
-)
-
-private data class ShareLyricMeasure(
-    val blocks: List<MeasuredShareBlock>,
-    val height: Float
-)
-
-private data class ShareFooterMeasure(
-    val text: String,
-    val paint: TextPaint,
-    val height: Float
-)
-
-internal data class ShareLyricBlock(
-    val primary: String,
-    val secondary: List<String>
-)
-
-private fun measureShareHeader(
-    title: String,
-    annotation: String,
-    artist: String
-): ShareHeaderMeasure {
-    val coverRect = RectF(
-        SHARE_CARD_HORIZONTAL_PADDING,
-        0f,
-        SHARE_CARD_HORIZONTAL_PADDING + SHARE_CARD_COVER_SIZE,
-        SHARE_CARD_COVER_SIZE
-    )
-    val contentLeft = coverRect.right + 28f
-    val contentWidth = (SHARE_CARD_WIDTH - contentLeft - SHARE_CARD_HORIZONTAL_PADDING).roundToInt()
-    val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        textSize = 38f
-        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-        setShadowLayer(18f, 0f, 8f, Color.argb(76, 0, 0, 0))
-    }
-    val annotationPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(218, 255, 255, 255)
-        textSize = 27f
-        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-    }
-    val artistPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(168, 255, 255, 255)
-        textSize = 26f
-        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
-    }
-    val titleLayout = buildLayout(title, titlePaint, contentWidth, maxLines = 2, lineSpacingAdd = 4f, lineSpacingMult = 1.02f)
-    val annotationLayout = annotation.trim().takeIf { it.isNotBlank() }?.let {
-        buildLayout(it, annotationPaint, contentWidth, maxLines = 1, lineSpacingAdd = 2f, lineSpacingMult = 1f)
-    }
-    val artistLayout = buildLayout(artist, artistPaint, contentWidth, maxLines = 2, lineSpacingAdd = 2f, lineSpacingMult = 1f)
-    val stackedHeight = titleLayout.height +
-        (annotationLayout?.height?.plus(10) ?: 0) +
-        12 +
-        artistLayout.height
-    val height = max(SHARE_CARD_COVER_SIZE, stackedHeight.toFloat())
-    return ShareHeaderMeasure(
-        titleLayout = titleLayout,
-        annotationLayout = annotationLayout,
-        artistLayout = artistLayout,
-        contentLeft = contentLeft,
-        coverRect = coverRect,
-        height = height
-    )
-}
-
-private fun measureShareLyrics(blocks: List<ShareLyricBlock>): ShareLyricMeasure {
-    val maxWidth = (SHARE_CARD_WIDTH - SHARE_CARD_HORIZONTAL_PADDING * 2).roundToInt()
+private fun buildLyricSizingCandidates(blocks: List<ShareLyricBlock>): List<LyricSizingCandidate> {
     val longestLine = blocks.maxOfOrNull { it.primary.length } ?: 0
     val preferredSizes = buildList {
         add(baseShareLyricTextSize(blocks.size, longestLine))
-        add(76f)
-        add(70f)
-        add(64f)
-        add(58f)
+        add(78f)
+        add(72f)
+        add(66f)
+        add(60f)
         add(54f)
-        add(50f)
+        add(48f)
+        add(44f)
     }.distinct()
 
-    var best: ShareLyricMeasure? = null
-    preferredSizes.forEach { primarySize ->
-        val primaryPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE
-            textSize = primarySize
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
-            setShadowLayer(20f, 0f, 8f, Color.argb(92, 0, 0, 0))
-        }
-        val secondaryPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(188, 255, 255, 255)
-            textSize = (primarySize * 0.43f).coerceIn(24f, 34f)
-            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
-            setShadowLayer(10f, 0f, 4f, Color.argb(72, 0, 0, 0))
-        }
-        val measuredBlocks = blocks.mapIndexed { index, block ->
-            val primaryLayout = buildLayout(
-                text = block.primary,
-                paint = primaryPaint,
-                width = maxWidth,
-                maxLines = if (blocks.size <= 2) 4 else 3,
-                lineSpacingAdd = (primarySize * 0.07f).coerceIn(4f, 10f),
-                lineSpacingMult = 1f
-            )
-            val secondaryLayouts = block.secondary.take(1).map {
-                MeasuredLyricLayout(
-                    layout = buildLayout(
-                        text = it,
-                        paint = secondaryPaint,
-                        width = maxWidth,
-                        maxLines = 2,
-                        lineSpacingAdd = 4f,
-                        lineSpacingMult = 1f
-                    ),
-                    paint = secondaryPaint
-                )
-            }
-            MeasuredShareBlock(
-                primary = MeasuredLyricLayout(primaryLayout, primaryPaint),
-                secondary = secondaryLayouts,
-                spacingAfter = if (index == blocks.lastIndex) 0f else (primarySize * 0.24f).coerceIn(20f, 34f)
-            )
-        }
-        val totalHeight = measuredBlocks.fold(0f) { total, block ->
-            total +
-                block.primary.layout.height +
-                block.secondary.fold(0f) { secondaryTotal, secondary ->
-                    secondaryTotal + secondary.layout.height + 10f
-                } +
-                block.spacingAfter
-        }
-        val measure = ShareLyricMeasure(measuredBlocks, totalHeight)
-        best = measure
-        if (totalHeight <= 980f) return measure
+    return preferredSizes.map { primarySize ->
+        LyricSizingCandidate(
+            primarySize = primarySize,
+            secondarySize = (primarySize * 0.42f).coerceIn(22f, 34f),
+            primaryMaxLines = if (blocks.size <= 2) 4 else 3,
+            secondaryMaxLines = 2,
+            primaryLineSpacingAdd = (primarySize * 0.07f).coerceIn(4f, 10f),
+            secondaryLineSpacingAdd = 4f,
+            blockGap = (primarySize * 0.24f).coerceIn(SHARE_CARD_MIN_BLOCK_GAP, SHARE_CARD_MAX_BLOCK_GAP)
+        )
     }
-    return best ?: ShareLyricMeasure(emptyList(), 0f)
 }
 
-private fun measureShareFooter(text: String): ShareFooterMeasure {
-    val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.argb(112, 255, 255, 255)
-        textSize = 24f
+private fun measureLyricBlocks(
+    blocks: List<ShareLyricBlock>,
+    width: Int,
+    candidate: LyricSizingCandidate,
+    availableHeight: Float,
+    forceTruncate: Boolean = false
+): Pair<List<MeasuredShareLyricBlock>, Float>? {
+    val primaryPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        textSize = candidate.primarySize
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        setShadowLayer(20f, 0f, 8f, Color.argb(92, 0, 0, 0))
     }
-    val height = paint.fontMetrics.run { bottom - top } + 8f
-    return ShareFooterMeasure(text = text, paint = paint, height = height)
+    val secondaryPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(186, 255, 255, 255)
+        textSize = candidate.secondarySize
+        typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
+        setShadowLayer(10f, 0f, 4f, Color.argb(70, 0, 0, 0))
+    }
+
+    fun measureBlock(block: ShareLyricBlock, isLast: Boolean): MeasuredShareLyricBlock {
+        val primaryLayout = buildLayout(
+            text = block.primary,
+            paint = primaryPaint,
+            width = width,
+            maxLines = candidate.primaryMaxLines,
+            lineSpacingAdd = candidate.primaryLineSpacingAdd,
+            lineSpacingMult = 1f
+        )
+        val secondaryLayouts = block.secondary.take(1).map {
+            MeasuredTextBlock(
+                layout = buildLayout(
+                    text = it,
+                    paint = secondaryPaint,
+                    width = width,
+                    maxLines = candidate.secondaryMaxLines,
+                    lineSpacingAdd = candidate.secondaryLineSpacingAdd,
+                    lineSpacingMult = 1f
+                ),
+                gapAfter = SHARE_CARD_SECONDARY_GAP
+            )
+        }
+        return MeasuredShareLyricBlock(
+            primary = MeasuredTextBlock(primaryLayout, 12f),
+            secondary = secondaryLayouts,
+            gapAfter = if (isLast) 0f else candidate.blockGap
+        )
+    }
+
+    fun blockHeight(block: MeasuredShareLyricBlock): Float {
+        return block.primary.layout.height +
+            block.primary.gapAfter +
+            block.secondary.fold(0f) { total, secondary ->
+                total + secondary.layout.height + secondary.gapAfter
+            } +
+            block.gapAfter
+    }
+
+    val measured = mutableListOf<MeasuredShareLyricBlock>()
+    var totalHeight = 0f
+    blocks.forEachIndexed { index, block ->
+        val candidateBlock = measureBlock(block, isLast = index == blocks.lastIndex)
+        val nextHeight = totalHeight + blockHeight(candidateBlock)
+        if (nextHeight <= availableHeight) {
+            measured += candidateBlock
+            totalHeight = nextHeight
+        } else {
+            if (!forceTruncate) return null
+            if (measured.isEmpty()) {
+                measured += candidateBlock
+                totalHeight = blockHeight(candidateBlock)
+            } else {
+                val ellipsisBlock = measureBlock(
+                    block = ShareLyricBlock("...", emptyList()),
+                    isLast = true
+                )
+                val ellipsisHeight = blockHeight(ellipsisBlock)
+                while (measured.isNotEmpty() && totalHeight + ellipsisHeight > availableHeight) {
+                    val removed = measured.removeAt(measured.lastIndex)
+                    totalHeight -= blockHeight(removed)
+                }
+                if (measured.isNotEmpty()) {
+                    val last = measured.removeAt(measured.lastIndex)
+                    totalHeight -= blockHeight(last)
+                    measured += last.copy(gapAfter = candidate.blockGap)
+                    totalHeight += blockHeight(measured.last())
+                }
+                if (totalHeight + ellipsisHeight <= availableHeight || measured.isEmpty()) {
+                    measured += ellipsisBlock
+                    totalHeight += ellipsisHeight
+                }
+            }
+            return measured to totalHeight.coerceAtMost(availableHeight)
+        }
+    }
+    return measured to totalHeight
 }
 
 private fun drawShareHeader(
     canvas: Canvas,
-    cover: Bitmap?,
-    measure: ShareHeaderMeasure,
-    top: Float
+    layout: LyricShareCardLayout,
+    cover: Bitmap?
 ) {
-    val coverRect = RectF(
-        measure.coverRect.left,
-        top,
-        measure.coverRect.right,
-        top + measure.coverRect.height()
-    )
-    drawShareHeaderCover(canvas, cover, coverRect)
-    var textTop = top + 6f
-    drawLayout(canvas, measure.titleLayout, measure.contentLeft, textTop)
-    textTop += measure.titleLayout.height + 10f
-    measure.annotationLayout?.let {
-        drawLayout(canvas, it, measure.contentLeft, textTop)
+    drawShareHeaderCover(canvas, cover, layout.coverRect)
+
+    var textTop = layout.songInfoTop + 6f
+    val textLeft = layout.coverRect.right + 28f
+    drawLayout(canvas, layout.titleLayout, textLeft, textTop)
+    textTop += layout.titleLayout.height + 10f
+    layout.annotationLayout?.let {
+        drawLayout(canvas, it, textLeft, textTop)
         textTop += it.height + 12f
     }
-    drawLayout(canvas, measure.artistLayout, measure.contentLeft, textTop)
-
-    val dividerY = top + measure.height + 30f
-    val dividerLeft = SHARE_CARD_HORIZONTAL_PADDING
-    val dividerRight = SHARE_CARD_WIDTH - SHARE_CARD_HORIZONTAL_PADDING
-    val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(
-            dividerLeft,
-            dividerY,
-            dividerRight,
-            dividerY,
-            intArrayOf(
-                Color.argb(0, 255, 255, 255),
-                Color.argb(74, 255, 255, 255),
-                Color.argb(0, 255, 255, 255)
-            ),
-            floatArrayOf(0f, 0.5f, 1f),
-            Shader.TileMode.CLAMP
-        )
-        strokeWidth = 2f
-    }
-    canvas.drawLine(dividerLeft, dividerY, dividerRight, dividerY, dividerPaint)
+    drawLayout(canvas, layout.artistLayout, textLeft, textTop)
 }
 
 private fun drawShareHeaderCover(canvas: Canvas, cover: Bitmap?, rect: RectF) {
@@ -390,34 +533,31 @@ private fun drawShareHeaderCover(canvas: Canvas, cover: Bitmap?, rect: RectF) {
 
 private fun drawShareLyrics(
     canvas: Canvas,
-    measure: ShareLyricMeasure,
-    top: Float
+    layout: LyricShareCardLayout
 ) {
-    var y = top
-    measure.blocks.forEach { block ->
-        drawLayout(canvas, block.primary.layout, SHARE_CARD_HORIZONTAL_PADDING, y)
-        y += block.primary.layout.height + 12f
+    var y = layout.lyricsTop
+    layout.lyricBlocks.forEach { block ->
+        drawLayout(canvas, block.primary.layout, layout.safePadding, y)
+        y += block.primary.layout.height + block.primary.gapAfter
         block.secondary.forEach { secondary ->
-            drawLayout(canvas, secondary.layout, SHARE_CARD_HORIZONTAL_PADDING, y)
-            y += secondary.layout.height + 10f
+            drawLayout(canvas, secondary.layout, layout.safePadding, y)
+            y += secondary.layout.height + secondary.gapAfter
         }
-        y += block.spacingAfter
+        y += block.gapAfter
     }
 }
 
 private fun drawShareFooter(
     canvas: Canvas,
-    measure: ShareFooterMeasure,
-    baseline: Float
+    layout: LyricShareCardLayout
 ) {
-    canvas.drawText(measure.text, SHARE_CARD_HORIZONTAL_PADDING, baseline, measure.paint)
+    canvas.drawText(layout.footerText, layout.safePadding, layout.viaTextBaseline, layout.footerPaint)
 }
 
 private fun drawShareBackground(
     canvas: Canvas,
     width: Int,
     height: Int,
-    cover: Bitmap?,
     colors: List<Int>
 ) {
     val fallbackColors = listOf(
@@ -464,25 +604,6 @@ private fun drawShareBackground(
             Shader.TileMode.CLAMP
         )
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), this)
-    }
-
-    cover?.let {
-        val accentRect = RectF(width * 0.55f, height * 0.12f, width * 0.96f, height * 0.54f)
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(
-                accentRect.left,
-                accentRect.top,
-                accentRect.right,
-                accentRect.bottom,
-                intArrayOf(
-                    Color.argb(42, 255, 255, 255),
-                    Color.argb(0, 255, 255, 255)
-                ),
-                floatArrayOf(0f, 1f),
-                Shader.TileMode.CLAMP
-            )
-            canvas.drawRoundRect(accentRect, 52f, 52f, this)
-        }
     }
 
     Paint(Paint.ANTI_ALIAS_FLAG).apply {

@@ -945,6 +945,7 @@ fun PlayerScreen(
                 cover = embeddedCover ?: paletteBitmap,
                 backgroundColors = listOf(palette.top, palette.middle, palette.bottom),
                 annotation = songAnnotation,
+                customInfo = lyricShareCustomInfo,
                 onDismiss = { lyricShareInitialLine = null },
                 onShare = ::shareSelectedLyrics
             )
