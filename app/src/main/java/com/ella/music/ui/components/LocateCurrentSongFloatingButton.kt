@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import kotlinx.coroutines.launch
@@ -61,7 +62,7 @@ fun LocateCurrentSongFloatingButton(
         ) {
             Icon(
                 painter = painterResource(id = R.drawable.ic_my_location),
-                contentDescription = "定位当前歌曲",
+                contentDescription = stringResource(R.string.player_locate_current_song),
                 tint = MiuixTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(21.dp)
             )

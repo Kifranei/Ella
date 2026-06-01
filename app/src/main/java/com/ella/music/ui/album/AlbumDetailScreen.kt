@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,13 +40,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
+import com.ella.music.data.splitGenreNames
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.ArtistPickerSheet
@@ -81,11 +87,13 @@ fun AlbumDetailScreen(
     onBack: () -> Unit,
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (String) -> Unit = {},
+    onNavigateToMetadataCategory: (String, String) -> Unit = { _, _ -> },
     onNavigateToPlayer: () -> Unit
 ) {
     val albums by mainViewModel.albums.collectAsState()
     val context = LocalContext.current
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val sortIndex by mainViewModel.settingsManager.albumDetailSongSortIndex.collectAsState(initial = LibrarySortUiState.albumDetailSongSortIndex)
@@ -131,6 +139,27 @@ fun AlbumDetailScreen(
                 .take(3)
                 .joinToString("\n")
         }
+    }
+    val albumGenres = remember(albumSongs) {
+        albumSongs
+            .flatMap { splitGenreNames(it.genre) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+    }
+    val participatingArtists = remember(albumSongs) {
+        albumSongs
+            .flatMap { splitArtistNames(it.artist) }
+            .filterNot { it.equals("Unknown", ignoreCase = true) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+    }
+    val participatingComposers = remember(albumSongs) {
+        albumSongs
+            .flatMap { splitArtistNames(it.composer) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+    }
+    val participatingLyricists = remember(albumSongs) {
+        albumSongs
+            .flatMap { splitArtistNames(it.lyricist) }
+            .distinctBy { it.lowercase(Locale.ROOT) }
     }
     val listState = rememberLazyListState()
     var scrollToTopRequest by remember { mutableStateOf(0) }
@@ -178,7 +207,7 @@ fun AlbumDetailScreen(
                     hasNeteaseAlbum = !neteaseAlbumUrl.isNullOrBlank(),
                     onNeteaseAlbumClick = { openUrl(context, neteaseAlbumUrl.orEmpty()) },
                     onAlbumArtistClick = {
-                        val albumArtist = (album?.albumArtist?.takeIf { it.isNotBlank() } ?: album?.artist)
+                        val albumArtist = album?.albumArtist?.takeIf { it.isNotBlank() }
                             ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
                             ?: return@AlbumHeader
                         val artists = splitArtistNames(albumArtist).ifEmpty { listOf(albumArtist.trim()) }
@@ -186,6 +215,11 @@ fun AlbumDetailScreen(
                             onNavigateToArtist(artists.first())
                         } else {
                             albumArtistChoices = artists
+                        }
+                    },
+                    onReleaseYearClick = {
+                        album?.year?.takeIf { it > 0 }?.let { year ->
+                            onNavigateToMetadataCategory("year", year.toString())
                         }
                     },
                     onPlayAll = {
@@ -199,7 +233,11 @@ fun AlbumDetailScreen(
 
             item {
                 Text(
-                    text = "${sortedAlbumSongs.size} 首歌曲 · ${sortMode.label}",
+                    text = stringResource(
+                        R.string.library_song_count_sorted,
+                        sortedAlbumSongs.size,
+                        stringResource(sortMode.labelRes)
+                    ),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -222,6 +260,7 @@ fun AlbumDetailScreen(
                             sortedAlbumSongs = sortedAlbumSongs,
                             albumArtUri = albumArtUri,
                             currentSongId = currentSong?.id,
+                            isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                             showTrackNumber = true,
                             mainViewModel = mainViewModel,
                             playerViewModel = playerViewModel,
@@ -239,6 +278,7 @@ fun AlbumDetailScreen(
                         sortedAlbumSongs = sortedAlbumSongs,
                         albumArtUri = albumArtUri,
                         currentSongId = currentSong?.id,
+                        isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
                         showTrackNumber = sortMode == AlbumDetailSongSortMode.Track,
                         mainViewModel = mainViewModel,
                         playerViewModel = playerViewModel,
@@ -248,9 +288,25 @@ fun AlbumDetailScreen(
                     )
                 }
             }
-            if (albumCopyright.isNotBlank()) {
-                item(key = "album-copyright") {
-                    AlbumCopyrightFooter(albumCopyright)
+            if (
+                albumCopyright.isNotBlank() ||
+                albumGenres.isNotEmpty() ||
+                participatingArtists.isNotEmpty() ||
+                participatingComposers.isNotEmpty() ||
+                participatingLyricists.isNotEmpty()
+            ) {
+                item(key = "album-extra-info") {
+                    AlbumCopyrightFooter(
+                        copyright = albumCopyright,
+                        genres = albumGenres,
+                        artists = participatingArtists,
+                        composers = participatingComposers,
+                        lyricists = participatingLyricists,
+                        onGenreClick = { genre -> onNavigateToMetadataCategory("genre", genre) },
+                        onArtistClick = onNavigateToArtist,
+                        onComposerClick = { composer -> onNavigateToMetadataCategory("composer", composer) },
+                        onLyricistClick = { lyricist -> onNavigateToMetadataCategory("lyricist", lyricist) }
+                    )
                 }
             }
         }
@@ -265,7 +321,7 @@ fun AlbumDetailScreen(
         ) {
             Icon(
                 imageVector = MiuixIcons.Regular.Back,
-                contentDescription = "返回",
+                contentDescription = stringResource(R.string.common_back),
                 tint = Color.White,
                 modifier = Modifier.size(26.dp)
             )
@@ -281,7 +337,7 @@ fun AlbumDetailScreen(
         ) {
             Icon(
                 imageVector = MiuixIcons.Regular.Sort,
-                contentDescription = "排序",
+                contentDescription = stringResource(R.string.common_sort),
                 tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )
@@ -314,7 +370,7 @@ fun AlbumDetailScreen(
             ) {
                 AlbumDetailSongSortMode.entries.forEach { mode ->
                     Text(
-                        text = mode.label,
+                        text = stringResource(mode.labelRes),
                         fontSize = 14.sp,
                         fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
                         color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
@@ -354,7 +410,7 @@ fun AlbumDetailScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "选择歌手",
+                title = stringResource(R.string.common_select_artist),
                 onDismissRequest = { albumArtistChoices = emptyList() }
             ) {
                 ArtistPickerSheet(
@@ -371,24 +427,128 @@ fun AlbumDetailScreen(
 }
 
 @Composable
-private fun AlbumCopyrightFooter(copyright: String) {
+private fun AlbumCopyrightFooter(
+    copyright: String,
+    genres: List<String>,
+    artists: List<String>,
+    composers: List<String>,
+    lyricists: List<String>,
+    onGenreClick: (String) -> Unit,
+    onArtistClick: (String) -> Unit,
+    onComposerClick: (String) -> Unit,
+    onLyricistClick: (String) -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        AlbumInfoSection(
+            title = stringResource(R.string.album_copyright),
+            values = copyright.lines().filter { it.isNotBlank() }
+        )
+        AlbumInfoSection(
+            title = stringResource(R.string.category_genre),
+            values = genres,
+            onValueClick = onGenreClick
+        )
+        if (artists.isNotEmpty() || composers.isNotEmpty() || lyricists.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.album_participating_artists),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
+            AlbumInfoSection(
+                title = stringResource(R.string.player_detail_artist),
+                values = artists,
+                onValueClick = onArtistClick
+            )
+            AlbumInfoSection(
+                title = stringResource(R.string.player_detail_composer),
+                values = composers,
+                onValueClick = onComposerClick
+            )
+            AlbumInfoSection(
+                title = stringResource(R.string.player_detail_lyricist),
+                values = lyricists,
+                onValueClick = onLyricistClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumInfoSection(
+    title: String,
+    values: List<String>,
+    onValueClick: ((String) -> Unit)? = null
+) {
+    if (values.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "版权",
+            text = title,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
+        values.forEach { value ->
+            Text(
+                text = value,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = if (onValueClick != null) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier.clickable(enabled = onValueClick != null) { onValueClick?.invoke(value) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumReleaseSummary(
+    albumArtist: String?,
+    songCount: Int,
+    year: Int,
+    duration: Long,
+    onAlbumArtistClick: () -> Unit,
+    onReleaseYearClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val baseText = listOfNotNull(
+            albumArtist,
+            stringResource(R.string.song_count, songCount)
+        ).joinToString(" · ")
         Text(
-            text = copyright,
-            fontSize = 12.sp,
-            lineHeight = 18.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            text = baseText,
+            fontSize = 14.sp,
+            color = Color.White.copy(alpha = 0.78f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clickable(enabled = albumArtist != null, onClick = onAlbumArtistClick)
+        )
+        if (year > 0) {
+            Text(text = " · ", fontSize = 14.sp, color = Color.White.copy(alpha = 0.78f))
+            Text(
+                text = "${stringResource(R.string.album_release_date)} $year",
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.78f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable(onClick = onReleaseYearClick)
+            )
+        }
+        Text(
+            text = " · ${duration.formatAlbumDetailDuration(context)}",
+            fontSize = 14.sp,
+            color = Color.White.copy(alpha = 0.78f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -411,6 +571,7 @@ private fun AlbumSongRow(
     sortedAlbumSongs: List<Song>,
     albumArtUri: Uri?,
     currentSongId: Long?,
+    isFavorite: Boolean,
     showTrackNumber: Boolean,
     mainViewModel: MainViewModel,
     playerViewModel: PlayerViewModel,
@@ -424,6 +585,8 @@ private fun AlbumSongRow(
         albumArtUri = albumArtUri,
         loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
         loadAudioInfo = mainViewModel::getAudioInfo,
+        isFavorite = isFavorite,
+        loadSongRating = mainViewModel::getSongRating,
         leadingLabel = if (showTrackNumber) song.displayTrackNumber() else null,
         leadingLabelBeforeCover = showTrackNumber,
         showAlbumInSubtitle = false,
@@ -446,6 +609,7 @@ private fun AlbumHeader(
     hasNeteaseAlbum: Boolean,
     onNeteaseAlbumClick: () -> Unit,
     onAlbumArtistClick: () -> Unit,
+    onReleaseYearClick: () -> Unit,
     onPlayAll: () -> Unit
 ) {
     val pageBackground = ellaPageBackground()
@@ -490,7 +654,7 @@ private fun AlbumHeader(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = album?.name ?: "未知专辑",
+                text = album?.name ?: stringResource(R.string.player_unknown_album),
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -498,27 +662,22 @@ private fun AlbumHeader(
                 overflow = TextOverflow.Ellipsis
             )
 
-            val albumArtist = (album?.albumArtist?.takeIf { it.isNotBlank() } ?: album?.artist)
+            val albumArtist = album?.albumArtist?.takeIf { it.isNotBlank() }
                 ?.takeIf { it.isNotBlank() && !it.equals("Unknown", ignoreCase = true) }
-            Text(
-                text = listOfNotNull(
-                    albumArtist,
-                    "$songCount 首歌曲",
-                    album?.year?.takeIf { it > 0 }?.toString(),
-                    duration.formatAlbumDetailDuration()
-                ).joinToString(" · "),
-                fontSize = 14.sp,
-                color = Color.White.copy(alpha = 0.78f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable(enabled = albumArtist != null, onClick = onAlbumArtistClick)
+            AlbumReleaseSummary(
+                albumArtist = albumArtist,
+                songCount = songCount,
+                year = album?.year ?: 0,
+                duration = duration,
+                onAlbumArtistClick = onAlbumArtistClick,
+                onReleaseYearClick = onReleaseYearClick
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             if (hasNeteaseAlbum) {
                 Text(
-                    text = "网易云专辑页",
+                    text = stringResource(R.string.player_netease_album_page),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -530,7 +689,7 @@ private fun AlbumHeader(
             }
 
             AppleStylePlayButton(
-                text = "播放全部",
+                text = stringResource(R.string.play_all),
                 onClick = onPlayAll,
                 modifier = Modifier
                     .padding(top = 12.dp)
@@ -544,23 +703,19 @@ private fun openUrl(context: Context, url: String) {
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 
-private fun Long.formatAlbumDetailDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+private fun Long.formatAlbumDetailDuration(context: Context): String {
+    return formatPlaybackDuration()
 }
 
-private enum class AlbumDetailSongSortMode(val label: String) {
-    Track("曲目顺序"),
-    Title("歌曲名称"),
-    FileName("文件名"),
-    Duration("歌曲时长"),
-    DateAdded("添加时间"),
-    DateAddedAsc("添加时间升序"),
-    DateModified("修改时间"),
-    DateModifiedAsc("修改时间升序")
+private enum class AlbumDetailSongSortMode(val labelRes: Int) {
+    Track(R.string.album_sort_track),
+    Title(R.string.playlist_song_sort_title),
+    FileName(R.string.playlist_song_sort_file_name),
+    Duration(R.string.playlist_song_sort_duration),
+    DateAdded(R.string.playlist_song_sort_date_added),
+    DateAddedAsc(R.string.playlist_song_sort_date_added_asc),
+    DateModified(R.string.playlist_song_sort_date_modified),
+    DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc)
 }
 
 private data class AlbumDiscGroup(

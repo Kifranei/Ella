@@ -16,10 +16,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -43,7 +45,7 @@ fun ArtistPickerSheet(
     ) {
         SheetHandle()
         Text(
-            text = "选择歌手",
+            text = stringResource(R.string.common_select_artist),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
@@ -58,7 +60,7 @@ fun ArtistPickerSheet(
             )
         }
         BasicComponent(
-            title = "取消",
+            title = stringResource(R.string.common_cancel),
             onClick = onDismiss
         )
     }

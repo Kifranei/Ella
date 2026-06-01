@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -100,7 +101,7 @@ fun UpdateScreen(
                             UpdateUiState.Ready(release = release, hasUpdate = hasUpdate)
                         },
                         onFailure = { error ->
-                            UpdateUiState.Error(error.localizedMessage ?: "检查更新失败")
+                            UpdateUiState.Error(error.localizedMessage ?: context.getString(R.string.update_check_failed))
                         }
                     )
             }
@@ -119,13 +120,13 @@ fun UpdateScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = "软件更新",
+            title = stringResource(R.string.about_update),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
@@ -134,7 +135,7 @@ fun UpdateScreen(
                 IconButton(onClick = ::checkUpdate) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "检查软件更新",
+                        contentDescription = stringResource(R.string.update_check_action),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
@@ -164,26 +165,26 @@ fun UpdateScreen(
                     colors = CardDefaults.defaultColors(color = cardColor)
                 ) {
                     BasicComponent(
-                        title = "当前版本",
+                        title = stringResource(R.string.update_current_version),
                         summary = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
                     )
                     when (val current = state) {
                         UpdateUiState.Loading -> {
                             BasicComponent(
-                                title = "正在检查更新",
-                                summary = "正在从 GitHub Releases 获取最新版本"
+                                title = stringResource(R.string.update_checking),
+                                summary = stringResource(R.string.update_fetching_latest)
                             )
                         }
                         is UpdateUiState.Error -> {
                             BasicComponent(
-                                title = "检查失败",
+                                title = stringResource(R.string.update_check_failed_title),
                                 summary = current.message
                             )
                         }
                         is UpdateUiState.Ready -> {
                             BasicComponent(
-                                title = if (current.hasUpdate) "发现新版本" else "已是最新版本",
-                                summary = "最新版本 ${current.release.tagName}"
+                                title = if (current.hasUpdate) stringResource(R.string.update_new_version_found) else stringResource(R.string.update_already_latest),
+                                summary = stringResource(R.string.update_latest_version, current.release.tagName)
                             )
                         }
                     }
@@ -201,7 +202,7 @@ fun UpdateScreen(
                             summary = release.publishedAt.takeIf { it.isNotBlank() } ?: release.tagName
                         )
                         ReleaseMarkdown(
-                            markdown = release.body.ifBlank { "此版本没有填写更新日志。" },
+                            markdown = release.body.ifBlank { stringResource(R.string.update_empty_changelog) },
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
                     }
@@ -566,26 +567,29 @@ private data class GithubRelease(
     val versionName: String get() = tagName.trim().removePrefix("v").removePrefix("V")
 }
 
+@Composable
 private fun UpdateUiState.heroTitle(): String = when (this) {
-    UpdateUiState.Loading -> "正在检查更新"
-    is UpdateUiState.Error -> "暂时无法获取更新"
-    is UpdateUiState.Ready -> if (hasUpdate) "发现 ${release.tagName}" else "已是最新版本"
+    UpdateUiState.Loading -> stringResource(R.string.update_checking)
+    is UpdateUiState.Error -> stringResource(R.string.update_unavailable)
+    is UpdateUiState.Ready -> if (hasUpdate) stringResource(R.string.update_found_version, release.tagName) else stringResource(R.string.update_already_latest)
 }
 
+@Composable
 private fun UpdateUiState.heroSummary(): String = when (this) {
-    UpdateUiState.Loading -> "正在连接 GitHub，获取 Ella Music 最新发布版本。"
+    UpdateUiState.Loading -> stringResource(R.string.update_connecting_github)
     is UpdateUiState.Error -> message
     is UpdateUiState.Ready -> if (hasUpdate) {
-        "当前版本 v${BuildConfig.VERSION_NAME}，点击查看最新安装包和更新日志。"
+        stringResource(R.string.update_has_update_summary, BuildConfig.VERSION_NAME)
     } else {
-        "当前版本 v${BuildConfig.VERSION_NAME}，暂时没有比它更新的发布版本。"
+        stringResource(R.string.update_no_update_summary, BuildConfig.VERSION_NAME)
     }
 }
 
+@Composable
 private fun UpdateUiState.updateButtonText(): String = when (this) {
-    UpdateUiState.Loading -> "检查中"
-    is UpdateUiState.Error -> "查看 GitHub"
-    is UpdateUiState.Ready -> if (hasUpdate) "下载更新" else "查看 GitHub"
+    UpdateUiState.Loading -> stringResource(R.string.update_checking_short)
+    is UpdateUiState.Error -> stringResource(R.string.update_view_github)
+    is UpdateUiState.Ready -> if (hasUpdate) stringResource(R.string.update_download) else stringResource(R.string.update_view_github)
 }
 
 private fun UpdateUiState.updateButtonTargetUrl(): String? = when (this) {
@@ -612,7 +616,7 @@ private fun fetchLatestRelease(): GithubRelease {
         .header("User-Agent", "Ella-Music/${BuildConfig.VERSION_NAME}")
         .build()
     client.newCall(request).execute().use { response ->
-        if (!response.isSuccessful) error("GitHub 返回 HTTP ${response.code}")
+        if (!response.isSuccessful) error("GitHub returned HTTP ${response.code}")
         val json = JSONObject(response.body?.string().orEmpty())
         val assets = json.optJSONArray("assets") ?: JSONArray()
         val apkUrl = (0 until assets.length())

@@ -27,9 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.AudioInfo
@@ -61,10 +64,14 @@ fun SongItem(
     leadingLabel: String? = null,
     leadingLabelBeforeCover: Boolean = false,
     showAlbumInSubtitle: Boolean = true,
+    isFavorite: Boolean = false,
+    loadSongRating: ((Song) -> Int)? = null,
     trailingContent: (@Composable RowScope.() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val unknown = stringResource(R.string.common_unknown)
+    val unknownArtist = stringResource(R.string.player_unknown_artist)
     val settingsManager = remember { SettingsManager(context) }
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = true)
     val audioInfo by produceState<AudioInfo?>(initialValue = null, song.id, loadAudioInfo) {
@@ -83,6 +90,9 @@ fun SongItem(
         }
     }
     val qualityTag = audioInfo?.let { audioQualitySummary(it).listTag }
+    val rating by produceState(initialValue = 0, song.id, song.dateModified, loadSongRating) {
+        value = withContext(Dispatchers.IO) { loadSongRating?.invoke(song) ?: 0 }
+    }
     val coverModel = song.coverUrl.takeIf { it.isNotBlank() }
         ?: if (preferEmbeddedCover) embeddedCover ?: albumArtUri else albumArtUri ?: embeddedCover
 
@@ -161,15 +171,36 @@ fun SongItem(
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 15.sp,
-                fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold else null,
-                color = if (isCurrent) MiuixTheme.colorScheme.primary
-                else MiuixTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = song.title,
+                    fontSize = 15.sp,
+                    fontWeight = if (isCurrent) androidx.compose.ui.text.font.FontWeight.Bold else null,
+                    color = if (isCurrent) MiuixTheme.colorScheme.primary
+                    else MiuixTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isFavorite) {
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_notification_favorite_filled),
+                        contentDescription = stringResource(R.string.common_favorite),
+                        tint = Color(0xFFFF4D6D),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+                if (rating > 0) {
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "★$rating",
+                        fontSize = 11.sp,
+                        color = Color(0xFFFFB703),
+                        maxLines = 1
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (qualityTag != null) {
@@ -179,10 +210,10 @@ fun SongItem(
                 Text(
                     text = if (showAlbumInSubtitle) {
                         listOf(song.artist, song.album)
-                            .map { it.ifBlank { "未知" } }
+                            .map { it.ifBlank { unknown } }
                             .joinToString(" · ")
                     } else {
-                        song.artist.ifBlank { "未知艺术家" }
+                        song.artist.ifBlank { unknownArtist }
                     },
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -206,7 +237,7 @@ fun SongItem(
             ) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Add,
-                    contentDescription = "添加到队列",
+                    contentDescription = stringResource(R.string.common_add_to_queue),
                     tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )

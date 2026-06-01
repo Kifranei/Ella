@@ -332,6 +332,7 @@ class LyricoAudioTagReaderWriter : AudioTagReader, AudioTagWriter {
         discNumber?.let { put("DISCNUMBER", it.toString()) }
         comment?.let { put("COMMENT", it) }
         lyrics?.let { put("LYRICS", it) }
+        rating?.let { put("RATING", it.coerceIn(0, 5).toString()) }
         customTags.forEach { (key, values) ->
             if (key.isNotBlank() && values.isNotEmpty()) put(key, values.joinToString("; "))
         }
@@ -371,11 +372,6 @@ private fun Map<String, List<String>>.bestNeteaseKey(comment: String?): String? 
         value?.extractNeteaseKeyCandidate()?.let { return it }
     }
 
-    values.asSequence()
-        .flatMap { it.asSequence() }
-        .forEach { value ->
-            value.extractNeteaseKeyCandidate()?.let { return it }
-        }
     return null
 }
 

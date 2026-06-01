@@ -187,6 +187,9 @@ fun AppNavigation(
                 onNavigateToArtist = { artistName ->
                     navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                 },
+                onNavigateToMetadataCategory = { type, name ->
+                    navController.navigate(Screen.MetadataCategoryDetail.createRoute(type, name))
+                },
                 onNavigateToPlayer = onNavigateToPlayer
             )
         }
@@ -256,6 +259,9 @@ fun AppNavigation(
                 },
                 onArtistClick = { artistName ->
                     navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                },
+                onMetadataCategoryClick = { categoryType, categoryName ->
+                    navController.navigate(Screen.MetadataCategoryDetail.createRoute(categoryType, categoryName))
                 },
                 onNavigateToPlayer = onNavigateToPlayer
             )

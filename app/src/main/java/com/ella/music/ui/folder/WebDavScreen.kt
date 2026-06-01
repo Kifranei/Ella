@@ -23,7 +23,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.ella.music.R
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.data.webdav.WebDavConfig
 import com.ella.music.data.webdav.WebDavItem
@@ -83,7 +85,7 @@ fun WebDavScreen(
                 items = it
             }.onFailure {
                 items = emptyList()
-                error = it.localizedMessage ?: "WebDAV 加载失败"
+                error = it.localizedMessage ?: context.getString(R.string.webdav_load_failed)
             }
             loading = false
         }
@@ -123,13 +125,13 @@ fun WebDavScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = "WebDAV 音乐库",
+            title = stringResource(R.string.webdav_library_title),
             color = ellaPageBackground(),
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
@@ -138,7 +140,7 @@ fun WebDavScreen(
                 IconButton(onClick = { showSettings = true }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Settings,
-                        contentDescription = "WebDAV 设置",
+                        contentDescription = stringResource(R.string.webdav_settings),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -158,12 +160,12 @@ fun WebDavScreen(
                 onDismiss = { showSettings = false },
                 onTest = {
                     scope.launch {
-                        testStatus = "正在测试 WebDAV 连接..."
+                        testStatus = context.getString(R.string.webdav_testing)
                         val result = runCatching {
                             withContext(Dispatchers.IO) {
                                 WebDavClient.testDetailed(WebDavConfig(webDavUrl, webDavUser, webDavPassword))
                             }
-                        }.getOrElse { WebDavTestResult(ok = false, message = it.localizedMessage ?: "WebDAV 连接失败") }
+                        }.getOrElse { WebDavTestResult(ok = false, message = it.localizedMessage ?: context.getString(R.string.webdav_connection_failed)) }
                         testStatus = result.message
                         error = if (result.ok) null else result.message
                         Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
@@ -176,7 +178,7 @@ fun WebDavScreen(
                     currentUrl = webDavUrl
                     showSettings = false
                     load(webDavUrl, forceRefresh = true)
-                    Toast.makeText(context, "WebDAV 配置已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, R.string.webdav_config_saved, Toast.LENGTH_SHORT).show()
                 },
                 onClear = {
                     scope.launch { mainViewModel.settingsManager.clearWebDavConfig() }
@@ -188,7 +190,7 @@ fun WebDavScreen(
                     error = null
                     testStatus = null
                     showSettings = false
-                    Toast.makeText(context, "WebDAV 配置已移除", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, R.string.webdav_config_removed, Toast.LENGTH_SHORT).show()
                 }
             )
         }
@@ -202,7 +204,7 @@ fun WebDavScreen(
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                     Text(
-                        text = "请先配置 WebDAV",
+                        text = stringResource(R.string.webdav_configure_first),
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
                 }
@@ -236,7 +238,7 @@ fun WebDavScreen(
                         },
                         onAddToQueue = { item ->
                             playerViewModel.addToPlaylist(item.toRemoteSong())
-                            Toast.makeText(context, "已加入播放列表", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, R.string.webdav_added_to_queue, Toast.LENGTH_SHORT).show()
                         }
                     )
                 }

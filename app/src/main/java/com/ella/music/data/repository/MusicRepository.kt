@@ -477,6 +477,31 @@ class MusicRepository(private val context: Context) {
         return getSongTagInfo(song).rating
     }
 
+    suspend fun writeSongRating(song: Song, rating: Int): Result<Song?> = withContext(Dispatchers.IO) {
+        val path = song.effectiveLocalPathForMetadata()
+        val result = audioTagRepository.writeTags(
+            path,
+            AudioTagInfo(rating = rating.coerceIn(0, 5))
+        )
+        result.map {
+            refreshSongAfterExternalEdit(song)
+        }
+    }
+
+    suspend fun writeSongCustomTag(song: Song, key: String, value: String): Result<Song?> = withContext(Dispatchers.IO) {
+        val tagKey = key.trim()
+        if (tagKey.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Tag name is blank"))
+        }
+        val result = audioTagRepository.writeTags(
+            song.effectiveLocalPathForMetadata(),
+            AudioTagInfo(customTags = mapOf(tagKey to listOf(value)))
+        )
+        result.map {
+            refreshSongAfterExternalEdit(song)
+        }
+    }
+
     private fun Song.estimatedBitRate(): Int {
         if (fileSize <= 0L || duration <= 0L) return 0
         return ((fileSize * 8_000L) / duration).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
@@ -715,8 +740,7 @@ class MusicRepository(private val context: Context) {
                 val first = albumSongs.first()
                 val albumOwner = first.albumArtist
                     .takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }
-                    ?: first.artist.takeIf { it.isUsableTagText() }
-                    ?: "Unknown Artist"
+                    ?: ""
                 Album(
                     id = albumIdentityId,
                     name = first.album.takeIf { it.isUsableAlbumText() } ?: "Unknown Album",
@@ -751,7 +775,7 @@ class MusicRepository(private val context: Context) {
             ?: "Unknown Album"
         val mergedAlbumArtist = tagInfo.albumArtist.takeIf { it.isUsableTagText() }
             ?: albumArtist.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }
-            ?: mergedArtist
+            ?: ""
 
         return copy(
             title = tagInfo.title.takeIf { it.isUsableTagText() }
@@ -778,7 +802,7 @@ class MusicRepository(private val context: Context) {
             title = title.takeIf { it.isUsableTagText() } ?: fileName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
             artist = fallbackArtist,
             album = fallbackAlbum,
-            albumArtist = albumArtist.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() } ?: fallbackArtist
+            albumArtist = albumArtist.takeIf { it.isUsableTagText() && !it.isUnknownArtistValue() }.orEmpty()
         )
     }
 

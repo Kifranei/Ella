@@ -168,6 +168,7 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.player.PlaybackAudioSession
 import com.ella.music.ui.components.ArtistPickerSheet
@@ -258,7 +259,6 @@ fun PlayerScreen(
     val lyricFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
     val lyricFontWeightValue by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     val lyricFontScaleValue by settingsManager.lyricFontScale.collectAsState(initial = 100)
-    val lyricPerspectiveEffect by settingsManager.lyricPerspectiveEffect.collectAsState(initial = false)
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
     val lyricFontFamily = remember(lyricFontPath, lyricFontWeightValue) {
         lyricFontPath.toPlayerLyricFontFamily(lyricFontWeightValue)
@@ -281,7 +281,6 @@ fun PlayerScreen(
     val audioVisualizerEnabled by settingsManager.audioVisualizerEnabled.collectAsState(initial = false)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val immersiveAlbumCover by settingsManager.playerImmersiveCover.collectAsState(initial = true)
-    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(initial = false)
     val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsState(initial = "")
     val metadataEditorId by settingsManager.metadataEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
     val lyricTimingEditorId by settingsManager.lyricTimingEditorId.collectAsState(initial = TagEditorOptionIds.ASK_EACH_TIME)
@@ -295,6 +294,7 @@ fun PlayerScreen(
     val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
     val showLyricPronunciation by playerViewModel.showLyricPronunciation.collectAsState()
     val lyricPageKeepScreenOn by settingsManager.lyricPageKeepScreenOn.collectAsState(initial = false)
+    val lyricPerspectiveEffect by settingsManager.lyricPerspectiveEffect.collectAsState(initial = false)
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val sleepTimerEndRealtimeMs by playerViewModel.sleepTimerEndRealtimeMs.collectAsState()
     val stopAfterCurrentEnabled by playerViewModel.stopAfterCurrentEnabled.collectAsState()
@@ -502,7 +502,7 @@ fun PlayerScreen(
             audioInfo = audioInfo,
             palette = palette,
             flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-            dynamicFlowEnabled = playerDynamicFlowEnabled,
+            dynamicFlowEnabled = false,
             lyrics = lyrics,
             currentLyricIndex = currentLyricIndex,
             miniLyricLine = miniLyricLine,
@@ -537,6 +537,9 @@ fun PlayerScreen(
             onQueueSongClick = { index ->
                 queueExpanded = false
                 playerViewModel.playQueueIndex(index)
+            },
+            onRemoveQueueSong = { index ->
+                playerViewModel.removeFromPlaylist(index)
             },
             onClearQueue = {
                 queueExpanded = false
@@ -574,7 +577,7 @@ fun PlayerScreen(
                     menuExpanded = false
                     playlistPickerSong = current
                 } else {
-                    Toast.makeText(context, "当前没有正在播放的歌曲", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.player_no_song_playing), Toast.LENGTH_SHORT).show()
                 }
             },
             onShareSong = {
@@ -828,7 +831,7 @@ fun PlayerScreen(
                 PlayerFlowBackground(
                     palette = palette,
                     flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
-                    animate = playerDynamicFlowEnabled && !dismissInProgress && !isPlaying,
+                    animate = false,
                     modifier = Modifier.fillMaxSize()
                 )
                 Box(
@@ -956,7 +959,7 @@ fun PlayerScreen(
                 WindowBottomSheet(
                     show = true,
                     enableNestedScroll = false,
-                    title = "添加到歌单",
+                    title = stringResource(R.string.player_add_to_playlist),
                     onDismissRequest = { playlistPickerSong = null }
                 ) {
                     AddToPlaylistSheet(
@@ -972,7 +975,11 @@ fun PlayerScreen(
                             selectedPlaylists.forEach { playlist ->
                                 mainViewModel.addSongsToPlaylist(playlist.id, listOf(currentSong))
                             }
-                            Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                                Toast.LENGTH_SHORT
+                            ).show()
                             playlistPickerSong = null
                         }
                     )
@@ -986,7 +993,11 @@ fun PlayerScreen(
                         mainViewModel.createPlaylist(name) { playlist ->
                             if (playlist != null) {
                                 mainViewModel.addSongsToPlaylist(playlist.id, listOf(currentSong))
-                                Toast.makeText(context, "已添加到 ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.player_added_to_playlist_named, playlist.name),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                         createPlaylistSong = null
@@ -1066,6 +1077,7 @@ private fun CoverPlayerPage(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
+    onRemoveQueueSong: (Int) -> Unit,
     onClearQueue: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -1136,6 +1148,7 @@ private fun CoverPlayerPage(
                 onPlayPause = onPlayPause,
                 onNext = onNext,
                 onQueueSongClick = onQueueSongClick,
+                onRemoveQueueSong = onRemoveQueueSong,
                 onClearQueue = onClearQueue,
                 onLineClick = onShowLyrics,
                 onArtist = onArtist,
@@ -1272,6 +1285,7 @@ private fun CoverPlayerPage(
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
                             onQueueSongClick = onQueueSongClick,
+                            onRemoveQueueSong = onRemoveQueueSong,
                             onClearQueue = onClearQueue,
                             modifier = Modifier.height(76.dp)
                         )
@@ -1396,6 +1410,7 @@ private fun CoverPlayerPage(
                             onToggleQueue = onToggleQueue,
                             onDismissQueue = onDismissQueue,
                             onQueueSongClick = onQueueSongClick,
+                            onRemoveQueueSong = onRemoveQueueSong,
                             onClearQueue = onClearQueue,
                             modifier = Modifier.height(92.dp)
                         )
@@ -1486,6 +1501,7 @@ private fun LandscapeCoverPlayerPage(
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
+    onRemoveQueueSong: (Int) -> Unit,
     onClearQueue: () -> Unit,
     onLineClick: () -> Unit,
     onArtist: () -> Unit,
@@ -1617,6 +1633,7 @@ private fun LandscapeCoverPlayerPage(
                     onToggleQueue = onToggleQueue,
                     onDismissQueue = onDismissQueue,
                     onQueueSongClick = onQueueSongClick,
+                    onRemoveQueueSong = onRemoveQueueSong,
                     onClearQueue = onClearQueue
                 )
             }
@@ -1869,7 +1886,7 @@ private fun PlayerDetailPage(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = "选择网易云歌手",
+                    text = stringResource(R.string.player_choose_netease_artist),
                     color = MiuixTheme.colorScheme.onSurface,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -1897,25 +1914,25 @@ private fun PlayerDetailPage(
     ) {
         item {
             Text(
-                text = "歌曲详情",
+                text = stringResource(R.string.player_song_details),
                 color = Color.White,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(14.dp))
-            PlayerDetailInfoLine("歌曲", song?.title.orEmpty().ifBlank { "未知歌曲" })
-            PlayerDetailInfoLine("歌手", song?.artist.orEmpty().ifBlank { "未知歌手" })
-            PlayerDetailInfoLine("专辑", song?.album.orEmpty().ifBlank { "未知专辑" })
+            PlayerDetailInfoLine(stringResource(R.string.player_detail_song), song?.title.orEmpty().ifBlank { stringResource(R.string.player_unknown_song) })
+            PlayerDetailInfoLine(stringResource(R.string.player_detail_artist), song?.artist.orEmpty().ifBlank { stringResource(R.string.player_unknown_artist) })
+            PlayerDetailInfoLine(stringResource(R.string.player_detail_album), song?.album.orEmpty().ifBlank { stringResource(R.string.player_unknown_album) })
             tagInfo?.displayComment?.takeIf { it.isNotBlank() }?.let {
-                PlayerDetailInfoLine("注释", it)
+                PlayerDetailInfoLine(stringResource(R.string.player_detail_comment), it)
             }
             Spacer(modifier = Modifier.height(18.dp))
         }
 
         item {
             PlayerDetailActionRow(
-                title = "专辑",
-                summary = song?.album.orEmpty().ifBlank { "无专辑信息" },
+                title = stringResource(R.string.player_detail_album_section),
+                summary = song?.album.orEmpty().ifBlank { stringResource(R.string.player_no_album_info) },
                 enabled = (song?.albumIdentityId() ?: 0L) > 0L,
                 onClick = onAlbum
             )
@@ -1924,7 +1941,7 @@ private fun PlayerDetailPage(
         composerNames.forEach { composer ->
             item(key = "composer_$composer") {
                 PlayerDetailActionRow(
-                    title = "作曲家",
+                    title = stringResource(R.string.player_detail_composer),
                     summary = composer,
                     enabled = composer.isNotBlank(),
                     onClick = { onComposer(composer) }
@@ -1935,7 +1952,7 @@ private fun PlayerDetailPage(
         lyricistNames.forEach { lyricist ->
             item(key = "lyricist_$lyricist") {
                 PlayerDetailActionRow(
-                    title = "作词家",
+                    title = stringResource(R.string.player_detail_lyricist),
                     summary = lyricist,
                     enabled = lyricist.isNotBlank(),
                     onClick = { onLyricist(lyricist) }
@@ -1947,7 +1964,7 @@ private fun PlayerDetailPage(
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "网易云",
+                    text = stringResource(R.string.player_netease_section),
                     color = Color.White.copy(alpha = 0.72f),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
@@ -1956,7 +1973,7 @@ private fun PlayerDetailPage(
             if (neteaseInfo.musicId.isNotBlank()) {
                 item {
                     PlayerDetailActionRow(
-                        title = "网易云歌曲页",
+                        title = stringResource(R.string.player_netease_song_page),
                         summary = neteaseInfo.musicName.ifBlank { neteaseInfo.musicId },
                         onClick = onNeteaseSong
                     )
@@ -1968,7 +1985,7 @@ private fun PlayerDetailPage(
                 ?.let { artistSummary ->
                     item(key = "netease_artists") {
                         PlayerDetailActionRow(
-                            title = "网易云歌手页",
+                            title = stringResource(R.string.player_netease_artist_page),
                             summary = artistSummary,
                             enabled = neteaseArtists.isNotEmpty(),
                             onClick = {
@@ -1984,7 +2001,7 @@ private fun PlayerDetailPage(
             if (neteaseInfo.albumId.isNotBlank()) {
                 item {
                     PlayerDetailActionRow(
-                        title = "网易云专辑页",
+                        title = stringResource(R.string.player_netease_album_page),
                         summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
                         onClick = onNeteaseAlbum
                     )
@@ -2039,7 +2056,7 @@ private fun PlayerDetailActionRow(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = summary.ifBlank { "无可用信息" },
+                text = summary.ifBlank { stringResource(R.string.player_no_info) },
                 color = Color.White.copy(alpha = if (enabled) 0.58f else 0.30f),
                 fontSize = 12.sp,
                 maxLines = 2,
@@ -2243,7 +2260,7 @@ private fun PlayerSongMetaText(
     artistFontSize: TextUnit,
     artistAlpha: Float,
     modifier: Modifier = Modifier,
-    fallbackTitle: String = "未在播放",
+    fallbackTitle: String? = null,
     onArtistClick: (() -> Unit)? = null
 ) {
     val artist = song?.artist.orEmpty()
@@ -2257,7 +2274,9 @@ private fun PlayerSongMetaText(
     }
     Column(modifier = modifier) {
         PlayerSongTitleText(
-            text = song?.title ?: fallbackTitle,
+            text = song?.title?.takeIf { it.isNotBlank() }
+                ?: fallbackTitle?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.player_not_playing),
             fontSize = titleFontSize,
             fontWeight = FontWeight.ExtraBold,
             color = Color.White.copy(alpha = 0.96f),
@@ -2524,7 +2543,7 @@ private fun LandscapeLyricLine(
 ) {
     if (line == null) {
         Text(
-            text = "暂无歌词",
+                    text = stringResource(R.string.player_no_lyrics),
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White.copy(alpha = alpha),
@@ -2731,11 +2750,11 @@ private fun PlayerQuickActionRow(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        PlayerQuickAction("信息", PlayerQuickActionKind.Info, onSongInfo)
-        PlayerQuickAction("分享", PlayerQuickActionKind.Share, onShareSong)
-        PlayerQuickAction("定时", PlayerQuickActionKind.Timer, onTimer)
-        PlayerQuickAction("编辑", PlayerQuickActionKind.Edit, onEditMetadata)
-        PlayerQuickAction("更多", PlayerQuickActionKind.More, onMore)
+        PlayerQuickAction(stringResource(R.string.player_quick_info), PlayerQuickActionKind.Info, onSongInfo)
+        PlayerQuickAction(stringResource(R.string.player_quick_share), PlayerQuickActionKind.Share, onShareSong)
+        PlayerQuickAction(stringResource(R.string.player_quick_timer), PlayerQuickActionKind.Timer, onTimer)
+        PlayerQuickAction(stringResource(R.string.player_quick_edit), PlayerQuickActionKind.Edit, onEditMetadata)
+        PlayerQuickAction(stringResource(R.string.player_quick_more), PlayerQuickActionKind.More, onMore)
     }
 }
 
@@ -2831,9 +2850,17 @@ private fun PlayerHeaderAction(
         contentAlignment = Alignment.Center
     ) {
         when (kind) {
-            PlayerHeaderActionKind.Favorite -> HeartIcon(
-                color = if (selected) Color(0xFFFF4D6D) else Color.White.copy(alpha = 0.92f),
-                filled = selected,
+            PlayerHeaderActionKind.Favorite -> Icon(
+                painter = painterResource(
+                    id = if (selected) R.drawable.ic_notification_favorite_filled
+                    else R.drawable.ic_notification_favorite
+                ),
+                contentDescription = if (selected) {
+                    stringResource(R.string.common_unfavorite)
+                } else {
+                    stringResource(R.string.common_favorite)
+                },
+                tint = if (selected) Color(0xFFFF4D6D) else Color.White.copy(alpha = 0.92f),
                 modifier = Modifier.size(25.dp)
             )
             PlayerHeaderActionKind.More -> MoreIcon(
@@ -3014,6 +3041,7 @@ private fun PlayerTransportControls(
     onToggleQueue: () -> Unit,
     onDismissQueue: () -> Unit,
     onQueueSongClick: (Int) -> Unit,
+    onRemoveQueueSong: (Int) -> Unit,
     onClearQueue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -3067,13 +3095,14 @@ private fun PlayerTransportControls(
                 WindowBottomSheet(
                     show = true,
                     enableNestedScroll = false,
-                    title = "当前播放列表",
+                    title = stringResource(R.string.player_queue_title),
                     onDismissRequest = onDismissQueue
                 ) {
                     PlayerQueueMenu(
                         playlist = playlist,
                         currentSongId = currentSongId,
                         onSongClick = onQueueSongClick,
+                        onRemoveSong = onRemoveQueueSong,
                         onClearQueue = onClearQueue,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -3176,20 +3205,20 @@ private fun LyricActionMenu(
             .padding(horizontal = 18.dp, vertical = 10.dp)
     ) {
         PlayerActionMenuItem(
-            text = if (showPronunciation) "隐藏注音" else "显示注音",
+            text = stringResource(if (showPronunciation) R.string.player_hide_pronunciation else R.string.player_show_pronunciation),
             onClick = onTogglePronunciation
         )
         PlayerActionMenuItem(
-            text = if (showTranslation) "隐藏翻译" else "显示翻译",
+            text = stringResource(if (showTranslation) R.string.player_hide_translation else R.string.player_show_translation),
             onClick = onToggleTranslation
         )
         PlayerActionMenuItem(
-            text = if (keepScreenOn) "关闭歌词页常亮" else "开启歌词页常亮",
+            text = stringResource(if (keepScreenOn) R.string.player_disable_keep_screen_on else R.string.player_enable_keep_screen_on),
             onClick = onToggleKeepScreenOn
         )
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = "歌词字号",
+            text = stringResource(R.string.player_lyric_font_size),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -3207,7 +3236,7 @@ private fun LyricActionMenu(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "歌词来源",
+            text = stringResource(R.string.player_lyric_source),
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -3218,19 +3247,19 @@ private fun LyricActionMenu(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             LyricSourceChip(
-                text = "自动",
+                text = stringResource(R.string.player_lyric_source_auto),
                 selected = lyricSourceMode == SettingsManager.LYRIC_SOURCE_AUTO,
                 onClick = { onLyricSourceMode(SettingsManager.LYRIC_SOURCE_AUTO) },
                 modifier = Modifier.weight(1f)
             )
             LyricSourceChip(
-                text = "外置",
+                text = stringResource(R.string.player_lyric_source_external),
                 selected = lyricSourceMode == SettingsManager.LYRIC_SOURCE_EXTERNAL,
                 onClick = { onLyricSourceMode(SettingsManager.LYRIC_SOURCE_EXTERNAL) },
                 modifier = Modifier.weight(1f)
             )
             LyricSourceChip(
-                text = "内嵌",
+                text = stringResource(R.string.player_lyric_source_embedded),
                 selected = lyricSourceMode == SettingsManager.LYRIC_SOURCE_EMBEDDED,
                 onClick = { onLyricSourceMode(SettingsManager.LYRIC_SOURCE_EMBEDDED) },
                 modifier = Modifier.weight(1f)
@@ -3276,13 +3305,14 @@ private fun PlaybackModeIcon(
     val iconRes = when {
         shuffleEnabled -> R.drawable.ic_shuffle
         repeatMode == Player.REPEAT_MODE_ONE -> R.drawable.ic_repeat_one
-        else -> R.drawable.ic_repeat
+        repeatMode == Player.REPEAT_MODE_ALL -> R.drawable.ic_repeat
+        else -> R.drawable.ic_playback_order
     }
     val label = when {
-        shuffleEnabled -> "随机播放"
-        repeatMode == Player.REPEAT_MODE_ONE -> "单曲循环"
-        repeatMode == Player.REPEAT_MODE_ALL -> "列表循环"
-        else -> "顺序播放"
+        shuffleEnabled -> stringResource(R.string.player_playback_mode_shuffle)
+        repeatMode == Player.REPEAT_MODE_ONE -> stringResource(R.string.player_playback_mode_repeat_one)
+        repeatMode == Player.REPEAT_MODE_ALL -> stringResource(R.string.player_playback_mode_repeat_all)
+        else -> stringResource(R.string.player_playback_mode_in_order)
     }
     Box(
         modifier = Modifier
@@ -3632,6 +3662,7 @@ private fun PlayerQueueMenu(
     playlist: List<Song>,
     currentSongId: Long?,
     onSongClick: (Int) -> Unit,
+    onRemoveSong: (Int) -> Unit,
     onClearQueue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -3672,7 +3703,7 @@ private fun PlayerQueueMenu(
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_my_location),
-                        contentDescription = "定位当前歌曲",
+                        contentDescription = stringResource(R.string.player_locate_current_song),
                         tint = MiuixTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -3686,7 +3717,7 @@ private fun PlayerQueueMenu(
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_delete),
-                        contentDescription = "清空播放列表",
+                        contentDescription = stringResource(R.string.player_clear_queue),
                         tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -3695,7 +3726,7 @@ private fun PlayerQueueMenu(
         }
         if (playlist.isEmpty()) {
             Text(
-                text = "暂无歌曲",
+                text = stringResource(R.string.player_queue_empty),
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 18.dp)
@@ -3705,7 +3736,7 @@ private fun PlayerQueueMenu(
                 state = listState,
                 modifier = Modifier.heightIn(max = 420.dp)
             ) {
-                itemsIndexed(playlist, key = { _, item -> item.id }) { index, item ->
+                itemsIndexed(playlist, key = { index, item -> "${item.id}:${item.path}:$index" }) { index, item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3740,6 +3771,21 @@ private fun PlayerQueueMenu(
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .playerNoIndicationClick { onRemoveSong(index) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_delete),
+                                contentDescription = stringResource(R.string.player_remove_from_queue),
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -4391,7 +4437,7 @@ private fun PlayerActionMenu(
                 PlayerActionMenuItem(stringResource(R.string.player_landscape_lyrics), onLandscape)
                 PlayerActionMenuItem(stringResource(R.string.player_view_album), onAlbum)
                 PlayerActionMenuItem(stringResource(R.string.player_view_artist), onArtist)
-                PlayerActionMenuItem("添加到歌单", onAddToPlaylist)
+                PlayerActionMenuItem(stringResource(R.string.player_add_to_playlist), onAddToPlaylist)
                 PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
                 PlayerActionMenuItem(stringResource(R.string.player_edit_metadata), { openEditorPage(TagEditorOptionKind.Metadata, metadataEditorId) })
                 PlayerActionMenuItem(stringResource(R.string.player_lyric_timing), { openEditorPage(TagEditorOptionKind.LyricTiming, lyricTimingEditorId) })
@@ -4436,7 +4482,7 @@ private fun PlayerActionMenu(
             PlayerActionSheetPage.MetadataEditor -> {
                 TagEditorSheetContent(
                     song = song,
-                    title = "选择元数据编辑器",
+                    title = stringResource(R.string.player_choose_metadata_editor),
                     kind = TagEditorOptionKind.Metadata,
                     onBack = { page = PlayerActionSheetPage.Main },
                     onClose = onClose
@@ -4445,7 +4491,7 @@ private fun PlayerActionMenu(
             PlayerActionSheetPage.LyricTimingEditor -> {
                 TagEditorSheetContent(
                     song = song,
-                    title = "选择歌词打轴工具",
+                    title = stringResource(R.string.player_choose_lyric_timing_editor),
                     kind = TagEditorOptionKind.LyricTiming,
                     onBack = { page = PlayerActionSheetPage.Main },
                     onClose = onClose
@@ -4492,13 +4538,13 @@ private fun TimerSheetContent(
         }
     }
 
-    HalfSheetTitle(title = "定时关闭", onBack = onBack)
+    HalfSheetTitle(title = stringResource(R.string.player_sleep_timer_title), onBack = onBack)
     Spacer(modifier = Modifier.height(18.dp))
 
     if (timerActive) {
         TimerStatusCard(
-            title = "定时播放中",
-            subtitle = "剩余 ${formatTimerRemaining(remainingMs)} 后暂停"
+            title = stringResource(R.string.player_sleep_timer_running),
+            subtitle = stringResource(R.string.player_sleep_timer_remaining, formatTimerRemaining(remainingMs))
         )
         Spacer(modifier = Modifier.height(12.dp))
     } else {
@@ -4506,7 +4552,7 @@ private fun TimerSheetContent(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { minutes ->
                     HalfSheetPill(
-                        text = "$minutes 分钟",
+                        text = stringResource(R.string.player_minutes_value, minutes),
                         onClick = { onTimer(minutes) },
                         modifier = Modifier.weight(1f)
                     )
@@ -4517,7 +4563,7 @@ private fun TimerSheetContent(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "自定义时长",
+            text = stringResource(R.string.player_custom_duration),
             fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface
@@ -4526,7 +4572,7 @@ private fun TimerSheetContent(
             value = customMinutes,
             valueRange = 5f..120f,
             steps = 23,
-            label = "${customMinutes.toInt()} 分钟",
+            label = stringResource(R.string.player_minutes_value, customMinutes.toInt()),
             onValueChange = {
                 customMinutes = it
                 onCustomTimerMinutes(it.toInt().coerceIn(5, 120))
@@ -4536,7 +4582,7 @@ private fun TimerSheetContent(
                 .height(92.dp)
         )
         HalfSheetPill(
-            text = "开始计时: ${customMinutes.toInt()} 分钟",
+            text = stringResource(R.string.player_start_timer_minutes, customMinutes.toInt()),
             selected = true,
             onClick = { onTimer(customMinutes.toInt().coerceAtLeast(1)) },
             modifier = Modifier.fillMaxWidth()
@@ -4550,7 +4596,7 @@ private fun TimerSheetContent(
     )
     if (timerActive) {
         Spacer(modifier = Modifier.height(8.dp))
-        PlayerActionMenuItem("取消定时播放", onCancelTimer)
+        PlayerActionMenuItem(stringResource(R.string.player_cancel_sleep_timer), onCancelTimer)
     }
 }
 
@@ -4616,7 +4662,7 @@ private fun StopAfterCurrentRow(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = "播放完当前歌曲后暂停",
+            text = stringResource(R.string.player_pause_after_current_song),
             fontSize = 14.sp,
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
@@ -4632,9 +4678,9 @@ private fun SpeedPitchSheetContent(
     onSpeed: (Float) -> Unit,
     onPitch: (Float) -> Unit
 ) {
-    HalfSheetTitle(title = "变速变调", onBack = onBack)
+    HalfSheetTitle(title = stringResource(R.string.player_speed_pitch), onBack = onBack)
     Spacer(modifier = Modifier.height(22.dp))
-    SpeedPitchHeader(title = "变速播放")
+    SpeedPitchHeader(title = stringResource(R.string.player_speed_playback))
     DottedValueSlider(
         value = speed,
         valueRange = 0.5f..2f,
@@ -4645,7 +4691,7 @@ private fun SpeedPitchSheetContent(
             .fillMaxWidth()
             .height(100.dp)
     )
-    SpeedPitchHeader(title = "变调播放")
+    SpeedPitchHeader(title = stringResource(R.string.player_pitch_playback))
     DottedValueSlider(
         value = pitch,
         valueRange = 0.5f..2f,
@@ -4680,7 +4726,7 @@ private fun VisualizerSheetContent(
     onBack: () -> Unit,
     onEnabledChange: (Boolean) -> Unit
 ) {
-    HalfSheetTitle(title = "可视化设置", onBack = onBack)
+    HalfSheetTitle(title = stringResource(R.string.player_visualizer_settings), onBack = onBack)
     Spacer(modifier = Modifier.height(22.dp))
     Row(
         modifier = Modifier
@@ -4692,7 +4738,7 @@ private fun VisualizerSheetContent(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "音乐可视化(Visualizer)",
+            text = stringResource(R.string.player_music_visualizer),
             fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
@@ -4720,7 +4766,7 @@ private fun VisualizerSheetContent(
     }
     Spacer(modifier = Modifier.height(20.dp))
     Text(
-        text = "开启时会请求录音权限，用来读取当前播放音频的频谱。",
+        text = stringResource(R.string.player_visualizer_permission_summary),
         fontSize = 13.sp,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(horizontal = 4.dp)
@@ -4746,21 +4792,21 @@ private fun TagEditorSheetContent(
     Spacer(modifier = Modifier.height(18.dp))
 
     if (song == null) {
-        TagEditorEmptyState("当前没有正在播放的歌曲")
+        TagEditorEmptyState(stringResource(R.string.player_no_song_playing))
         return
     }
 
     if (song.path.startsWith("http://") || song.path.startsWith("https://")) {
-        TagEditorEmptyState("在线 / WebDAV 歌曲暂不支持外部编辑")
+        TagEditorEmptyState(stringResource(R.string.player_external_editor_not_supported_for_remote))
         return
     }
 
     if (options.isEmpty()) {
         TagEditorEmptyState(
             if (kind == TagEditorOptionKind.Metadata) {
-                "未找到 Lyrico、LunaBeat 或音乐标签，请先安装后再试"
+                stringResource(R.string.player_no_metadata_editor_found)
             } else {
-                "未找到 LunaBeat 歌词打轴，请先安装后再试"
+                stringResource(R.string.player_no_lyric_timing_editor_found)
             }
         )
         return
@@ -4778,7 +4824,7 @@ private fun TagEditorSheetContent(
     }
 
     Text(
-        text = "会把当前歌曲路径传给所选应用，并在返回后刷新这首歌。",
+        text = stringResource(R.string.player_editor_launch_hint),
         fontSize = 13.sp,
         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
@@ -5508,23 +5554,11 @@ private fun rememberBluetoothOutputName(): String? {
 }
 
 private fun formatTime(ms: Long): String {
-    if (ms <= 0) return "00:00"
-    val totalSeconds = ms / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%02d:%02d".format(minutes, seconds)
+    return ms.formatPlaybackDuration()
 }
 
 private fun formatTimerRemaining(ms: Long): String {
-    val totalSeconds = (ms / 1000).coerceAtLeast(0L)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%02d:%02d".format(minutes, seconds)
-    }
+    return ms.formatPlaybackDuration()
 }
 
 private fun com.ella.music.data.AudioQualitySummary.playerCompactText(): String {

@@ -1,5 +1,6 @@
 package com.ella.music.ui.analytics
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
@@ -40,11 +41,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.audioQualitySummary
@@ -75,6 +79,7 @@ fun AnalyticsScreen(
     onBack: () -> Unit,
     onNavigateToHistory: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val playbackHistory by mainViewModel.playbackHistory.collectAsState()
@@ -96,13 +101,13 @@ fun AnalyticsScreen(
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
+                    contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onBackground,
                     modifier = Modifier.size(24.dp)
                 )
             }
             Text(
-                text = "听歌统计",
+                text = stringResource(R.string.analytics_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onBackground,
@@ -136,29 +141,29 @@ fun AnalyticsScreen(
 
             item {
                 RankingCard(
-                    title = "听歌时长排行",
-                    emptyText = "开始播放后会自动累计听歌时长",
+                    title = stringResource(R.string.analytics_listen_duration_ranking),
+                    emptyText = stringResource(R.string.analytics_listen_duration_empty),
                     stats = playbackStats
                         .filter { it.listenedMs > 0L }
                         .sortedByDescending { it.listenedMs }
                         .take(10),
                     libraryById = libraryById,
                     mainViewModel = mainViewModel,
-                    valueText = { formatListenDuration(it.listenedMs) }
+                    valueText = { formatListenDuration(context, it.listenedMs) }
                 )
             }
 
             item {
                 RankingCard(
-                    title = "播放次数排行",
-                    emptyText = "开始播放后会自动累计播放次数",
+                    title = stringResource(R.string.analytics_play_count_ranking),
+                    emptyText = stringResource(R.string.analytics_play_count_empty),
                     stats = playbackStats
                         .filter { it.playCount > 0 }
                         .sortedByDescending { it.playCount }
                         .take(10),
                     libraryById = libraryById,
                     mainViewModel = mainViewModel,
-                    valueText = { "${it.playCount} 次" }
+                    valueText = { context.getString(R.string.analytics_times_count, it.playCount) }
                 )
             }
         }
@@ -209,13 +214,13 @@ fun LibraryAnalysisScreen(
             IconButton(onClick = onBack) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Back,
-                    contentDescription = "返回",
+                    contentDescription = stringResource(R.string.common_back),
                     tint = MiuixTheme.colorScheme.onBackground,
                     modifier = Modifier.size(24.dp)
                 )
             }
             Text(
-                text = "歌曲库分析",
+                text = stringResource(R.string.analytics_library_analysis),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onBackground,
@@ -242,8 +247,8 @@ fun LibraryAnalysisScreen(
 
             item {
                 DonutChartCard(
-                    title = "音频格式统计",
-                    loadingText = "正在分析音频格式...",
+                    title = stringResource(R.string.analytics_audio_format_stats),
+                    loadingText = stringResource(R.string.analytics_loading_audio_formats),
                     buckets = analysis?.formatBuckets,
                     total = analysis?.totalCount ?: 0,
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
@@ -253,8 +258,8 @@ fun LibraryAnalysisScreen(
 
             item {
                 DonutChartCard(
-                    title = "音频音质统计",
-                    loadingText = "正在分析音频参数...",
+                    title = stringResource(R.string.analytics_audio_quality_stats),
+                    loadingText = stringResource(R.string.analytics_loading_audio_quality),
                     buckets = analysis?.qualityBuckets,
                     total = analysis?.totalCount ?: 0,
                     totalSizeBytes = analysis?.totalSizeBytes ?: 0L,
@@ -267,20 +272,21 @@ fun LibraryAnalysisScreen(
 
 @Composable
 private fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
+    val context = LocalContext.current
     val days = remember(dailyListenMs) { recentDateKeys(56) }
     val maxMs = days.maxOfOrNull { dailyListenMs[it] ?: 0L }?.coerceAtLeast(1L) ?: 1L
     val todayListenMs = days.lastOrNull()?.let { dailyListenMs[it] } ?: 0L
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "听歌排行热力图",
+                text = stringResource(R.string.analytics_heatmap_title),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "近 8 周每日听歌时长",
+                text = stringResource(R.string.analytics_recent_8_weeks),
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
@@ -310,7 +316,7 @@ private fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
             Spacer(modifier = Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "少",
+                    text = stringResource(R.string.analytics_heatmap_low),
                     fontSize = 11.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -325,13 +331,13 @@ private fun ListenHeatmapCard(dailyListenMs: Map<String, Long>) {
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 Text(
-                    text = "多",
+                    text = stringResource(R.string.analytics_heatmap_high),
                     fontSize = 11.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "今天 ${formatListenDuration(todayListenMs)}",
+                    text = stringResource(R.string.analytics_heatmap_today, formatListenDuration(context, todayListenMs)),
                     fontSize = 11.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -356,14 +362,14 @@ private fun HistoryCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "听歌历史记录",
+                        text = stringResource(R.string.analytics_listening_history_title),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface
                     )
                     if (totalCount > history.size) {
                         Text(
-                            text = "查看全部 $totalCount 条记录",
+                            text = stringResource(R.string.analytics_view_all_records, totalCount),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -379,7 +385,7 @@ private fun HistoryCard(
             Spacer(modifier = Modifier.height(10.dp))
             if (history.isEmpty()) {
                 Text(
-                    text = "播放歌曲后会记录最近听过的内容",
+                    text = stringResource(R.string.analytics_history_empty),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             } else {
@@ -467,7 +473,7 @@ private fun DateChip(
                 color = if (selected) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
             )
             Text(
-                text = "$count 次",
+                text = stringResource(R.string.analytics_times_count, count),
                 fontSize = 11.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
@@ -480,21 +486,22 @@ private fun SummaryCard(
     songs: List<Song>,
     playbackStats: List<SongPlaybackStats>
 ) {
+    val context = LocalContext.current
     val listenedMs = playbackStats.sumOf { it.listenedMs }
     val playCount = playbackStats.sumOf { it.playCount }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "总览",
+                text = stringResource(R.string.analytics_overview),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = MiuixTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(10.dp))
-            StatLine("曲库歌曲", "${songs.size} 首")
-            StatLine("曲库体积", formatFileSize(songs.sumOf { it.fileSize }))
-            StatLine("累计播放", "$playCount 次")
-            StatLine("累计听歌", formatListenDuration(listenedMs))
+            StatLine(stringResource(R.string.analytics_library_song_count), stringResource(R.string.analytics_song_count_value, songs.size))
+            StatLine(stringResource(R.string.analytics_library_size), formatFileSize(songs.sumOf { it.fileSize }))
+            StatLine(stringResource(R.string.analytics_total_plays), stringResource(R.string.analytics_times_count, playCount))
+            StatLine(stringResource(R.string.analytics_total_listen), formatListenDuration(context, listenedMs))
         }
     }
 }
@@ -523,7 +530,7 @@ private fun DonutChartCard(
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
                 total == 0 -> Text(
-                    text = "暂无歌曲",
+                    text = stringResource(R.string.analytics_no_songs),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
                 else -> {
@@ -544,7 +551,10 @@ private fun DonutChartCard(
                         )
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    StatLine("ALL", "$total 首 · ${formatFileSize(totalSizeBytes)}")
+                    StatLine(
+                        stringResource(R.string.analytics_all_label),
+                        stringResource(R.string.analytics_all_summary, total, formatFileSize(totalSizeBytes))
+                    )
                 }
             }
         }
@@ -621,7 +631,12 @@ private fun BucketLegendRow(
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "${bucket.count} 首 · ${formatPercent(percent)} · ${formatFileSize(bucket.sizeBytes)}",
+            text = stringResource(
+                R.string.analytics_bucket_summary,
+                bucket.count,
+                formatPercent(percent),
+                formatFileSize(bucket.sizeBytes)
+            ),
             fontSize = 12.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
         )
@@ -831,7 +846,12 @@ private fun formatLabel(song: Song, info: AudioInfo): String {
 
 private fun qualityLabel(song: Song, info: AudioInfo): String {
     val label = audioQualitySummary(info).analyticsLabel
-    return if (label == "未知" && !song.mimeType.contains("audio", ignoreCase = true)) "其他" else label
+    return when {
+        label == "未知" && !song.mimeType.contains("audio", ignoreCase = true) -> "OTHER"
+        label == "未知" -> "UNKNOWN"
+        label == "无损" -> "LOSSLESS"
+        else -> label
+    }
 }
 
 private fun Song.fileExtension(): String {
@@ -839,14 +859,14 @@ private fun Song.fileExtension(): String {
     return source.substringAfterLast('.', missingDelimiterValue = "").lowercase()
 }
 
-private fun formatListenDuration(ms: Long): String {
+private fun formatListenDuration(context: Context, ms: Long): String {
     val totalMinutes = (ms / 60_000).coerceAtLeast(0)
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return when {
-        hours > 0 -> "${hours}小时${minutes}分"
-        minutes > 0 -> "${minutes}分钟"
-        else -> "不足 1 分钟"
+        hours > 0 -> context.getString(R.string.analytics_duration_hours_minutes, hours, minutes)
+        minutes > 0 -> context.getString(R.string.analytics_duration_minutes, minutes)
+        else -> context.getString(R.string.analytics_duration_less_than_minute)
     }
 }
 
@@ -929,12 +949,12 @@ private fun formatHistoryDateTitle(dateKey: String): String {
     val then = Calendar.getInstance().apply { time = date }
     val label = when {
         today.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
-            today.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR) -> "今天"
+            today.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR) -> "TODAY"
         today.apply { add(Calendar.DAY_OF_YEAR, -1) }.let {
             it.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
                 it.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
-        } -> "昨天"
-        else -> SimpleDateFormat("yyyy年M月d日", Locale.getDefault()).format(date)
+        } -> "YESTERDAY"
+        else -> SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(date)
     }
     val week = SimpleDateFormat("EEEE", Locale.getDefault()).format(date)
     return "$label · $week"
@@ -946,7 +966,7 @@ private fun parseHistoryDateKey(dateKey: String): Date? {
     }.getOrNull()
 }
 
-private val qualityOrder = listOf("Dolby", "MQ", "Hi-Res", "无损", "HQ", "LQ", "未知", "其他")
+private val qualityOrder = listOf("Dolby", "MQ", "Hi-Res", "LOSSLESS", "HQ", "LQ", "UNKNOWN", "OTHER")
 
 private val formatPalette = listOf(
     Color(0xFF4C6F9F),

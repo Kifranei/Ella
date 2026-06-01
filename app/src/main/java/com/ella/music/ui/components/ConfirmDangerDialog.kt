@@ -8,8 +8,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -20,7 +22,7 @@ fun ConfirmDangerDialog(
     show: Boolean,
     title: String,
     message: String,
-    confirmText: String = "删除",
+    confirmText: String? = null,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -38,13 +40,13 @@ fun ConfirmDangerDialog(
             Spacer(modifier = Modifier.height(18.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 TextButton(
-                    text = "取消",
+                    text = stringResource(R.string.common_cancel),
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 TextButton(
-                    text = confirmText,
+                    text = confirmText ?: stringResource(R.string.common_delete),
                     onClick = onConfirm,
                     modifier = Modifier.weight(1f)
                 )

@@ -45,15 +45,18 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.DoubleTapScrollOverlay
@@ -103,6 +106,7 @@ fun FolderDetailScreen(
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
@@ -200,7 +204,7 @@ fun FolderDetailScreen(
                 ) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = if (selectionMode) "退出多选" else "返回",
+                        contentDescription = if (selectionMode) stringResource(R.string.common_exit_selection) else stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -215,7 +219,11 @@ fun FolderDetailScreen(
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (selectionMode) "已选择 ${selectedIds.size} 首" else folderName.ifEmpty { "根目录" },
+                        text = if (selectionMode) {
+                            stringResource(R.string.library_selected_count, selectedIds.size)
+                        } else {
+                            folderName.ifEmpty { stringResource(R.string.folder_root) }
+                        },
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = MiuixTheme.colorScheme.onSurface,
@@ -224,7 +232,7 @@ fun FolderDetailScreen(
                     )
                     if (!selectionMode) {
                         Text(
-                            text = "${childFolders.size} 个子目录 · ${recursiveSongs.size} 首歌曲",
+                            text = stringResource(R.string.folder_detail_header_summary, childFolders.size, recursiveSongs.size),
                             fontSize = 12.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -235,7 +243,7 @@ fun FolderDetailScreen(
                         onClick = {
                                 val selectedSongs = sortedSongs.filter { it.id in selectedIds }
                                 if (selectedSongs.isEmpty()) {
-                                    Toast.makeText(context, "请先选择歌曲", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
                                 } else {
                                     playlistPickerSongs = selectedSongs
                                 }
@@ -243,7 +251,7 @@ fun FolderDetailScreen(
                     ) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Add,
-                            contentDescription = "添加到歌单",
+                            contentDescription = stringResource(R.string.player_add_to_playlist),
                             tint = MiuixTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
@@ -254,13 +262,13 @@ fun FolderDetailScreen(
                                 if (selectedSongs.isNotEmpty()) {
                                     pendingDeleteSongs = selectedSongs
                                 } else {
-                                    Toast.makeText(context, "请先选择歌曲", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, R.string.library_select_songs_first, Toast.LENGTH_SHORT).show()
                                 }
                         }
                     ) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Delete,
-                            contentDescription = "删除",
+                            contentDescription = stringResource(R.string.common_delete),
                             tint = Color(0xFFE5484D),
                             modifier = Modifier.size(24.dp)
                         )
@@ -269,7 +277,7 @@ fun FolderDetailScreen(
                     IconButton(onClick = { sortExpanded = !sortExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
+                            contentDescription = stringResource(R.string.common_sort),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -280,7 +288,7 @@ fun FolderDetailScreen(
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.SelectAll,
-                            contentDescription = "多选",
+                            contentDescription = stringResource(R.string.common_multi_select),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -288,7 +296,7 @@ fun FolderDetailScreen(
                     IconButton(onClick = { searchExpanded = !searchExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = "搜索",
+                            contentDescription = stringResource(R.string.common_search),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -329,7 +337,7 @@ fun FolderDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = mode.label,
+                            text = stringResource(mode.labelRes),
                             fontSize = 14.sp,
                             fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
                             color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
@@ -344,7 +352,7 @@ fun FolderDetailScreen(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onSearch = { searchExpanded = false },
-                placeholder = "搜索歌曲、艺术家、专辑或文件名",
+                placeholder = stringResource(R.string.folder_detail_search_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -357,7 +365,7 @@ fun FolderDetailScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "该文件夹没有音乐文件",
+                    text = stringResource(R.string.folder_detail_empty),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
@@ -367,12 +375,11 @@ fun FolderDetailScreen(
             LaunchedEffect(scrollToTopRequest) {
                 if (scrollToTopRequest > 0) listState.animateScrollToItem(0)
             }
-            val visibleFolderCount = if (searchQuery.isBlank()) childFolders.size else 0
-            val currentSongItemIndex = remember(sortedSongs, currentSong?.id, visibleFolderCount, selectionMode) {
+            val currentSongItemIndex = remember(sortedSongs, currentSong?.id, selectionMode) {
                 if (selectionMode) return@remember -1
                 sortedSongs.indexOfFirst { it.id == currentSong?.id }
                     .takeIf { it >= 0 }
-                    ?.plus(1 + visibleFolderCount)
+                    ?.plus(1)
                     ?: -1
             }
             val fastIndexTargets = remember(sortedSongs) {
@@ -385,9 +392,9 @@ fun FolderDetailScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
                         text = if (searchQuery.isBlank()) {
-                            "${childFolders.size} 个子目录 · ${sortedSongs.size} 首当前目录歌曲"
+                            stringResource(R.string.folder_detail_current_summary, childFolders.size, sortedSongs.size)
                         } else {
-                            "${sortedSongs.size} 首匹配歌曲 · 含子目录"
+                            stringResource(R.string.folder_detail_search_summary, sortedSongs.size)
                         },
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -398,15 +405,6 @@ fun FolderDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
-                        if (searchQuery.isBlank()) {
-                            items(childFolders, key = { it.path }) { folder ->
-                                ChildFolderRow(
-                                    folder = folder,
-                                    onClick = { onFolderClick(folder.path) },
-                                    onLongClick = { folderToBlock = folder.path }
-                                )
-                            }
-                        }
                         itemsIndexed(
                             items = sortedSongs,
                             key = { _, song -> song.id }
@@ -418,6 +416,8 @@ fun FolderDetailScreen(
                                 albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                                 loadAudioInfo = mainViewModel::getAudioInfo,
+                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                                loadSongRating = mainViewModel::getSongRating,
                                 selectionMode = selectionMode,
                                 selected = selected,
                                 onLongClick = {
@@ -436,6 +436,15 @@ fun FolderDetailScreen(
                                 onMore = { actionSong = song }
                             )
                         }
+                        if (searchQuery.isBlank()) {
+                            items(childFolders, key = { it.path }) { folder ->
+                                ChildFolderRow(
+                                    folder = folder,
+                                    onClick = { onFolderClick(folder.path) },
+                                    onLongClick = { folderToBlock = folder.path }
+                                )
+                            }
+                        }
                     }
                 }
                 if (sortMode == FolderSongSortMode.Title && sortedSongs.size > 30) {
@@ -449,7 +458,7 @@ fun FolderDetailScreen(
                             val index = fastIndexTargets[letter]
                             if (index != null) {
                                 fastScrollJob?.cancel()
-                                fastScrollJob = scope.launch { listState.scrollToItem(index) }
+                                fastScrollJob = scope.launch { listState.scrollToItem(index + 1) }
                             }
                         }
                     )
@@ -501,7 +510,7 @@ fun FolderDetailScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "添加到歌单",
+                title = stringResource(R.string.song_more_add_to_playlist_title),
                 onDismissRequest = { playlistPickerSongs = null }
             ) {
                 AddSelectedSongsToPlaylistSheet(
@@ -518,7 +527,7 @@ fun FolderDetailScreen(
                         selectedPlaylists.forEach { playlist ->
                             mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
                         }
-                        Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.player_added_to_playlists, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
                         playlistPickerSongs = null
                         selectedIds = emptySet()
                         selectionMode = false
@@ -535,7 +544,7 @@ fun FolderDetailScreen(
                     mainViewModel.createPlaylist(name) { playlist ->
                         if (playlist != null) {
                             mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
-                            Toast.makeText(context, "已添加到 ${playlist.name}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.player_added_to_playlist_named, playlist.name), Toast.LENGTH_SHORT).show()
                             selectedIds = emptySet()
                             selectionMode = false
                         }
@@ -547,9 +556,9 @@ fun FolderDetailScreen(
 
         ConfirmDangerDialog(
             show = pendingDeleteSongs.isNotEmpty(),
-            title = "永久删除歌曲",
-            message = "确定要永久删除选中的 ${pendingDeleteSongs.size} 首歌曲吗？此操作可能会删除本地音频文件。",
-            confirmText = "永久删除",
+            title = stringResource(R.string.song_more_delete_song_title),
+            message = stringResource(R.string.library_delete_selected_message, pendingDeleteSongs.size),
+            confirmText = stringResource(R.string.song_more_delete_permanently),
             onDismiss = { pendingDeleteSongs = emptyList() },
             onConfirm = {
                 mainViewModel.deleteSongs(pendingDeleteSongs)
@@ -576,15 +585,15 @@ private fun AddSelectedSongsToPlaylistSheet(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
-            text = "已选择 $songCount 首歌曲",
+            text = stringResource(R.string.library_selected_count, songCount),
             fontSize = 13.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )
-        FolderSheetItem("新建歌单", onCreatePlaylist)
+        FolderSheetItem(stringResource(R.string.playlist_create_title), onCreatePlaylist)
         if (playlists.isEmpty()) {
             Text(
-                text = "暂无自定义歌单",
+                text = stringResource(R.string.song_more_no_custom_playlists),
                 fontSize = 14.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp)
@@ -592,7 +601,14 @@ private fun AddSelectedSongsToPlaylistSheet(
         } else {
             playlists.forEach { playlist ->
                 val selected = playlist.id in selectedPlaylistIds
-                FolderSheetItem("${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} 首") {
+                FolderSheetItem(
+                    stringResource(
+                        R.string.song_more_playlist_item_summary,
+                        if (selected) "✓ " else "",
+                        playlist.name,
+                        playlist.songs.size
+                    )
+                ) {
                     selectedPlaylistIds = if (selected) {
                         selectedPlaylistIds - playlist.id
                     } else {
@@ -602,13 +618,13 @@ private fun AddSelectedSongsToPlaylistSheet(
             }
         }
         if (playlists.isNotEmpty()) {
-            FolderSheetItem("完成（${selectedPlaylistIds.size}）") {
+            FolderSheetItem(stringResource(R.string.song_more_done_selected, selectedPlaylistIds.size)) {
                 if (selectedPlaylists.isNotEmpty()) {
                     onPlaylistsConfirm(selectedPlaylists)
                 }
             }
         }
-        FolderSheetItem("取消", onDismiss)
+        FolderSheetItem(stringResource(R.string.common_cancel), onDismiss)
     }
 }
 
@@ -628,7 +644,7 @@ private fun CreatePlaylistAndAddSelectedSheet(
     }
     WindowBottomSheet(
         show = true,
-        title = "新建歌单",
+        title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -636,14 +652,14 @@ private fun CreatePlaylistAndAddSelectedSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = "将添加 $songCount 首歌曲",
+                text = stringResource(R.string.library_create_playlist_add_count, songCount),
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
             TextField(
                 value = name,
                 onValueChange = { name = it },
-                label = "歌单名称",
+                label = stringResource(R.string.playlist_name_label),
                 useLabelAsPlaceholder = true,
                 singleLine = true,
                 insideMargin = DpSize(12.dp, 10.dp),
@@ -658,9 +674,9 @@ private fun CreatePlaylistAndAddSelectedSheet(
                     .focusRequester(focusRequester)
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Button(onClick = onDismiss) { Text("取消") }
+                Button(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { onCreate(name) }) { Text("创建") }
+                Button(onClick = { onCreate(name) }) { Text(stringResource(R.string.common_create)) }
             }
         }
     }
@@ -684,16 +700,16 @@ private fun FolderSheetItem(
     )
 }
 
-private enum class FolderSongSortMode(val label: String) {
-    Title("歌曲名称"),
-    FileName("文件名"),
-    Duration("歌曲时长"),
-    DateAdded("添加时间"),
-    DateAddedAsc("添加时间升序"),
-    DateModified("修改时间"),
-    DateModifiedAsc("修改时间升序"),
-    YearAsc("发行时间正序"),
-    YearDesc("发行时间倒序")
+private enum class FolderSongSortMode(val labelRes: Int) {
+    Title(R.string.playlist_song_sort_title),
+    FileName(R.string.playlist_song_sort_file_name),
+    Duration(R.string.playlist_song_sort_duration),
+    DateAdded(R.string.playlist_song_sort_date_added),
+    DateAddedAsc(R.string.playlist_song_sort_date_added_asc),
+    DateModified(R.string.playlist_song_sort_date_modified),
+    DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc),
+    YearAsc(R.string.playlist_song_sort_year_asc),
+    YearDesc(R.string.playlist_song_sort_year_desc)
 }
 
 private fun List<Song>.sortedByReleaseDate(ascending: Boolean): List<Song> {
@@ -752,7 +768,7 @@ private fun ChildFolderRow(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${folder.songCount} 首歌曲 · ${folder.path}",
+                text = stringResource(R.string.folder_child_summary, folder.songCount, folder.path),
                 fontSize = 13.sp,
                 lineHeight = 17.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -772,13 +788,6 @@ private fun ChildFolderRow(
 private fun Song.indexLetter(): String {
     val first = title.musicSortKey().firstOrNull()?.uppercaseChar()
     return if (first != null && first in 'A'..'Z') first.toString() else "#"
-}
-
-private fun Long.formatFolderDuration(): String {
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分钟" else "${minutes}分钟"
 }
 
 private fun String.musicSortKey(): String {

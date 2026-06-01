@@ -27,12 +27,7 @@ data class Song(
     val onlineLyricTranslation: String = ""
 ) {
     val durationText: String
-        get() {
-            val totalSeconds = duration / 1000
-            val minutes = totalSeconds / 60
-            val seconds = totalSeconds % 60
-            return "%02d:%02d".format(minutes, seconds)
-        }
+        get() = duration.formatPlaybackDuration()
 }
 
 fun Song.albumIdentityId(): Long {
@@ -40,7 +35,7 @@ fun Song.albumIdentityId(): Long {
     val albumOwner = albumArtist
         .trim()
         .takeIf { it.isNotBlank() && !it.equals("Unknown Artist", ignoreCase = true) && !it.equals("Unknown", ignoreCase = true) }
-        ?: artist.trim().ifBlank { "Unknown Artist" }
+        ?: ""
     val key = "${albumName.normalizedAlbumIdentityPart()}|${albumOwner.normalizedAlbumIdentityPart()}"
     var hash = -0x340d631b7bdddcdbL
     key.forEach { char ->

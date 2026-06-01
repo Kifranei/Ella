@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
     ) {}
 
     private var mainViewModel: MainViewModel? = null
+    private var appliedLanguageTag: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applySavedAppLanguage()
@@ -170,7 +171,9 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(appLanguage) {
-                applyAppLanguage(appLanguage)
+                if (applyAppLanguage(appLanguage)) {
+                    recreate()
+                }
             }
 
             val view = LocalView.current
@@ -253,15 +256,19 @@ class MainActivity : ComponentActivity() {
         applyAppLanguage(language)
     }
 
-    private fun applyAppLanguage(languageTag: String) {
+    private fun applyAppLanguage(languageTag: String): Boolean {
+        if (appliedLanguageTag == languageTag) return false
         val locales = when (languageTag) {
             SettingsManager.APP_LANGUAGE_ZH_CN -> LocaleListCompat.forLanguageTags("zh-CN")
             SettingsManager.APP_LANGUAGE_EN -> LocaleListCompat.forLanguageTags("en")
             else -> LocaleListCompat.getEmptyLocaleList()
         }
+        appliedLanguageTag = languageTag
         if (AppCompatDelegate.getApplicationLocales() != locales) {
             AppCompatDelegate.setApplicationLocales(locales)
+            return true
         }
+        return false
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -416,7 +423,7 @@ fun EllaApp(
     val miniPlayerShowTranslation by settingsManager.miniPlayerLyricTranslation.collectAsState(initial = true)
     val miniPlayerCoverRotation by settingsManager.miniPlayerCoverRotation.collectAsState(initial = true)
     val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
-    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.Blur)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
 
     val currentLyricLine = lyrics.getOrNull(currentLyricIndex)
     val miniPlayerLyricText = if (isPlaying && miniPlayerLyricsEnabled) {

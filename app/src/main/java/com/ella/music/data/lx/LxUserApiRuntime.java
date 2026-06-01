@@ -171,7 +171,13 @@ public final class LxUserApiRuntime implements AutoCloseable {
 
     private String formatDuration(long durationMs) {
         long totalSeconds = Math.max(0L, durationMs / 1000L);
-        return String.format(Locale.US, "%02d:%02d", totalSeconds / 60L, totalSeconds % 60L);
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) {
+            return String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds);
+        }
+        return String.format(Locale.US, "%02d:%02d", minutes, seconds);
     }
 
     private void createEnv() {

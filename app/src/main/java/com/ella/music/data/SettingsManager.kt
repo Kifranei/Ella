@@ -196,9 +196,9 @@ class SettingsManager(private val context: Context) {
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
         runCatching {
             BottomBarGlassEffect.valueOf(
-                preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.Blur.name
+                preferences[KEY_BOTTOM_BAR_GLASS_EFFECT] ?: BottomBarGlassEffect.LiquidGlass.name
             )
-        }.getOrDefault(BottomBarGlassEffect.Blur)
+        }.getOrDefault(BottomBarGlassEffect.LiquidGlass)
     }
     val tickerEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_ENABLED] ?: false }
     val tickerHideNotification: Flow<Boolean> = context.dataStore.data.map { it[KEY_TICKER_HIDE_NOTIFICATION] ?: true }

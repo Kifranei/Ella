@@ -12,7 +12,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,16 +60,19 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.FIVE_STAR_PLAYLIST_ID
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.PlaylistExportFormat
 import com.ella.music.data.PlaylistImportMode
@@ -146,8 +149,9 @@ fun PlaylistScreen(
     val showFavorites = remember(favorites, searchQuery) {
         favorites != null && (searchQuery.isBlank() || favorites.matchesPlaylistSearch(searchQuery.trim()))
     }
-    val showFiveStar = remember(searchQuery) {
-        searchQuery.isBlank() || "五星歌曲".contains(searchQuery.trim(), ignoreCase = true)
+    val fiveStarName = stringResource(R.string.playlist_five_star_name)
+    val showFiveStar = remember(searchQuery, fiveStarName) {
+        searchQuery.isBlank() || fiveStarName.contains(searchQuery.trim(), ignoreCase = true)
     }
     val fiveStarSongs by produceState(initialValue = emptyList(), librarySongs) {
         value = mainViewModel.getFiveStarSongs()
@@ -166,17 +170,46 @@ fun PlaylistScreen(
             result
                 .onSuccess { importResult ->
                     val message = if (importResult.importedCount == 0) {
-                        "没有可导入的歌曲"
+                        context.getString(R.string.playlist_import_none)
                     } else {
-                        val missingText = if (importResult.missingCount > 0) "，保留 ${importResult.missingCount} 首未匹配路径" else ""
-                        val duplicateText = if (importResult.duplicateCount > 0) "，跳过 ${importResult.duplicateCount} 条重复" else ""
-                        val playlistText = if (importResult.importedPlaylists > 1) "${importResult.importedPlaylists} 个歌单，" else ""
-                        "已导入 $playlistText${importResult.importedCount} 首，匹配 ${importResult.matchedCount} 首$missingText$duplicateText"
+                        val missingText = if (importResult.missingCount > 0) {
+                            context.getString(
+                                R.string.playlist_import_missing_paths,
+                                importResult.missingCount
+                            )
+                        } else ""
+                        val duplicateText = if (importResult.duplicateCount > 0) {
+                            context.getString(
+                                R.string.playlist_import_duplicates,
+                                importResult.duplicateCount
+                            )
+                        } else ""
+                        val playlistText = if (importResult.importedPlaylists > 1) {
+                            context.getString(
+                                R.string.playlist_import_playlist_prefix,
+                                importResult.importedPlaylists
+                            )
+                        } else ""
+                        context.getString(
+                            R.string.playlist_import_result,
+                            playlistText,
+                            importResult.importedCount,
+                            importResult.matchedCount,
+                            missingText,
+                            duplicateText
+                        )
                     }
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
                 .onFailure {
-                    Toast.makeText(context, "导入失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.playlist_import_failed,
+                            it.message.orEmpty()
+                        ),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
         }
     }
@@ -198,13 +231,13 @@ fun PlaylistScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = "歌单",
+                title = stringResource(R.string.playlist_title),
                 color = ellaPageBackground(),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface
                         )
                     }
@@ -213,7 +246,7 @@ fun PlaylistScreen(
                     IconButton(onClick = { sortExpanded = !sortExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
+                            contentDescription = stringResource(R.string.common_sort),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -224,7 +257,7 @@ fun PlaylistScreen(
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = "搜索",
+                            contentDescription = stringResource(R.string.common_search),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -243,7 +276,7 @@ fun PlaylistScreen(
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Download,
-                            contentDescription = "导入歌单",
+                            contentDescription = stringResource(R.string.playlist_import_title),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -251,7 +284,7 @@ fun PlaylistScreen(
                     IconButton(onClick = { showCreateDialog = true }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Add,
-                            contentDescription = "新建歌单",
+                            contentDescription = stringResource(R.string.playlist_create_title),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -277,7 +310,7 @@ fun PlaylistScreen(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onSearch = { searchExpanded = false },
-                placeholder = "搜索歌单",
+                placeholder = stringResource(R.string.playlist_search_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -296,7 +329,7 @@ fun PlaylistScreen(
             ) {
                 PlaylistSortMode.entries.forEach { mode ->
                     Text(
-                        text = mode.label,
+                        text = stringResource(mode.labelRes),
                         fontSize = 14.sp,
                         fontWeight = if (playlistSortMode == mode) FontWeight.Bold else FontWeight.Normal,
                         color = if (playlistSortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
@@ -333,7 +366,7 @@ fun PlaylistScreen(
                 PlaylistRow(
                     playlist = UserPlaylist(
                         id = FIVE_STAR_PLAYLIST_ID,
-                        name = "五星歌曲",
+                        name = stringResource(R.string.playlist_five_star_name),
                         createdAt = 0L,
                         updatedAt = 0L
                     ),
@@ -346,7 +379,11 @@ fun PlaylistScreen(
 
             item {
                 Text(
-                    text = "${displayedCustomPlaylists.size} 个歌单 · ${playlistSortMode.label}排序",
+                    text = stringResource(
+                        R.string.playlist_list_summary,
+                        displayedCustomPlaylists.size,
+                        stringResource(playlistSortMode.labelRes)
+                    ),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
@@ -356,7 +393,7 @@ fun PlaylistScreen(
             if (displayedCustomPlaylists.isEmpty()) {
                 item {
                     Text(
-                        text = if (searchQuery.isBlank()) "还没有自定义歌单" else "没有匹配的歌单",
+                        text = if (searchQuery.isBlank()) stringResource(R.string.playlist_empty_custom) else stringResource(R.string.playlist_empty_search),
                         fontSize = 14.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
@@ -379,9 +416,9 @@ fun PlaylistScreen(
                             Toast.makeText(
                                 context,
                                 if (created) {
-                                    "已请求创建「${playlist.name}」快捷方式"
+                                    context.getString(R.string.playlist_shortcut_requested, playlist.name)
                                 } else {
-                                    "当前桌面不支持创建快捷方式"
+                                    context.getString(R.string.playlist_shortcut_unsupported)
                                 },
                                 Toast.LENGTH_SHORT
                             ).show()
@@ -417,9 +454,9 @@ fun PlaylistScreen(
     playlistPendingDelete?.let { playlist ->
         ConfirmDangerDialog(
             show = true,
-            title = "删除歌单",
-            message = "确定要删除歌单「${playlist.name}」吗？歌单内歌曲不会从本地删除。",
-            confirmText = "删除",
+            title = stringResource(R.string.playlist_delete_title),
+            message = stringResource(R.string.playlist_delete_message, playlist.name),
+            confirmText = stringResource(R.string.common_delete),
             onDismiss = { playlistPendingDelete = null },
             onConfirm = {
                 mainViewModel.deletePlaylist(playlist.id)
@@ -442,6 +479,7 @@ fun PlaylistDetailScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
@@ -453,7 +491,7 @@ fun PlaylistDetailScreen(
     val playlist = if (isFiveStarPlaylist) {
         UserPlaylist(
             id = FIVE_STAR_PLAYLIST_ID,
-            name = "五星歌曲",
+            name = stringResource(R.string.playlist_five_star_name),
             createdAt = 0L,
             updatedAt = 0L
         )
@@ -525,11 +563,11 @@ fun PlaylistDetailScreen(
         mainViewModel.exportLocalPlaylist(targetPlaylist, uri, PlaylistExportFormat.PlainText) { result ->
             result
                 .onSuccess { exportResult ->
-                    val skippedText = if (exportResult.skippedCount > 0) "，跳过 ${exportResult.skippedCount} 首在线歌曲" else ""
-                    Toast.makeText(context, "已导出 ${exportResult.exportedCount} 首$skippedText", Toast.LENGTH_SHORT).show()
+                    val skippedText = if (exportResult.skippedCount > 0) context.getString(R.string.playlist_export_skipped, exportResult.skippedCount) else ""
+                    Toast.makeText(context, context.getString(R.string.playlist_export_done, exportResult.exportedCount, skippedText), Toast.LENGTH_SHORT).show()
                 }
                 .onFailure {
-                    Toast.makeText(context, "导出失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.playlist_export_failed, it.message.orEmpty()), Toast.LENGTH_SHORT).show()
                 }
         }
     }
@@ -539,11 +577,11 @@ fun PlaylistDetailScreen(
         mainViewModel.exportLocalPlaylist(targetPlaylist, uri, PlaylistExportFormat.M3u) { result ->
             result
                 .onSuccess { exportResult ->
-                    val skippedText = if (exportResult.skippedCount > 0) "，跳过 ${exportResult.skippedCount} 首在线歌曲" else ""
-                    Toast.makeText(context, "已导出 ${exportResult.exportedCount} 首$skippedText", Toast.LENGTH_SHORT).show()
+                    val skippedText = if (exportResult.skippedCount > 0) context.getString(R.string.playlist_export_skipped, exportResult.skippedCount) else ""
+                    Toast.makeText(context, context.getString(R.string.playlist_export_done, exportResult.exportedCount, skippedText), Toast.LENGTH_SHORT).show()
                 }
                 .onFailure {
-                    Toast.makeText(context, "导出失败：${it.message.orEmpty()}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.playlist_export_failed, it.message.orEmpty()), Toast.LENGTH_SHORT).show()
                 }
         }
     }
@@ -557,17 +595,17 @@ fun PlaylistDetailScreen(
         Box {
             EllaSmallTopAppBar(
                 title = when {
-                    playlist == null -> "歌单"
+                    playlist == null -> stringResource(R.string.playlist_title)
                     isFiveStarPlaylist -> playlist.name
                     listState.firstVisibleItemIndex > 0 -> playlist.name
-                    else -> "自定义歌单"
+                    else -> stringResource(R.string.playlist_custom_title)
                 },
                 color = ellaPageBackground(),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface
                         )
                     }
@@ -576,7 +614,7 @@ fun PlaylistDetailScreen(
                     IconButton(onClick = { sortExpanded = !sortExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
+                            contentDescription = stringResource(R.string.common_sort),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -587,7 +625,7 @@ fun PlaylistDetailScreen(
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = "搜索",
+                            contentDescription = stringResource(R.string.common_search),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -596,7 +634,7 @@ fun PlaylistDetailScreen(
                         IconButton(onClick = { showExportFormatSheet = true }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.Share,
-                                contentDescription = "导出歌单",
+                                contentDescription = stringResource(R.string.playlist_export_title),
                                 tint = MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -626,7 +664,7 @@ fun PlaylistDetailScreen(
             ) {
                 PlaylistSongSortMode.entries.forEach { mode ->
                     Text(
-                        text = mode.label,
+                        text = stringResource(mode.labelRes),
                         fontSize = 14.sp,
                         fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
                         color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
@@ -652,7 +690,7 @@ fun PlaylistDetailScreen(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onSearch = { searchExpanded = false },
-                placeholder = "搜索歌单内歌曲",
+                placeholder = stringResource(R.string.playlist_search_songs_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -661,7 +699,7 @@ fun PlaylistDetailScreen(
 
         if (playlist == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("歌单不存在", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                Text(stringResource(R.string.playlist_not_found), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
             }
             return@Column
         }
@@ -678,14 +716,14 @@ fun PlaylistDetailScreen(
                         coverModel = playlistCoverModel,
                         songCount = sortedSongs.size,
                         duration = sortedSongs.sumOf { it.duration },
-                        sortLabel = sortMode.label
+                        sortLabel = stringResource(sortMode.labelRes)
                     )
                 }
 
                 item {
                     PlaylistPlayAllBar(
                         songCount = displayedSongs.size,
-                        sortLabel = sortMode.label,
+                        sortLabel = stringResource(sortMode.labelRes),
                         onPlayAll = {
                             if (displayedSongs.isNotEmpty()) {
                                 playerViewModel.setPlaylist(displayedSongs, 0)
@@ -706,10 +744,10 @@ fun PlaylistDetailScreen(
                     ) {
                         Text(
                             text = when {
-                                searchQuery.isNotBlank() -> "没有匹配的歌曲"
-                                playlist.isFavorites -> "播放页点红心后会收藏到这里"
-                                playlist.isFiveStarRating -> "文件标签里评分为五星的歌曲会显示在这里"
-                                else -> "这个歌单还没有歌曲"
+                                searchQuery.isNotBlank() -> stringResource(R.string.playlist_empty_song_search)
+                                playlist.isFavorites -> stringResource(R.string.playlist_favorites_hint)
+                                playlist.isFiveStarRating -> stringResource(R.string.playlist_five_star_hint)
+                                else -> stringResource(R.string.playlist_empty_songs)
                             },
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             fontSize = 14.sp
@@ -724,6 +762,8 @@ fun PlaylistDetailScreen(
                         albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                         loadCoverArt = mainViewModel::getCoverArtBitmap,
                         loadAudioInfo = mainViewModel::getAudioInfo,
+                        isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                        loadSongRating = mainViewModel::getSongRating,
                         onClick = {
                             playerViewModel.setPlaylist(displayedSongs, index)
                             if (openPlayerOnPlay) onNavigateToPlayer()
@@ -744,7 +784,7 @@ fun PlaylistDetailScreen(
                                         .size(32.dp)
                                         .clip(RoundedCornerShape(16.dp))
                                         .pointerInput(displayedSongs, song.playlistIdentityKey()) {
-                                            detectDragGestures(
+                                            detectDragGesturesAfterLongPress(
                                                 onDragStart = {
                                                     dragAnchorKey = song.playlistIdentityKey()
                                                     dragAccumulatedPx = 0f
@@ -764,14 +804,14 @@ fun PlaylistDetailScreen(
                                             ) { change, dragAmount ->
                                                 change.consume()
                                                 dragAccumulatedPx += dragAmount.y
-                                                val activeKey = dragAnchorKey ?: return@detectDragGestures
+                                                val activeKey = dragAnchorKey ?: return@detectDragGesturesAfterLongPress
                                                 val rowHeight = estimatedRowHeightPx.coerceAtLeast(1f)
                                                 val steps = (dragAccumulatedPx / rowHeight).toInt()
-                                                if (steps == 0) return@detectDragGestures
+                                                if (steps == 0) return@detectDragGesturesAfterLongPress
                                                 val fromIndex = manualOrder.indexOfFirst { it.playlistIdentityKey() == activeKey }
-                                                if (fromIndex < 0) return@detectDragGestures
+                                                if (fromIndex < 0) return@detectDragGesturesAfterLongPress
                                                 val targetIndex = (fromIndex + steps).coerceIn(0, manualOrder.lastIndex)
-                                                if (targetIndex == fromIndex) return@detectDragGestures
+                                                if (targetIndex == fromIndex) return@detectDragGesturesAfterLongPress
                                                 manualOrder = manualOrder.toMutableList().apply {
                                                     add(targetIndex, removeAt(fromIndex))
                                                 }
@@ -826,9 +866,9 @@ fun PlaylistDetailScreen(
             removeFromPlaylistSong?.let { song ->
                 ConfirmDangerDialog(
                     show = true,
-                    title = "从歌单移除",
-                    message = "确定要从「${playlist.name}」移除《${song.title.ifBlank { song.fileName.ifBlank { "这首歌" } }}》吗？不会删除本地文件。",
-                    confirmText = "移除",
+                    title = stringResource(R.string.playlist_remove_song_title),
+                    message = stringResource(R.string.playlist_remove_song_message, playlist.name, song.title.ifBlank { song.fileName.ifBlank { stringResource(R.string.common_this_song) } }),
+                    confirmText = stringResource(R.string.common_remove),
                     onDismiss = { removeFromPlaylistSong = null },
                     onConfirm = {
                         mainViewModel.removeSongFromPlaylist(playlist.id, song.playlistIdentityKey())
@@ -931,14 +971,19 @@ private fun PlaylistDetailHero(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "$songCount 首歌曲 · ${duration.formatPlaylistDuration()} · $sortLabel",
+                    text = stringResource(
+                        R.string.playlist_detail_summary,
+                        songCount,
+                        duration.formatPlaylistDuration(),
+                        sortLabel
+                    ),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "编辑信息 >",
+                    text = stringResource(R.string.playlist_edit_info),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.78f)
                 )
@@ -970,14 +1015,14 @@ private fun PlaylistPlayAllBar(
         ) {
             Icon(
                 imageVector = MiuixIcons.Regular.Playlist,
-                contentDescription = "播放全部",
+                contentDescription = stringResource(R.string.playlist_play_all),
                 tint = Color.White,
                 modifier = Modifier.size(20.dp)
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = "播放全部",
+            text = stringResource(R.string.listening_calendar_play_all),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
@@ -1005,15 +1050,15 @@ private fun PlaylistPlayAllBar(
     }
 }
 
-private enum class PlaylistSortMode(val label: String) {
-    Custom("自定义"),
-    CustomDesc("自定义倒序"),
-    UpdatedAt("最近更新"),
-    CreatedAt("创建时间倒序"),
-    CreatedAtAsc("创建时间"),
-    Name("名称"),
-    SongCount("歌曲数"),
-    Duration("歌曲时长")
+private enum class PlaylistSortMode(val labelRes: Int) {
+    Custom(R.string.playlist_sort_custom),
+    CustomDesc(R.string.playlist_sort_custom_desc),
+    UpdatedAt(R.string.playlist_sort_updated_at),
+    CreatedAt(R.string.playlist_sort_created_at_desc),
+    CreatedAtAsc(R.string.playlist_sort_created_at),
+    Name(R.string.playlist_sort_name),
+    SongCount(R.string.playlist_sort_song_count),
+    Duration(R.string.playlist_sort_duration)
 }
 
 private fun List<UserPlaylist>.sortedForPlaylistList(mode: PlaylistSortMode): List<UserPlaylist> {
@@ -1039,19 +1084,19 @@ private fun UserPlaylist.matchesPlaylistSearch(query: String): Boolean {
         }
 }
 
-private enum class PlaylistSongSortMode(val label: String) {
-    Custom("自定义"),
-    CustomDesc("自定义倒序"),
-    AddedAt("加入时间"),
-    Title("歌曲名称"),
-    FileName("文件名"),
-    Duration("歌曲时长"),
-    YearAsc("发行时间正序"),
-    YearDesc("发行时间倒序"),
-    DateAdded("添加时间"),
-    DateAddedAsc("添加时间升序"),
-    DateModified("修改时间"),
-    DateModifiedAsc("修改时间升序")
+private enum class PlaylistSongSortMode(val labelRes: Int) {
+    Custom(R.string.playlist_song_sort_custom),
+    CustomDesc(R.string.playlist_song_sort_custom_desc),
+    AddedAt(R.string.playlist_song_sort_added_at),
+    Title(R.string.playlist_song_sort_title),
+    FileName(R.string.playlist_song_sort_file_name),
+    Duration(R.string.playlist_song_sort_duration),
+    YearAsc(R.string.playlist_song_sort_year_asc),
+    YearDesc(R.string.playlist_song_sort_year_desc),
+    DateAdded(R.string.playlist_song_sort_date_added),
+    DateAddedAsc(R.string.playlist_song_sort_date_added_asc),
+    DateModified(R.string.playlist_song_sort_date_modified),
+    DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc)
 }
 
 private fun List<Song>.sortedForPlaylistDetail(mode: PlaylistSongSortMode): List<Song> {
@@ -1094,11 +1139,7 @@ private fun Song.releaseYearOrNull(): Int? =
     Regex("""\d{4}""").find(year)?.value?.toIntOrNull()
 
 private fun Long.formatPlaylistDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+    return formatPlaybackDuration()
 }
 
 private fun Song?.playlistCoverModel(): Any? {
@@ -1177,14 +1218,18 @@ private fun PlaylistRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${countOverride ?: playlist.songs.size} 首歌曲 · ${(durationOverride ?: playlist.songs.sumOf { it.duration }).formatPlaylistDuration()}",
+                    text = stringResource(
+                        R.string.playlist_song_count_duration,
+                        countOverride ?: playlist.songs.size,
+                        (durationOverride ?: playlist.songs.sumOf { it.duration }).formatPlaylistDuration()
+                    ),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
             if (onDelete != null) {
                 Text(
-                    text = "删除",
+                    text = stringResource(R.string.common_delete),
                     fontSize = 13.sp,
                     color = Color(0xFFE5484D),
                     modifier = Modifier
@@ -1235,7 +1280,7 @@ private fun CreatePlaylistDialog(
     }
     WindowBottomSheet(
         show = true,
-        title = "新建歌单",
+        title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -1245,7 +1290,7 @@ private fun CreatePlaylistDialog(
             TextField(
                 value = name,
                 onValueChange = { name = it },
-                label = "歌单名称",
+                label = stringResource(R.string.playlist_name_label),
                 useLabelAsPlaceholder = true,
                 singleLine = true,
                 insideMargin = DpSize(12.dp, 10.dp),
@@ -1260,9 +1305,9 @@ private fun CreatePlaylistDialog(
                     .focusRequester(focusRequester)
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Button(onClick = onDismiss) { Text("取消") }
+                Button(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { onCreate(name) }) { Text("创建") }
+                Button(onClick = { onCreate(name) }) { Text(stringResource(R.string.common_create)) }
             }
         }
     }
@@ -1276,7 +1321,7 @@ private fun ImportPlaylistModeSheet(
 ) {
     WindowBottomSheet(
         show = true,
-        title = "导入歌单",
+        title = stringResource(R.string.playlist_import_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -1284,28 +1329,28 @@ private fun ImportPlaylistModeSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = "已选择 $count 个歌单文件",
+                text = stringResource(R.string.playlist_import_selected_files, count),
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
             )
             ImportModeItem(
-                title = "替换所有歌单",
-                summary = "清空现有自定义歌单后重新导入",
+                title = stringResource(R.string.playlist_import_replace_all),
+                summary = stringResource(R.string.playlist_import_replace_all_summary),
                 onClick = { onModeSelected(PlaylistImportMode.ReplaceAll) }
             )
             ImportModeItem(
-                title = "合并并替换同名歌单",
-                summary = "保留其它歌单，同名歌单使用导入内容覆盖",
+                title = stringResource(R.string.playlist_import_merge_replace),
+                summary = stringResource(R.string.playlist_import_merge_replace_summary),
                 onClick = { onModeSelected(PlaylistImportMode.MergeReplaceExisting) }
             )
             ImportModeItem(
-                title = "合并并保留同名歌单",
-                summary = "同名歌单只追加不存在的歌曲",
+                title = stringResource(R.string.playlist_import_merge_keep),
+                summary = stringResource(R.string.playlist_import_merge_keep_summary),
                 onClick = { onModeSelected(PlaylistImportMode.MergeKeepExisting) }
             )
             Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text("取消")
+                Text(stringResource(R.string.common_cancel))
             }
         }
     }
@@ -1318,7 +1363,7 @@ private fun ExportPlaylistFormatSheet(
 ) {
     WindowBottomSheet(
         show = true,
-        title = "导出歌单",
+        title = stringResource(R.string.playlist_export_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -1326,17 +1371,17 @@ private fun ExportPlaylistFormatSheet(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             ImportModeItem(
-                title = "导出为 TXT",
-                summary = "逐行导出本地歌曲路径",
+                title = stringResource(R.string.playlist_export_txt),
+                summary = stringResource(R.string.playlist_export_txt_summary),
                 onClick = { onFormatSelected(PlaylistExportFormat.PlainText) }
             )
             ImportModeItem(
-                title = "导出为 M3U",
-                summary = "导出 #EXTM3U 播放列表，包含歌曲信息和本地路径",
+                title = stringResource(R.string.playlist_export_m3u),
+                summary = stringResource(R.string.playlist_export_m3u_summary),
                 onClick = { onFormatSelected(PlaylistExportFormat.M3u) }
             )
             Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text("取消")
+                Text(stringResource(R.string.common_cancel))
             }
         }
     }

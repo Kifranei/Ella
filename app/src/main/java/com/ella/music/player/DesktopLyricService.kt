@@ -209,6 +209,9 @@ class DesktopLyricService : Service() {
             addIconControl(R.drawable.ic_skip_next, getString(R.string.desktop_lyric_next)) { controller?.seekToNext() }
             addControl("A-", getString(R.string.desktop_lyric_smaller)) { updateFontScale(-0.08f) }
             addControl("A+", getString(R.string.desktop_lyric_larger)) { updateFontScale(0.08f) }
+            if (isTabletDevice()) {
+                addControl("↑", getString(R.string.desktop_lyric_pin_top)) { snapToStatusBar() }
+            }
             addIconControl(R.drawable.ic_desktop_palette, getString(R.string.desktop_lyric_cycle_color)) { cycleTextColor() }
             addIconControl(R.drawable.ic_desktop_lock, getString(R.string.desktop_lyric_lock)) { setLocked(true) }
             addControl("×", getString(R.string.desktop_lyric_close)) { closeByUser() }
@@ -513,7 +516,7 @@ class DesktopLyricService : Service() {
     }
 
     private fun statusBarLyricTopY(): Int =
-        max(statusBarHeight(), displayCutoutSafeInsetTop()) + dp(statusBarTopOffsetDp)
+        displayCutoutSafeInsetTop() + dp(statusBarTopOffsetDp)
 
     private fun statusBarLyricWidth(): Int =
         (resources.displayMetrics.widthPixels - dp(144)).coerceIn(dp(160), dp(520))
@@ -635,6 +638,8 @@ class DesktopLyricService : Service() {
     private fun canDrawOverlay(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun isTabletDevice(): Boolean = resources.configuration.smallestScreenWidthDp >= 600
 
     private class DesktopLyricView(context: Context) : View(context) {
         private val pendingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

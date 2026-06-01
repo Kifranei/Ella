@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.ella.music.R
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.AppLogType
 import com.ella.music.data.model.Song
@@ -33,6 +34,7 @@ enum class TagEditorOptionKind {
 object TagEditorOptionIds {
     const val ASK_EACH_TIME = ""
     const val LYRICO = "lyrico"
+    const val BUILTIN_CUSTOM_TAG = "builtin_custom_tag"
     const val LUNABEAT_METADATA = "lunabeat_metadata"
     const val LUNABEAT_LYRIC_TIMING = "lunabeat_lyric_timing"
     const val MUSIC_TAG = "music_tag"
@@ -207,7 +209,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
         TagEditorOption(
             id = TagEditorOptionIds.LYRICO,
             label = "Lyrico",
-            summary = "使用 Lyrico 打开当前歌曲标签编辑",
+            summary = context.getString(R.string.tag_editor_lyrico_summary),
             kind = TagEditorOptionKind.Metadata,
             intents = listOf(
                 tagEditorIntent(
@@ -220,8 +222,8 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
         ),
         TagEditorOption(
             id = TagEditorOptionIds.LUNABEAT_METADATA,
-            label = "LunaBeat（编辑元数据）",
-            summary = "打开 LunaBeat 的歌曲元数据编辑页面",
+            label = context.getString(R.string.settings_editor_lunabeat_metadata),
+            summary = context.getString(R.string.tag_editor_lunabeat_metadata_summary),
             kind = TagEditorOptionKind.Metadata,
             intents = listOf(
                 lunaBeatIntent(
@@ -231,7 +233,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                     ComponentName("com.example.lyricbox", "com.example.LyricBox.SongMetadataEditActivity")
                 ),
                 lunaBeatSendIntent(
-                    label = "LunaBeat（编辑元数据）",
+                    label = context.getString(R.string.settings_editor_lunabeat_metadata),
                     component = ComponentName("com.example.LyricBox", "com.example.LyricBox.SongMetadataEditActivity")
                 )
             ),
@@ -239,8 +241,8 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
         ),
         TagEditorOption(
             id = TagEditorOptionIds.LUNABEAT_LYRIC_TIMING,
-            label = "LunaBeat（歌词打轴）",
-            summary = "打开 LunaBeat 的歌词打轴页面",
+            label = context.getString(R.string.settings_editor_lunabeat_lyric_timing),
+            summary = context.getString(R.string.tag_editor_lunabeat_lyric_timing_summary),
             kind = TagEditorOptionKind.LyricTiming,
             intents = listOf(
                 lunaBeatIntent(
@@ -250,7 +252,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                     ComponentName("com.example.lyricbox", "com.example.LyricBox.LyricTimingActivity")
                 ),
                 lunaBeatSendIntent(
-                    label = "LunaBeat（歌词打轴）",
+                    label = context.getString(R.string.settings_editor_lunabeat_lyric_timing),
                     component = ComponentName("com.example.LyricBox", "com.example.LyricBox.LyricTimingActivity")
                 )
             ),
@@ -258,13 +260,13 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
         ),
         TagEditorOption(
             id = TagEditorOptionIds.MUSIC_TAG,
-            label = "音乐标签",
-            summary = "通过 content Uri 交给音乐标签编辑",
+            label = context.getString(R.string.settings_editor_music_tag),
+            summary = context.getString(R.string.tag_editor_music_tag_summary),
             kind = TagEditorOptionKind.Metadata,
             intents = listOf(
                 musicTagFilePathIntent(),
                 tagEditorIntent(
-                    label = "音乐标签",
+                    label = context.getString(R.string.settings_editor_music_tag),
                     action = Intent.ACTION_VIEW,
                     component = musicTagComponent,
                     dataUri = musicTagEditUri,
@@ -273,7 +275,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                     includeStreamExtra = false
                 ),
                 tagEditorIntent(
-                    label = "音乐标签",
+                    label = context.getString(R.string.settings_editor_music_tag),
                     action = Intent.ACTION_VIEW,
                     packageName = "com.xjcheng.musictageditor",
                     dataUri = musicTagEditUri,
@@ -282,7 +284,7 @@ fun buildTagEditorOptions(context: Context, song: Song): List<TagEditorOption> {
                     includeStreamExtra = false
                 ),
                 tagEditorIntent(
-                    label = "音乐标签",
+                    label = context.getString(R.string.settings_editor_music_tag),
                     action = Intent.ACTION_SEND,
                     packageName = "com.xjcheng.musictageditor",
                     dataUri = musicTagEditUri,
@@ -333,7 +335,7 @@ fun launchTagEditorOption(context: Context, option: TagEditorOption) {
         }.getOrDefault(false)
     }
     if (!launched) {
-        Toast.makeText(context, "无法打开标签编辑器", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, R.string.tag_editor_open_failed, Toast.LENGTH_SHORT).show()
     }
 }
 

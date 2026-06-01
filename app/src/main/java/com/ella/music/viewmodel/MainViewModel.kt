@@ -188,7 +188,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (includeAlbumArtists) {
             currentAlbums.forEach { album ->
-                splitArtistNames(album.albumArtist.ifBlank { album.artist }).forEach { rawName ->
+                splitArtistNames(album.albumArtist).forEach { rawName ->
                     val key = rawName.tagIdentityKey()
                     counts.getOrPut(key) { ArtistAccumulator(rawName) }
                     if (album.id > 0L) {
@@ -341,6 +341,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun getFiveStarSongs(): List<Song> = withContext(Dispatchers.IO) {
         songs.value.filter { repository.getSongRating(it) >= 5 }
     }
+
+    fun getSongRating(song: Song): Int = repository.getSongRating(song)
+
+    suspend fun writeSongRating(song: Song, rating: Int): Result<Song?> =
+        repository.writeSongRating(song, rating)
+
+    suspend fun writeSongCustomTag(song: Song, key: String, value: String): Result<Song?> =
+        repository.writeSongCustomTag(song, key, value)
 
     suspend fun interpretSongWithOpenAi(song: Song): String = withContext(Dispatchers.IO) {
         val lyricSourceMode = settingsManager.lyricSourceMode.first()

@@ -137,6 +137,7 @@ class PlaybackService : MediaLibraryService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
+        player.repeatMode = Player.REPEAT_MODE_ALL
         PlaybackAudioSession.update(player.audioSessionId)
         player.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -333,7 +334,7 @@ class PlaybackService : MediaLibraryService() {
             )
 
             else -> MediaButtonPlaybackModeAction(
-                icon = R.drawable.ic_repeat,
+                icon = R.drawable.ic_playback_order,
                 title = getString(R.string.notification_action_order)
             )
         }
@@ -782,7 +783,7 @@ class PlaybackService : MediaLibraryService() {
                 )
 
                 else -> PlaybackModeAction(
-                    icon = R.drawable.ic_repeat,
+                    icon = R.drawable.ic_playback_order,
                     title = service.getString(R.string.notification_action_order)
                 )
             }

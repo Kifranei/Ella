@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.model.Artist
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.LibrarySortUiState
@@ -123,7 +124,7 @@ fun ArtistListScreen(
         buildMap {
             if (!showAlbumArtists) return@buildMap
             albums.forEach { album ->
-                splitArtistNames(album.albumArtist.ifBlank { album.artist }).forEach { artistName ->
+                splitArtistNames(album.albumArtist).forEach { artistName ->
                     val key = artistName.tagIdentityKey()
                     put(key, (get(key) ?: 0) + 1)
                 }
@@ -445,9 +446,5 @@ private fun Song.prefersEmbeddedArtistCover(): Boolean {
 }
 
 private fun Long.formatArtistDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+    return formatPlaybackDuration()
 }

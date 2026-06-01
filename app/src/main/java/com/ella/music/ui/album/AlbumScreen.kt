@@ -36,9 +36,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.Album
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AlbumCard
@@ -64,6 +66,7 @@ import top.yukonga.miuix.kmp.icon.extended.Sort
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import android.icu.text.Transliterator
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
 import java.util.Locale
 
 @Composable
@@ -128,13 +131,13 @@ fun AlbumScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = "专辑",
+                title = stringResource(R.string.tab_album),
                 color = ellaPageBackground(),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -144,7 +147,7 @@ fun AlbumScreen(
                     IconButton(onClick = { sortExpanded = !sortExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
+                            contentDescription = stringResource(R.string.common_sort),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -152,7 +155,7 @@ fun AlbumScreen(
                     IconButton(onClick = { searchExpanded = !searchExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = "搜索",
+                            contentDescription = stringResource(R.string.common_search),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -192,7 +195,7 @@ fun AlbumScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = mode.label,
+                            text = stringResource(mode.labelRes),
                             fontSize = 14.sp,
                             fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
                             color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
@@ -207,7 +210,7 @@ fun AlbumScreen(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onSearch = { searchExpanded = false },
-                placeholder = "搜索专辑或艺术家",
+                placeholder = stringResource(R.string.album_search_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -220,7 +223,7 @@ fun AlbumScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "未找到专辑",
+                    text = stringResource(R.string.album_empty),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
@@ -243,7 +246,11 @@ fun AlbumScreen(
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
-                        text = "${sortedAlbums.size} 张专辑 · ${sortMode.label}",
+                        text = stringResource(
+                            R.string.album_list_summary,
+                            sortedAlbums.size,
+                            stringResource(sortMode.labelRes)
+                        ),
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -264,7 +271,7 @@ fun AlbumScreen(
                                 albumArtUri = mainViewModel.getAlbumArtUri(album.artAlbumId),
                                 representativeSong = mainViewModel.getSongsForAlbum(album.id).firstOrNull(),
                                 loadCoverArt = mainViewModel::getAlbumCoverArtBitmap,
-                                summary = album.summaryForSort(sortMode, albumDurations[album.id] ?: 0L),
+                                summary = album.summaryForSort(context, sortMode, albumDurations[album.id] ?: 0L),
                                 onClick = { onAlbumClick(album.id) },
                                 onLongClick = {
                                     val ok = requestPinnedEllaShortcut(
@@ -275,7 +282,11 @@ fun AlbumScreen(
                                     )
                                     Toast.makeText(
                                         context,
-                                        if (ok) "已请求添加桌面快捷方式" else "当前桌面不支持固定快捷方式",
+                                        if (ok) {
+                                            context.getString(R.string.playlist_shortcut_requested, album.name)
+                                        } else {
+                                            context.getString(R.string.playlist_shortcut_unsupported)
+                                        },
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -312,20 +323,20 @@ fun AlbumScreen(
     }
 }
 
-private enum class AlbumSortMode(val label: String) {
-    Name("专辑名"),
-    Artist("艺术家名"),
-    SongCount("歌曲数"),
-    Duration("歌曲时长"),
-    YearAsc("发行时间正序"),
-    YearDesc("发行时间倒序")
+private enum class AlbumSortMode(val labelRes: Int) {
+    Name(R.string.album_sort_name),
+    Artist(R.string.album_sort_artist),
+    SongCount(R.string.playlist_sort_song_count),
+    Duration(R.string.playlist_song_sort_duration),
+    YearAsc(R.string.playlist_song_sort_year_asc),
+    YearDesc(R.string.playlist_song_sort_year_desc)
 }
 
-private fun Album.summaryForSort(sortMode: AlbumSortMode, duration: Long): String {
+private fun Album.summaryForSort(context: android.content.Context, sortMode: AlbumSortMode, duration: Long): String {
     val first = if (sortMode == AlbumSortMode.Duration) {
-        duration.formatAlbumDuration()
+        duration.formatAlbumDuration(context)
     } else {
-        "${songCount} 首歌曲"
+        context.getString(R.string.song_count, songCount)
     }
     return buildList {
         add(first)
@@ -335,12 +346,8 @@ private fun Album.summaryForSort(sortMode: AlbumSortMode, duration: Long): Strin
     }.joinToString(" · ")
 }
 
-private fun Long.formatAlbumDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+private fun Long.formatAlbumDuration(context: android.content.Context): String {
+    return formatPlaybackDuration()
 }
 
 private fun Album.indexLetter(): String {

@@ -7,13 +7,14 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -48,18 +48,17 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,6 +99,7 @@ fun LyricView(
     }
 
     val listState = rememberLazyListState()
+    val density = LocalDensity.current
 
     LaunchedEffect(currentIndex) {
         if (currentIndex >= 0 && currentIndex < lyrics.size) {
@@ -240,7 +240,6 @@ fun WordLyricView(
     }
 
     val listState = rememberLazyListState()
-    val density = LocalDensity.current
     val safeHorizontalPadding = horizontalPadding.coerceAtLeast(0.dp)
     val safeLineHorizontalPadding = lineHorizontalPadding.coerceAtLeast(0.dp)
     var userBrowsing by remember { mutableStateOf(false) }
@@ -299,7 +298,7 @@ fun WordLyricView(
                 }
             }
             .padding(horizontal = safeHorizontalPadding),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item { Box(modifier = Modifier.height(topSpacer)) }
 
@@ -321,76 +320,67 @@ fun WordLyricView(
                 index < currentIndex -> currentIndex - index
                 else -> index - currentIndex
             }
-            val depthEnabled = perspectiveEffect && !userBrowsing && currentIndex >= 0
-            val targetAlpha = if (depthEnabled) {
-                when {
-                    isActive -> 1f
-                    distance == 1 -> 0.55f
-                    distance == 2 -> 0.32f
-                    else -> 0.18f
-                }
-            } else {
-                when {
-                    userBrowsing -> 0.92f
-                    isActive -> 1f
-                    distance == 1 -> 0.66f
-                    distance == 2 -> 0.46f
-                    else -> 0.30f
+            val lineAlphaTarget = when {
+                userBrowsing -> 0.92f
+                isActive -> 1f
+                distance == 1 -> 0.54f
+                distance == 2 -> 0.32f
+                else -> 0.18f
+            }
+            val lineScaleTarget = when {
+                userBrowsing -> 1f
+                isActive -> 1.018f
+                distance == 1 -> 0.972f
+                distance == 2 -> 0.94f
+                else -> 0.92f
+            }
+            val lineBlurTarget = when {
+                userBrowsing || isActive -> 0f
+                !perspectiveEffect -> 0f
+                index < currentIndex -> 1.2f
+                else -> (distance * 1.35f).coerceAtMost(4.2f)
+            }
+            val perspectiveRotationTarget = when {
+                userBrowsing || isActive || !perspectiveEffect || currentIndex < 0 -> 0f
+                else -> {
+                    val direction = if (index < currentIndex) -1f else 1f
+                    direction * distance.coerceAtMost(5) * 1.25f
                 }
             }
-            val targetScale = if (depthEnabled) {
-                when {
-                    isActive -> 1.04f
-                    distance == 1 -> 0.975f
-                    distance == 2 -> 0.94f
-                    else -> 0.91f
-                }
-            } else {
-                when {
-                    userBrowsing -> 1f
-                    isActive -> 1.012f
-                    distance == 1 -> 0.982f
-                    distance == 2 -> 0.96f
-                    else -> 0.94f
+            val perspectiveOffsetTarget = when {
+                userBrowsing || isActive || !perspectiveEffect || currentIndex < 0 -> 0f
+                else -> {
+                    val direction = if (index < currentIndex) -1f else 1f
+                    direction * distance.coerceAtMost(5) * 3.2f
                 }
             }
             val lineAlpha by animateFloatAsState(
-                targetValue = targetAlpha,
+                targetValue = lineAlphaTarget,
                 animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
                 label = "lyric_line_alpha"
             )
-            val scale by animateFloatAsState(
-                targetValue = targetScale,
+            val lineScale by animateFloatAsState(
+                targetValue = lineScaleTarget,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
                     stiffness = Spring.StiffnessMediumLow
                 ),
                 label = "lyric_line_scale"
             )
-            val blur = if (depthEnabled) {
-                when {
-                    isActive || userBrowsing -> 0f
-                    distance == 1 -> 0.8f
-                    distance == 2 -> 1.15f
-                    else -> 1.35f
-                }
-            } else {
-                when {
-                    userBrowsing || isActive -> 0f
-                    distance == 1 -> 0.35f
-                    distance == 2 -> 0.7f
-                    else -> 1.0f
-                }
-            }
-            val depthOffsetY by animateFloatAsState(
-                targetValue = if (depthEnabled && !isActive) {
-                    val direction = if (index < currentIndex) -1f else 1f
-                    direction * distance.coerceAtMost(4) * 4f
-                } else {
-                    0f
-                },
+            val lineBlur by animateFloatAsState(
+                targetValue = lineBlurTarget,
                 animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
-                label = "lyric_line_depth_offset_y"
+                label = "lyric_line_blur"
+            )
+            val perspectiveRotation by animateFloatAsState(
+                targetValue = perspectiveRotationTarget,
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                label = "lyric_line_perspective_rotation"
+            )
+            val perspectiveOffset by animateFloatAsState(
+                targetValue = perspectiveOffsetTarget,
+                animationSpec = tween(durationMillis = 420, easing = FastOutSlowInEasing),
+                label = "lyric_line_perspective_offset"
             )
 
             Column(
@@ -398,13 +388,14 @@ fun WordLyricView(
                     .fillMaxWidth()
                     .graphicsLayer {
                         alpha = lineAlpha
-                        scaleX = scale
-                        scaleY = scale
+                        scaleX = lineScale
+                        scaleY = lineScale
+                        rotationX = perspectiveRotation
+                        translationY = with(density) { perspectiveOffset.dp.toPx() }
                         transformOrigin = lineTransformOrigin
-                        translationY = with(density) { depthOffsetY.dp.toPx() }
                         clip = false
                     }
-                    .blur(blur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
+                    .blur(lineBlur.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
                     .pointerInput(line) {
                         detectTapGestures(
                             onTap = { onLineClick(line) },
@@ -414,7 +405,7 @@ fun WordLyricView(
                     }
                     .padding(
                         horizontal = safeLineHorizontalPadding,
-                        vertical = if (isActive) 10.dp else 8.dp
+                        vertical = if (isActive) 6.dp else 2.dp
                     ),
                 horizontalAlignment = lineAlignment
             ) {
@@ -424,35 +415,19 @@ fun WordLyricView(
                         index < currentIndex -> Color.White.copy(alpha = 0.28f)
                         else -> Color.White.copy(alpha = 0.40f)
                     }
-                    if (isActive && !line.pronunciation.isNullOrBlank() && line.pronunciationWords.isNotEmpty()) {
-                        WordLine(
-                            displayText = displayPronunciation,
-                            words = line.pronunciationWords,
-                            currentPositionMs = smoothPositionMs,
-                            textAlign = lineTextAlign,
-                            fontSizeSp = scaledLyricFontSp(12, fontScale, minSp = 9),
-                            fontFamily = fontFamily,
-                            fontWeight = fontWeight.softenedLyricWeight(),
-                            currentColor = Color.White.copy(alpha = 0.82f),
-                            sungColor = Color.White.copy(alpha = 0.62f),
-                            pendingColor = Color.White.copy(alpha = 0.42f),
-                            modifier = Modifier.padding(bottom = 1.dp)
-                        )
-                    } else {
-                        Text(
-                            text = displayPronunciation.lineBreakSafeText(),
-                            fontSize = fittedLyricFontSp(displayPronunciation, scaledLyricFontSp(if (isActive) 14 else 11, fontScale, minSp = 9), minSp = 9).sp,
-                            fontFamily = fontFamily,
-                            color = pronunciationColor,
-                            textAlign = lineTextAlign,
-                            maxLines = if (isActive) 3 else 2,
-                            softWrap = true,
-                            overflow = TextOverflow.Clip,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 2.dp)
-                        )
-                    }
+                    Text(
+                        text = displayPronunciation.lineBreakSafeText(),
+                        fontSize = fittedLyricFontSp(displayPronunciation, scaledLyricFontSp(if (isActive) 14 else 11, fontScale, minSp = 9), minSp = 9).sp,
+                        fontFamily = fontFamily,
+                        color = pronunciationColor,
+                        textAlign = lineTextAlign,
+                        maxLines = if (isActive) 3 else 2,
+                        softWrap = true,
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 2.dp)
+                    )
                 }
                 if (!backgroundAfterMain) {
                     WordBackgroundLyricBlock(
@@ -468,54 +443,35 @@ fun WordLyricView(
                         fontWeight = fontWeight
                     )
                 }
-                if (line.words.isNotEmpty() && isActive) {
-                    WordLine(
-                        displayText = line.text,
-                        words = line.words,
-                        currentPositionMs = smoothPositionMs,
-                        textAlign = lineTextAlign,
-                        fontSizeSp = fittedLyricFontSp(line.text, scaledLyricFontSp(32, fontScale, minSp = 9), minSp = 9),
-                        fontFamily = fontFamily,
-                        fontWeight = fontWeight,
-                        currentColor = Color.White,
-                        sungColor = Color.White.copy(alpha = 0.76f),
-                        pendingColor = Color.White.copy(alpha = 0.46f),
-                        glowColor = Color.White.copy(alpha = 0.36f)
-                    )
-                } else {
-                    val textColor = when {
-                        isActive -> Color.White.copy(alpha = 0.90f)
-                        index < currentIndex -> Color.White.copy(alpha = 0.44f)
-                        else -> Color.White.copy(alpha = 0.70f)
-                    }
-                    Text(
-                        text = line.text.ifBlank { "♪" }.lineBreakSafeText(),
-                        fontSize = fittedLyricFontSp(line.text, scaledLyricFontSp(if (isActive) 32 else 22, fontScale, minSp = if (isActive) 9 else 8), minSp = if (isActive) 9 else 8).sp,
-                        fontFamily = fontFamily,
-                        fontWeight = if (isActive) fontWeight else fontWeight.softenedLyricWeight(),
-                        color = textColor,
-                        textAlign = lineTextAlign,
-                        maxLines = if (isActive) 4 else 3,
-                        softWrap = true,
-                        overflow = TextOverflow.Clip,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = if (isActive) 4.dp else 0.dp)
-                    )
-                }
+                WordTimedText(
+                    text = line.text.ifBlank { "♪" },
+                    words = line.words,
+                    positionMs = smoothPositionMs,
+                    isActive = isActive,
+                    isPastLine = index < currentIndex,
+                    fontSizeSp = fittedLyricFontSp(line.text, scaledLyricFontSp(if (isActive) 32 else 22, fontScale, minSp = 9), minSp = 9),
+                    fontFamily = fontFamily,
+                    fontWeight = if (isActive) fontWeight else fontWeight.softenedLyricWeight(),
+                    activeFontWeight = fontWeight,
+                    textAlign = lineTextAlign,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 if (showTranslation && !displayTranslation.isNullOrBlank()) {
-                    val translationColor = when {
-                        isActive -> Color.White.copy(alpha = 0.72f)
-                        index < currentIndex -> Color.White.copy(alpha = 0.38f)
-                        else -> Color.White.copy(alpha = 0.58f)
-                    }
+                    val translationColor = Color.White.copy(alpha = 0.58f)
                     Text(
                         text = displayTranslation.lineBreakSafeText(),
-                        fontSize = fittedLyricFontSp(displayTranslation, scaledLyricFontSp(if (isActive) 18 else 13, fontScale, minSp = 8), minSp = 8).sp,
+                    fontSize = fittedLyricFontSp(displayTranslation, scaledLyricFontSp(if (isActive) 18 else 13, fontScale, minSp = 8), minSp = 8).sp,
                         fontFamily = fontFamily,
-                        color = translationColor,
+                    color = if (isActive) {
+                        Color.White.copy(alpha = 0.72f)
+                    } else if (index < currentIndex) {
+                        Color.White.copy(alpha = 0.38f)
+                    } else {
+                        translationColor
+                    },
                         textAlign = lineTextAlign,
-                        maxLines = if (isActive) 3 else 2,
+                        maxLines = 3,
                         softWrap = true,
                         overflow = TextOverflow.Clip,
                         modifier = Modifier
@@ -551,177 +507,6 @@ fun WordLyricView(
 
         item { Box(modifier = Modifier.height(bottomSpacer)) }
     }
-}
-
-@Composable
-private fun WordLine(
-    displayText: String,
-    words: List<LyricWord>,
-    currentPositionMs: Long,
-    textAlign: TextAlign,
-    modifier: Modifier = Modifier,
-    fontSizeSp: Int = 18,
-    fontFamily: FontFamily? = null,
-    fontWeight: FontWeight = FontWeight.ExtraBold,
-    currentColor: Color = Color.White,
-    sungColor: Color = Color.White.copy(alpha = 0.92f),
-    pendingColor: Color = Color.White.copy(alpha = 0.38f),
-    glowColor: Color = Color.White.copy(alpha = 0.28f)
-) {
-    val text = remember(displayText, words) {
-        displayText.ifBlank { words.joinToString("") { it.text } }.ifBlank { "♪" }.lineBreakSafeText()
-    }
-    val annotatedText = remember(text, words, currentPositionMs, currentColor, sungColor, pendingColor, glowColor, fontFamily, fontWeight) {
-        buildAnnotatedString {
-            var appended = false
-            words.forEach { word ->
-                val wordText = word.text.lineBreakSafeText()
-                if (wordText.isEmpty()) return@forEach
-                appendTimedLyricWord(
-                    text = wordText,
-                    startMs = word.startMs,
-                    endMs = word.endMs,
-                    currentPositionMs = currentPositionMs,
-                    currentColor = currentColor,
-                    sungColor = sungColor,
-                    pendingColor = pendingColor,
-                    glowColor = glowColor,
-                    fontFamily = fontFamily,
-                    fontWeight = fontWeight,
-                    inactiveWeight = fontWeight.softenedLyricWeight()
-                )
-                appended = true
-            }
-            if (!appended) append(text)
-        }
-    }
-
-    BasicText(
-        text = annotatedText,
-        style = TextStyle(
-            color = pendingColor,
-            fontSize = fontSizeSp.sp,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            textAlign = textAlign
-        ),
-        maxLines = 4,
-        overflow = TextOverflow.Clip,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp)
-    )
-}
-
-private fun AnnotatedString.Builder.appendTimedLyricWord(
-    text: String,
-    startMs: Long,
-    endMs: Long,
-    currentPositionMs: Long,
-    currentColor: Color,
-    sungColor: Color,
-    pendingColor: Color,
-    glowColor: Color,
-    fontFamily: FontFamily?,
-    fontWeight: FontWeight,
-    inactiveWeight: FontWeight
-) {
-    val durationMs = (endMs - startMs).coerceAtLeast(1L)
-    val isCurrent = currentPositionMs in startMs until endMs
-    val isSung = currentPositionMs >= endMs
-    when {
-        isCurrent -> {
-            val progress = ((currentPositionMs - startMs).toFloat() / durationMs).coerceIn(0f, 1f)
-            val useSweep = text.trim().length > 2
-            appendStyledLyricText(
-                value = text,
-                color = currentColor,
-                fontWeight = fontWeight,
-                brush = if (useSweep) {
-                    lyricSweepBrush(
-                        progress = progress,
-                        activeColor = currentColor,
-                        pendingColor = pendingColor
-                    )
-                } else {
-                    null
-                },
-                fontFamily = fontFamily,
-                shadow = if (useSweep) {
-                    Shadow(
-                        color = glowColor.copy(alpha = glowColor.alpha * 0.42f * lyricGlowAlpha(progress)),
-                        blurRadius = lyricGlowRadius(progress)
-                    )
-                } else {
-                    null
-                }
-            )
-        }
-        isSung -> appendStyledLyricText(text, sungColor, inactiveWeight, fontFamily)
-        else -> appendStyledLyricText(text, pendingColor, inactiveWeight, fontFamily)
-    }
-}
-
-private fun AnnotatedString.Builder.appendStyledLyricText(
-    value: String,
-    color: Color,
-    fontWeight: FontWeight,
-    fontFamily: FontFamily? = null,
-    brush: Brush? = null,
-    shadow: Shadow? = null
-) {
-    if (value.isEmpty()) return
-    val style = if (brush != null) {
-        SpanStyle(
-            brush = brush,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            shadow = shadow
-        )
-    } else {
-        SpanStyle(
-            color = color,
-            fontFamily = fontFamily,
-            fontWeight = fontWeight,
-            shadow = shadow
-        )
-    }
-    pushStyle(
-        style
-    )
-    append(value)
-    pop()
-}
-
-private fun lyricSweepBrush(
-    progress: Float,
-    activeColor: Color,
-    pendingColor: Color
-): Brush {
-    val edge = progress.coerceIn(0.002f, 0.998f)
-    val featherStart = (edge - LYRIC_SWEEP_FEATHER_FRACTION).coerceAtLeast(0f)
-    return Brush.horizontalGradient(
-        colorStops = arrayOf(
-            0f to activeColor,
-            featherStart to activeColor,
-            edge to pendingColor,
-            1f to pendingColor
-        )
-    )
-}
-
-private fun lyricGlowAlpha(progress: Float): Float {
-    val p = progress.coerceIn(0f, 1f)
-    val attack = (p / 0.28f).coerceIn(0f, 1f)
-    val release = ((1f - p) / 0.22f).coerceIn(0f, 1f)
-    return (LYRIC_GLOW_PRE_PLAY_ALPHA + (LYRIC_GLOW_MAX_ALPHA - LYRIC_GLOW_PRE_PLAY_ALPHA) * attack)
-        .coerceAtMost(release)
-        .coerceIn(LYRIC_GLOW_PRE_PLAY_ALPHA, LYRIC_GLOW_MAX_ALPHA)
-}
-
-private fun lyricGlowRadius(progress: Float): Float {
-    val centerWeight = 1f - kotlin.math.abs(progress.coerceIn(0f, 1f) - 0.5f) * 2f
-    return 1.4f + centerWeight * 2.2f
 }
 
 @Composable
@@ -767,6 +552,95 @@ private fun rememberSmoothLyricPosition(
 
 private fun LyricLine.lyricRenderKey(): String =
     "$timeMs|$endMs|$text|$backgroundText"
+
+@Composable
+private fun WordTimedText(
+    text: String,
+    words: List<LyricWord>,
+    positionMs: Long,
+    isActive: Boolean,
+    isPastLine: Boolean,
+    fontSizeSp: Int,
+    fontFamily: FontFamily?,
+    fontWeight: FontWeight,
+    activeFontWeight: FontWeight,
+    textAlign: TextAlign,
+    maxLines: Int,
+    modifier: Modifier = Modifier
+) {
+    val baseColor = when {
+        isActive -> Color.White.copy(alpha = 0.92f)
+        isPastLine -> Color.White.copy(alpha = 0.44f)
+        else -> Color.White.copy(alpha = 0.70f)
+    }
+    val annotatedText = remember(text, words, positionMs, isActive, isPastLine, fontWeight, activeFontWeight) {
+        buildWordTimedAnnotatedString(
+            text = text.lineBreakSafeText(),
+            words = words,
+            positionMs = positionMs,
+            isActive = isActive,
+            baseColor = baseColor,
+            inactiveFutureColor = Color.White.copy(alpha = 0.36f),
+            currentWordColor = Color.White,
+            fontWeight = fontWeight,
+            activeFontWeight = activeFontWeight
+        )
+    }
+    BasicText(
+        text = annotatedText,
+        modifier = modifier,
+        style = TextStyle(
+            color = baseColor,
+            fontSize = fontSizeSp.sp,
+            fontFamily = fontFamily,
+            fontWeight = fontWeight,
+            textAlign = textAlign
+        ),
+        maxLines = maxLines,
+        softWrap = true,
+        overflow = TextOverflow.Clip
+    )
+}
+
+private fun buildWordTimedAnnotatedString(
+    text: String,
+    words: List<LyricWord>,
+    positionMs: Long,
+    isActive: Boolean,
+    baseColor: Color,
+    inactiveFutureColor: Color,
+    currentWordColor: Color,
+    fontWeight: FontWeight,
+    activeFontWeight: FontWeight
+): AnnotatedString {
+    val displayWords = words.filter { it.text.isNotBlank() }
+    if (!isActive || displayWords.isEmpty()) {
+        return AnnotatedString(text)
+    }
+
+    return buildAnnotatedString {
+        displayWords.forEach { word ->
+            val wordText = word.text.lineBreakSafeText()
+            val style = when {
+                positionMs < word.startMs -> SpanStyle(
+                    color = inactiveFutureColor,
+                    fontWeight = fontWeight
+                )
+                positionMs <= word.endMs -> SpanStyle(
+                    color = currentWordColor,
+                    fontWeight = activeFontWeight
+                )
+                else -> SpanStyle(
+                    color = baseColor,
+                    fontWeight = activeFontWeight
+                )
+            }
+            pushStyle(style)
+            append(wordText)
+            pop()
+        }
+    }
+}
 
 @Composable
 private fun SimpleBackgroundLyricBlock(
@@ -827,37 +701,20 @@ private fun WordBackgroundLyricBlock(
                     index < currentIndex -> Color.White.copy(alpha = 0.28f)
                     else -> Color.White.copy(alpha = 0.42f)
                 }
-                if (isActive && line.backgroundWords.isNotEmpty()) {
-                    WordLine(
-                        displayText = line.backgroundText.orEmpty(),
-                        words = line.backgroundWords,
-                        currentPositionMs = smoothPositionMs,
-                        textAlign = backgroundTextAlign,
-                        fontSizeSp = fittedLyricFontSp(line.backgroundText.orEmpty(), scaledLyricFontSp(22, fontScale, minSp = 8), minSp = 8),
-                        fontFamily = fontFamily,
-                        fontWeight = fontWeight,
-                        currentColor = Color.White.copy(alpha = 0.78f),
-                        sungColor = Color.White.copy(alpha = 0.58f),
-                        pendingColor = Color.White.copy(alpha = 0.36f),
-                        glowColor = Color.White.copy(alpha = 0.22f),
-                        modifier = Modifier.padding(top = 3.dp)
-                    )
-                } else {
-                    Text(
-                        text = line.backgroundText.orEmpty().lineBreakSafeText(),
-                        fontSize = fittedLyricFontSp(line.backgroundText.orEmpty(), scaledLyricFontSp(if (isActive) 22 else 13, fontScale, minSp = 8), minSp = 8).sp,
-                        fontFamily = fontFamily,
-                        fontWeight = if (isActive) fontWeight else fontWeight.softenedLyricWeight(),
-                        color = backgroundColor,
-                        textAlign = backgroundTextAlign,
-                        maxLines = if (isActive) 3 else 2,
-                        softWrap = true,
-                        overflow = TextOverflow.Clip,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 3.dp)
-                    )
-                }
+                Text(
+                    text = line.backgroundText.orEmpty().lineBreakSafeText(),
+                    fontSize = fittedLyricFontSp(line.backgroundText.orEmpty(), scaledLyricFontSp(16, fontScale, minSp = 8), minSp = 8).sp,
+                    fontFamily = fontFamily,
+                    fontWeight = fontWeight.softenedLyricWeight(),
+                    color = backgroundColor,
+                    textAlign = backgroundTextAlign,
+                    maxLines = 3,
+                    softWrap = true,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 3.dp)
+                )
             }
             val displayBackgroundTranslation = line.displayBackgroundTranslationText()
             if (showTranslation && !displayBackgroundTranslation.isNullOrBlank()) {
@@ -868,12 +725,12 @@ private fun WordBackgroundLyricBlock(
                 }
                 Text(
                     text = displayBackgroundTranslation.lineBreakSafeText(),
-                    fontSize = fittedLyricFontSp(displayBackgroundTranslation, scaledLyricFontSp(if (isActive) 12 else 10, fontScale, minSp = 8), minSp = 8).sp,
+                    fontSize = fittedLyricFontSp(displayBackgroundTranslation, scaledLyricFontSp(10, fontScale, minSp = 8), minSp = 8).sp,
                     fontFamily = fontFamily,
                     fontWeight = fontWeight.softenedLyricWeight(),
                     color = backgroundTranslationColor,
                     textAlign = backgroundTextAlign,
-                    maxLines = if (isActive) 3 else 2,
+                    maxLines = 3,
                     softWrap = true,
                     overflow = TextOverflow.Clip,
                     modifier = Modifier
@@ -897,9 +754,6 @@ private fun LyricLine.isBackgroundVisibleAt(positionMs: Long): Boolean {
     return positionMs >= start && (end == null || positionMs <= end)
 }
 
-private const val LYRIC_SWEEP_FEATHER_FRACTION = 0.045f
-private const val LYRIC_GLOW_PRE_PLAY_ALPHA = 0.22f
-private const val LYRIC_GLOW_MAX_ALPHA = 1f
 private val LYRIC_EDGE_GUARD_DP = 10.dp
 
 private const val USER_BROWSING_TIMEOUT_MS = 3_600L

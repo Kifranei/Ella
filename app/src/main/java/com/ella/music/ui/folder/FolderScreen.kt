@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +58,7 @@ import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.FolderOutlineIcon
+import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.ellaPageBackground
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
@@ -69,9 +71,12 @@ import com.ella.music.ui.components.EllaSmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import androidx.compose.ui.window.Dialog
+import com.ella.music.R
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.basic.ArrowRight
+import top.yukonga.miuix.kmp.icon.basic.Check
 import top.yukonga.miuix.kmp.icon.basic.Search
 import top.yukonga.miuix.kmp.icon.extended.Add
 import top.yukonga.miuix.kmp.icon.extended.Back
@@ -100,6 +105,7 @@ fun FolderScreen(
     onFolderClick: (String) -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
@@ -136,13 +142,13 @@ fun FolderScreen(
     ) {
         Box {
             EllaSmallTopAppBar(
-                title = "文件夹",
+                title = stringResource(R.string.tab_folder),
                 color = ellaPageBackground(),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Back,
-                            contentDescription = "返回",
+                            contentDescription = stringResource(R.string.common_back),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -152,7 +158,7 @@ fun FolderScreen(
                     IconButton(onClick = { sortExpanded = !sortExpanded }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Sort,
-                            contentDescription = "排序",
+                            contentDescription = stringResource(R.string.common_sort),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -163,7 +169,7 @@ fun FolderScreen(
                     }) {
                         Icon(
                             imageVector = MiuixIcons.Basic.Search,
-                            contentDescription = "搜索",
+                            contentDescription = stringResource(R.string.common_search),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -171,7 +177,7 @@ fun FolderScreen(
                     IconButton(onClick = onNavigateToScanSettings) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Settings,
-                            contentDescription = "扫描设置",
+                            contentDescription = stringResource(R.string.folder_scan_settings),
                             tint = MiuixTheme.colorScheme.onSurface,
                             modifier = Modifier.size(24.dp)
                         )
@@ -196,7 +202,7 @@ fun FolderScreen(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onSearch = { searchExpanded = false },
-                placeholder = "搜索文件夹",
+                placeholder = stringResource(R.string.folder_search_placeholder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -229,7 +235,7 @@ fun FolderScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = mode.label,
+                            text = stringResource(mode.labelRes),
                             fontSize = 14.sp,
                             fontWeight = if (folderSortMode == mode) FontWeight.Bold else FontWeight.Normal,
                             color = if (folderSortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
@@ -276,9 +282,9 @@ fun FolderScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = if (blockedFolders.isNotEmpty()) {
-                            "未找到音乐文件，可能已被屏蔽规则排除"
+                            stringResource(R.string.folder_empty_blocked_hint)
                         } else {
-                            "未找到音乐文件"
+                            stringResource(R.string.folder_empty)
                         },
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
@@ -291,7 +297,7 @@ fun FolderScreen(
                         add(
                             FolderTreeEntry(
                                 path = rootFolderPath,
-                                name = rootFolderPath.substringAfterLast('/').ifBlank { "根目录" },
+                                name = rootFolderPath.substringAfterLast('/').ifBlank { context.getString(R.string.folder_root) },
                                 songCount = rootSongs.size,
                                 albumCount = rootSongs.map { it.albumIdentityId() }.distinct().size,
                                 duration = rootSongs.sumOf { it.duration },
@@ -344,6 +350,7 @@ private fun FolderListRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -374,7 +381,7 @@ private fun FolderListRow(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${folder.summaryFor(sortMode)} · ${folder.path}",
+                text = "${folder.summaryFor(context, sortMode)} · ${folder.path}",
                 fontSize = 13.sp,
                 lineHeight = 17.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -405,7 +412,11 @@ fun ScanSettingsScreen(
     val useAndroidMediaLibrary by mainViewModel.settingsManager.useAndroidMediaLibrary.collectAsState(initial = true)
     val savedFolders = remember(scanIncludeFolders) { scanIncludeFolders.toFolderSettingList() }
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
+    val blockedFolderKeys = remember(blockedFolders) {
+        blockedFolders.map { it.normalizeFolderPath().lowercase(Locale.ROOT) }.toSet()
+    }
     var showBlockedDialog by remember { mutableStateOf(false) }
+    var pendingRemoveScanFolder by remember { mutableStateOf<String?>(null) }
 
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -420,7 +431,7 @@ fun ScanSettingsScreen(
             }
             val folderPath = uri.toPrimaryStoragePath()
             if (folderPath == null) {
-                Toast.makeText(context, "暂不支持该系统目录路径", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.unsupported_system_folder_path, Toast.LENGTH_SHORT).show()
             } else {
                 scope.launch {
                     mainViewModel.settingsManager.setUseAndroidMediaLibrary(false)
@@ -429,7 +440,7 @@ fun ScanSettingsScreen(
                     )
                     mainViewModel.scanMusic()
                 }
-                Toast.makeText(context, "已添加扫描文件夹", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.scan_folder_added, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -441,13 +452,13 @@ fun ScanSettingsScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = "扫描设置",
+            title = stringResource(R.string.folder_scan_settings),
             color = ellaPageBackground(),
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -457,7 +468,7 @@ fun ScanSettingsScreen(
                 IconButton(onClick = { if (!isScanning) mainViewModel.scanMusic() }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "全量扫描",
+                        contentDescription = stringResource(R.string.folder_full_scan),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -465,7 +476,7 @@ fun ScanSettingsScreen(
                 IconButton(onClick = { folderPicker.launch(null) }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Add,
-                        contentDescription = "添加自定义目录",
+                        contentDescription = stringResource(R.string.folder_add_custom_directory),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -497,13 +508,25 @@ fun ScanSettingsScreen(
             item {
                 SavedScanFoldersCard(
                     folders = savedFolders,
-                    onRemove = { folderPath ->
+                    hiddenFolders = blockedFolderKeys,
+                    onVisibilityChange = { folderPath, visible ->
                         scope.launch {
-                            mainViewModel.settingsManager.setScanIncludeFolders(
-                                savedFolders.filterNot { it == folderPath }.joinToString("；")
-                            )
+                            val normalizedPath = folderPath.normalizeFolderPath()
+                            val nextBlockedFolders = if (visible) {
+                                blockedFolders.filterNot {
+                                    it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
+                                }
+                            } else {
+                                (blockedFolders + normalizedPath).distinctBy {
+                                    it.normalizeFolderPath().lowercase(Locale.ROOT)
+                                }
+                            }
+                            mainViewModel.settingsManager.setScanExcludeFolders(nextBlockedFolders.joinToString("；"))
                             mainViewModel.scanMusic()
                         }
+                    },
+                    onRemove = { folderPath ->
+                        pendingRemoveScanFolder = folderPath
                     },
                     onScan = {
                         if (!isScanning) mainViewModel.scanMusic()
@@ -540,6 +563,33 @@ fun ScanSettingsScreen(
                 }
             )
         }
+
+        pendingRemoveScanFolder?.let { folderPath ->
+            ConfirmDangerDialog(
+                show = true,
+                title = stringResource(R.string.folder_remove_scan_folder_title),
+                message = stringResource(R.string.folder_remove_scan_folder_message, folderPath),
+                confirmText = stringResource(R.string.common_remove),
+                onDismiss = { pendingRemoveScanFolder = null },
+                onConfirm = {
+                    scope.launch {
+                        val normalizedPath = folderPath.normalizeFolderPath()
+                        mainViewModel.settingsManager.setScanIncludeFolders(
+                            savedFolders.filterNot {
+                                it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
+                            }.joinToString("；")
+                        )
+                        mainViewModel.settingsManager.setScanExcludeFolders(
+                            blockedFolders.filterNot {
+                                it.normalizeFolderPath().equals(normalizedPath, ignoreCase = true)
+                            }.joinToString("；")
+                        )
+                        mainViewModel.scanMusic()
+                    }
+                    pendingRemoveScanFolder = null
+                }
+            )
+        }
     }
 }
 
@@ -551,7 +601,11 @@ private fun ScanStatusCard(scanProgress: Int) {
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Text(
-            text = if (scanProgress > 0) "正在扫描 ${scanProgress} 首歌曲..." else "正在扫描音乐库...",
+            text = if (scanProgress > 0) {
+                stringResource(R.string.library_scanning_count, scanProgress)
+            } else {
+                stringResource(R.string.folder_scanning_library)
+            },
             fontSize = 14.sp,
             color = MiuixTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -572,11 +626,11 @@ private fun MediaSourceModeCard(
     ) {
         Column(modifier = Modifier.padding(vertical = 4.dp)) {
             SwitchPreference(
-                title = "使用 Android 媒体库",
+                title = stringResource(R.string.folder_use_android_media_library),
                 summary = if (useAndroidMediaLibrary) {
-                    "扫描系统媒体库中的所有音乐"
+                    stringResource(R.string.folder_scan_android_media_summary)
                 } else {
-                    "仅扫描已添加的 $customFolderCount 个自定义文件夹"
+                    stringResource(R.string.folder_scan_custom_folders_summary, customFolderCount)
                 },
                 checked = useAndroidMediaLibrary,
                 onCheckedChange = onUseAndroidMediaLibraryChange
@@ -585,13 +639,13 @@ private fun MediaSourceModeCard(
     }
 }
 
-private enum class FolderListSortMode(val label: String) {
-    Name("名称"),
-    SongCount("歌曲数"),
-    AlbumCount("专辑数"),
-    Duration("歌曲时长"),
-    DateModified("修改时间"),
-    DateModifiedAsc("修改时间升序")
+private enum class FolderListSortMode(val labelRes: Int) {
+    Name(R.string.playlist_sort_name),
+    SongCount(R.string.playlist_sort_song_count),
+    AlbumCount(R.string.folder_sort_album_count),
+    Duration(R.string.playlist_song_sort_duration),
+    DateModified(R.string.playlist_song_sort_date_modified),
+    DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc)
 }
 
 private fun List<FolderTreeEntry>.sortedForFolderList(
@@ -611,25 +665,22 @@ private fun List<FolderTreeEntry>.sortedForFolderList(
     return listOf(pinned) + sorted.filterNot { it.path.equals(pinnedPath, ignoreCase = true) }
 }
 
-private fun FolderTreeEntry.summaryFor(mode: FolderListSortMode): String {
+private fun FolderTreeEntry.summaryFor(context: android.content.Context, mode: FolderListSortMode): String {
     return when (mode) {
-        FolderListSortMode.Duration -> duration.formatFolderDuration()
-        FolderListSortMode.AlbumCount -> "${albumCount} 张专辑"
+        FolderListSortMode.Duration -> duration.formatFolderDuration(context)
+        FolderListSortMode.AlbumCount -> context.getString(R.string.album_count, albumCount)
         FolderListSortMode.DateModified,
-        FolderListSortMode.DateModifiedAsc -> dateModified.formatFolderDateTime()
-        else -> "${songCount} 首歌曲"
+        FolderListSortMode.DateModifiedAsc -> dateModified.formatFolderDateTime(context)
+        else -> context.getString(R.string.song_count, songCount)
     }
 }
 
-private fun Long.formatFolderDuration(): String {
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分钟" else "${minutes}分钟"
+private fun Long.formatFolderDuration(context: android.content.Context): String {
+    return formatPlaybackDuration()
 }
 
-private fun Long.formatFolderDateTime(): String {
-    if (this <= 0L) return "未知修改时间"
+private fun Long.formatFolderDateTime(context: android.content.Context): String {
+    if (this <= 0L) return context.getString(R.string.folder_unknown_modified_time)
     val millis = if (this < 10_000_000_000L) this * 1000L else this
     return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(millis))
 }
@@ -648,13 +699,13 @@ private fun LibraryAnalysisEntryCard(onClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "歌曲库分析",
+                    text = stringResource(R.string.analytics_library_analysis),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "总览、音频格式和音质统计",
+                    text = stringResource(R.string.folder_library_analysis_summary),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -672,6 +723,8 @@ private fun LibraryAnalysisEntryCard(onClick: () -> Unit) {
 @Composable
 private fun SavedScanFoldersCard(
     folders: List<String>,
+    hiddenFolders: Set<String>,
+    onVisibilityChange: (String, Boolean) -> Unit,
     onRemove: (String) -> Unit,
     onScan: () -> Unit
 ) {
@@ -684,13 +737,13 @@ private fun SavedScanFoldersCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "本地扫描目录",
+                        text = stringResource(R.string.folder_local_scan_directories),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "${folders.size} 个目录，右上角加号可继续添加",
+                        text = stringResource(R.string.folder_local_scan_directories_summary, folders.size),
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                     )
@@ -698,20 +751,29 @@ private fun SavedScanFoldersCard(
                 IconButton(onClick = onScan) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "全量扫描",
+                        contentDescription = stringResource(R.string.folder_full_scan),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(22.dp)
                     )
                 }
             }
             folders.forEach { folder ->
+                val isVisible = folder.normalizeFolderPath().lowercase(Locale.ROOT) !in hiddenFolders
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    FolderVisibilityCheckbox(
+                        checked = isVisible,
+                        onCheckedChange = { onVisibilityChange(folder, it) }
+                    )
                     FolderOutlineIcon(
-                        tint = MiuixTheme.colorScheme.primary,
+                        tint = if (isVisible) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
                         modifier = Modifier.size(24.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
@@ -719,7 +781,11 @@ private fun SavedScanFoldersCard(
                             text = folder.substringAfterLast('/').ifBlank { folder },
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MiuixTheme.colorScheme.onSurface
+                            color = if (isVisible) {
+                                MiuixTheme.colorScheme.onSurface
+                            } else {
+                                MiuixTheme.colorScheme.onSurfaceVariantSummary
+                            }
                         )
                         Text(
                             text = folder,
@@ -733,13 +799,44 @@ private fun SavedScanFoldersCard(
                     IconButton(onClick = { onRemove(folder) }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Close,
-                            contentDescription = "移除",
+                            contentDescription = stringResource(R.string.common_remove),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalFoundationApi::class)
+private fun FolderVisibilityCheckbox(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(
+                if (checked) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.surfaceContainer
+                }
+            )
+            .combinedClickable(onClick = { onCheckedChange(!checked) }),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                imageVector = MiuixIcons.Basic.Check,
+                contentDescription = stringResource(R.string.folder_show_folder),
+                tint = MiuixTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -765,7 +862,7 @@ internal fun WebDavBrowserCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "WebDAV 目录",
+                        text = stringResource(R.string.webdav_directory),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         color = MiuixTheme.colorScheme.onSurface
@@ -777,20 +874,20 @@ internal fun WebDavBrowserCard(
                     )
                 }
                 if (canGoParent) {
-                    Button(onClick = onGoParent) { Text("上级") }
+                    Button(onClick = onGoParent) { Text(stringResource(R.string.folder_parent)) }
                 }
                 IconButton(onClick = onRefresh) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Refresh,
-                        contentDescription = "刷新",
+                        contentDescription = stringResource(R.string.library_refresh),
                         tint = MiuixTheme.colorScheme.onSurface
                     )
                 }
             }
             when {
-                loading -> Text("正在读取远程目录...", color = MiuixTheme.colorScheme.primary)
+                loading -> Text(stringResource(R.string.webdav_loading_directory), color = MiuixTheme.colorScheme.primary)
                 error != null -> Text(error, color = MiuixTheme.colorScheme.primary)
-                items.isEmpty() -> Text("远程目录为空或没有可播放音频", color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                items.isEmpty() -> Text(stringResource(R.string.webdav_empty_directory), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 else -> items.forEach { item ->
                     WebDavItemRow(
                         item = item,
@@ -846,7 +943,7 @@ internal fun WebDavItemRow(
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (item.isDirectory) "目录" else item.mimeType.ifBlank { "远程音频" },
+                    text = if (item.isDirectory) stringResource(R.string.webdav_item_directory) else item.mimeType.ifBlank { stringResource(R.string.webdav_remote_audio) },
                     fontSize = 12.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -854,7 +951,7 @@ internal fun WebDavItemRow(
             IconButton(onClick = onClick) {
                 Icon(
                     imageVector = if (item.isDirectory) MiuixIcons.Basic.ArrowRight else MiuixIcons.Regular.Play,
-                    contentDescription = if (item.isDirectory) "打开" else "播放",
+                    contentDescription = if (item.isDirectory) stringResource(R.string.common_open) else stringResource(R.string.common_play),
                     tint = MiuixTheme.colorScheme.onSurface
                 )
             }
@@ -863,7 +960,7 @@ internal fun WebDavItemRow(
             IconButton(onClick = onAddToQueue) {
                 Icon(
                     imageVector = MiuixIcons.Regular.Add,
-                    contentDescription = "加入播放列表",
+                    contentDescription = stringResource(R.string.common_add_to_queue),
                     tint = MiuixTheme.colorScheme.onSurface
                 )
             }
@@ -898,13 +995,13 @@ private fun BlockedFoldersEntryCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "已屏蔽文件夹",
+                    text = stringResource(R.string.folder_blocked_folders),
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "$count 个文件夹已被排除，点击管理或取消屏蔽",
+                    text = stringResource(R.string.folder_blocked_folders_summary, count),
                     fontSize = 13.sp,
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
@@ -930,16 +1027,16 @@ internal fun FolderBlockDialog(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "屏蔽文件夹",
+                    text = stringResource(R.string.folder_block_folder),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.onSurface
                 )
                 Text(text = folderPath, fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onDismiss) { Text("取消") }
+                    Button(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = onBlock) { Text("屏蔽") }
+                    Button(onClick = onBlock) { Text(stringResource(R.string.folder_block)) }
                 }
             }
         }
@@ -957,7 +1054,7 @@ private fun BlockedFoldersDialog(
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "已屏蔽的文件夹",
+                    text = stringResource(R.string.folder_blocked_folders),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MiuixTheme.colorScheme.onSurface
@@ -970,13 +1067,13 @@ private fun BlockedFoldersDialog(
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                             modifier = Modifier.weight(1f)
                         )
-                        Button(onClick = { onRemove(folder) }) { Text("移除") }
+                        Button(onClick = { onRemove(folder) }) { Text(stringResource(R.string.common_remove)) }
                     }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onClear) { Text("清空") }
+                    Button(onClick = onClear) { Text(stringResource(R.string.common_clear)) }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = onDismiss) { Text("完成") }
+                    Button(onClick = onDismiss) { Text(stringResource(R.string.common_done)) }
                 }
             }
         }
@@ -999,16 +1096,16 @@ internal fun WebDavSettingsDialog(
 ) {
     WindowBottomSheet(
         show = true,
-        title = "WebDAV 音乐库",
+        title = stringResource(R.string.webdav_library_title),
         onDismissRequest = onDismiss
     ) {
         Column(
             modifier = Modifier.padding(bottom = 18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            WebDavTextField("地址", url, onUrlChange)
-            WebDavTextField("用户名", username, onUsernameChange)
-            WebDavTextField("密码", password, onPasswordChange)
+            WebDavTextField(stringResource(R.string.webdav_url), url, onUrlChange)
+            WebDavTextField(stringResource(R.string.webdav_username), username, onUsernameChange)
+            WebDavTextField(stringResource(R.string.webdav_password), password, onPasswordChange)
             if (!testStatus.isNullOrBlank()) {
                 Text(
                     text = testStatus,
@@ -1020,13 +1117,13 @@ internal fun WebDavSettingsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                Button(onClick = onClear) { Text("移除") }
+                Button(onClick = onClear) { Text(stringResource(R.string.common_remove)) }
                 Spacer(modifier = Modifier.weight(1f))
-                Button(onClick = onDismiss) { Text("取消") }
+                Button(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = onTest) { Text("测试") }
+                Button(onClick = onTest) { Text(stringResource(R.string.common_test)) }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = onSave) { Text("保存") }
+                Button(onClick = onSave) { Text(stringResource(R.string.common_save)) }
             }
         }
     }

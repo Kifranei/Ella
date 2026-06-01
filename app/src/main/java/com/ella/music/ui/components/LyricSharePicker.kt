@@ -125,7 +125,7 @@ fun LyricSharePicker(
                 IconButton(onClick = onDismiss) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = Color.White
                     )
                 }
@@ -157,7 +157,7 @@ fun LyricSharePicker(
                 ) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Share,
-                        contentDescription = "分享",
+                        contentDescription = stringResource(R.string.common_share),
                         tint = if (selectedIndexes.isEmpty()) Color.White.copy(alpha = 0.34f) else Color.White
                     )
                 }

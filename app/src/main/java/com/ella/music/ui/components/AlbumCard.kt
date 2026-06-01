@@ -20,9 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ella.music.R
 import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.Dispatchers
@@ -37,11 +39,13 @@ fun AlbumCard(
     albumArtUri: Uri? = null,
     representativeSong: Song? = null,
     loadCoverArt: ((Song) -> Bitmap?)? = null,
-    summary: String = "${album.artist} · ${album.songCount}首",
+    summary: String? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val resolvedSummary = summary ?: "${album.artist} · ${context.getString(R.string.song_count, album.songCount)}"
     val embeddedCover by produceState<Bitmap?>(
         initialValue = null,
         representativeSong?.id,
@@ -99,7 +103,7 @@ fun AlbumCard(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = summary,
+            text = resolvedSummary,
             fontSize = 12.sp,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             maxLines = 1,

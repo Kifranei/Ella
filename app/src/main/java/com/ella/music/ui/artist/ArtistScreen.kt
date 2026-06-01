@@ -68,6 +68,8 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.DefaultAlbumCover
@@ -118,6 +120,7 @@ fun ArtistScreen(
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = false)
@@ -263,6 +266,8 @@ fun ArtistScreen(
                             albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
                             loadCoverArt = mainViewModel::getCoverArtBitmap,
                             loadAudioInfo = mainViewModel::getAudioInfo,
+                            isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                            loadSongRating = mainViewModel::getSongRating,
                             onClick = {
                                 playerViewModel.setPlaylist(sortedArtistSongs, index)
                                 if (openPlayerOnPlay) onNavigateToPlayer()
@@ -1122,6 +1127,12 @@ private fun ArtistAlbumRow(
     albumArtUri: Uri?,
     onClick: () -> Unit
 ) {
+    val summary = buildList {
+        add("${album.songCount} 首歌曲")
+        if (album.year > 0) add("${album.year}年")
+        add(duration.formatArtistDetailDuration())
+    }.joinToString(" · ")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1158,7 +1169,7 @@ private fun ArtistAlbumRow(
                 color = MiuixTheme.colorScheme.onSurface
             )
             Text(
-                text = "${album.songCount} 首歌曲 · ${duration.formatArtistDetailDuration()}",
+                text = summary,
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
@@ -1174,9 +1185,5 @@ private fun ArtistAlbumRow(
 }
 
 private fun Long.formatArtistDetailDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalMinutes = this / 60_000L
-    val hours = totalMinutes / 60L
-    val minutes = totalMinutes % 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+    return formatPlaybackDuration()
 }

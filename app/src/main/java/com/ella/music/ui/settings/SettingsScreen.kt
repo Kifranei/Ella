@@ -160,7 +160,9 @@ fun SettingsScreen(
                         selectedIndex = selectedLanguageIndex,
                         onSelectedIndexChange = { index ->
                             languageOptions.getOrNull(index)?.let { language ->
-                                scope.launch { settingsManager.setAppLanguage(language) }
+                                scope.launch {
+                                    settingsManager.setAppLanguage(language)
+                                }
                             }
                         }
                     )
@@ -238,61 +240,76 @@ fun AudioSettingsScreen(
     val previousButtonAction by settingsManager.previousButtonAction.collectAsState(initial = SettingsManager.PREVIOUS_BUTTON_PREVIOUS)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 2)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
-    val decoderLabels = listOf("系统解码", "FFmpeg 解码", "自动")
+    val decoderLabels = listOf(
+        stringResource(R.string.settings_audio_decoder_system),
+        stringResource(R.string.settings_audio_decoder_ffmpeg),
+        stringResource(R.string.settings_audio_decoder_auto)
+    )
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
-    val shuffleModeLabels = listOf("伪随机", "真随机")
+    val shuffleModeLabels = listOf(
+        stringResource(R.string.settings_shuffle_mode_pseudo_random),
+        stringResource(R.string.settings_shuffle_mode_true_random)
+    )
     val selectedShuffleMode = shuffleMode.coerceIn(shuffleModeLabels.indices)
-    val previousButtonLabels = listOf("上一曲", "重放当前歌曲")
+    val previousButtonLabels = listOf(
+        stringResource(R.string.settings_previous_button_previous),
+        stringResource(R.string.settings_previous_button_replay_current)
+    )
     val selectedPreviousButtonAction = previousButtonAction.coerceIn(previousButtonLabels.indices)
-    val startupPlayLabels = listOf("关闭", "随机播放", "继续上一次")
+    val startupPlayLabels = listOf(
+        stringResource(R.string.settings_startup_play_off),
+        stringResource(R.string.settings_startup_play_random),
+        stringResource(R.string.settings_startup_play_resume)
+    )
     val selectedStartupPlayMode = startupPlayMode.coerceIn(startupPlayLabels.indices)
-    val startupPlayEntries = remember {
-        startupPlayLabels.mapIndexed { index, label ->
-            DropdownItem(
-                title = label,
-                summary = when (index) {
-                    SettingsManager.STARTUP_PLAY_RANDOM -> "启动并加载音乐库后随机播放一首，从开头开始"
-                    SettingsManager.STARTUP_PLAY_RESUME -> "启动后恢复上次队列，并从上次进度继续播放"
-                    else -> "启动后不自动播放"
-                }
-            )
-        }
-    }
-    val decoderEntries = remember {
-        decoderLabels.mapIndexed { index, label ->
-            DropdownItem(
-                title = label,
-                summary = when (index) {
-                    0 -> "只使用 Android 系统解码；不支持的格式会播放失败"
-                    1 -> "优先使用 FFmpeg 扩展解码"
-                    else -> "系统不支持时才回落到 FFmpeg"
-                }
-            )
-        }
-    }
-    val shuffleModeEntries = remember {
-        shuffleModeLabels.mapIndexed { index, label ->
-            DropdownItem(
-                title = label,
-                summary = when (index) {
-                    SettingsManager.SHUFFLE_MODE_TRUE_RANDOM -> "每次随机抽取，可能连续随机到同一首"
-                    else -> "洗牌队列播放，一轮内尽量不重复"
-                }
-            )
-        }
-    }
-    val previousButtonEntries = remember {
-        previousButtonLabels.mapIndexed { index, label ->
-            DropdownItem(
-                title = label,
-                summary = when (index) {
-                    SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT ->
-                        "当前歌曲播放超过 20 秒时重放；20 秒内仍切到上一曲"
-                    else -> "始终切换到播放队列里的上一曲"
-                }
-            )
-        }
-    }
+    val startupPlayEntries = listOf(
+        DropdownItem(
+            title = startupPlayLabels[SettingsManager.STARTUP_PLAY_OFF],
+            summary = stringResource(R.string.settings_startup_play_off_summary)
+        ),
+        DropdownItem(
+            title = startupPlayLabels[SettingsManager.STARTUP_PLAY_RANDOM],
+            summary = stringResource(R.string.settings_startup_play_random_summary)
+        ),
+        DropdownItem(
+            title = startupPlayLabels[SettingsManager.STARTUP_PLAY_RESUME],
+            summary = stringResource(R.string.settings_startup_play_resume_summary)
+        )
+    )
+    val decoderEntries = listOf(
+        DropdownItem(
+            title = decoderLabels[0],
+            summary = stringResource(R.string.settings_audio_decoder_system_summary)
+        ),
+        DropdownItem(
+            title = decoderLabels[1],
+            summary = stringResource(R.string.settings_audio_decoder_ffmpeg_summary)
+        ),
+        DropdownItem(
+            title = decoderLabels[2],
+            summary = stringResource(R.string.settings_audio_decoder_auto_summary)
+        )
+    )
+    val shuffleModeEntries = listOf(
+        DropdownItem(
+            title = shuffleModeLabels[0],
+            summary = stringResource(R.string.settings_shuffle_mode_pseudo_random_summary)
+        ),
+        DropdownItem(
+            title = shuffleModeLabels[SettingsManager.SHUFFLE_MODE_TRUE_RANDOM],
+            summary = stringResource(R.string.settings_shuffle_mode_true_random_summary)
+        )
+    )
+    val previousButtonEntries = listOf(
+        DropdownItem(
+            title = previousButtonLabels[SettingsManager.PREVIOUS_BUTTON_PREVIOUS],
+            summary = stringResource(R.string.settings_previous_button_previous_summary)
+        ),
+        DropdownItem(
+            title = previousButtonLabels[SettingsManager.PREVIOUS_BUTTON_REPLAY_CURRENT],
+            summary = stringResource(R.string.settings_previous_button_replay_current_summary)
+        )
+    )
 
     Column(
         modifier = Modifier
@@ -301,13 +318,13 @@ fun AudioSettingsScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = "音频",
+            title = stringResource(R.string.settings_audio_screen_title),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -322,29 +339,29 @@ fun AudioSettingsScreen(
                 .padding(horizontal = 12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            SmallTitle(text = "播放")
+            SmallTitle(text = stringResource(R.string.settings_playback_section))
 
             SettingsCardGroup {
                 Column {
                     SwitchPreference(
-                        title = "无缝播放",
-                        summary = "歌曲之间无间隙切换",
+                        title = stringResource(R.string.settings_gapless_playback),
+                        summary = stringResource(R.string.settings_gapless_playback_summary),
                         checked = gaplessPlayback,
                         onCheckedChange = {
                             scope.launch { settingsManager.setGaplessPlayback(it) }
                         }
                     )
                     SwitchPreference(
-                        title = "ReplayGain 音量均衡",
-                        summary = "根据音频标签自动调整播放音量",
+                        title = stringResource(R.string.settings_replay_gain),
+                        summary = stringResource(R.string.settings_replay_gain_summary),
                         checked = replayGainEnabled,
                         onCheckedChange = {
                             scope.launch { settingsManager.setReplayGainEnabled(it) }
                         }
                     )
                     WindowSpinnerPreference(
-                        title = "启动后自动播放",
-                        summary = "当前：${startupPlayLabels[selectedStartupPlayMode]}",
+                        title = stringResource(R.string.settings_startup_play),
+                        summary = stringResource(R.string.settings_current_value, startupPlayLabels[selectedStartupPlayMode]),
                         items = startupPlayEntries,
                         selectedIndex = selectedStartupPlayMode,
                         onSelectedIndexChange = { index ->
@@ -352,8 +369,8 @@ fun AudioSettingsScreen(
                         }
                     )
                     WindowSpinnerPreference(
-                        title = "随机播放模式",
-                        summary = "当前：${shuffleModeLabels[selectedShuffleMode]}",
+                        title = stringResource(R.string.settings_shuffle_mode),
+                        summary = stringResource(R.string.settings_current_value, shuffleModeLabels[selectedShuffleMode]),
                         items = shuffleModeEntries,
                         selectedIndex = selectedShuffleMode,
                         onSelectedIndexChange = { index ->
@@ -362,8 +379,8 @@ fun AudioSettingsScreen(
                         }
                     )
                     WindowSpinnerPreference(
-                        title = "上一曲按钮",
-                        summary = "当前：${previousButtonLabels[selectedPreviousButtonAction]}",
+                        title = stringResource(R.string.settings_previous_button),
+                        summary = stringResource(R.string.settings_current_value, previousButtonLabels[selectedPreviousButtonAction]),
                         items = previousButtonEntries,
                         selectedIndex = selectedPreviousButtonAction,
                         onSelectedIndexChange = { index ->
@@ -374,21 +391,21 @@ fun AudioSettingsScreen(
                 }
             }
 
-            SmallTitle(text = "系统")
+            SmallTitle(text = stringResource(R.string.settings_system_section))
 
             SettingsCardGroup {
                 Column {
                     SwitchPreference(
-                        title = "关闭音频焦点",
-                        summary = "开启后播放时不再抢占其他应用音频焦点",
+                        title = stringResource(R.string.settings_disable_audio_focus),
+                        summary = stringResource(R.string.settings_disable_audio_focus_summary),
                         checked = audioFocusDisabled,
                         onCheckedChange = {
                             scope.launch { settingsManager.setAudioFocusDisabled(it) }
                         }
                     )
                     WindowSpinnerPreference(
-                        title = "解码器",
-                        summary = "当前：${decoderLabels[selectedDecoderMode]}",
+                        title = stringResource(R.string.settings_decoder),
+                        summary = stringResource(R.string.settings_current_value, decoderLabels[selectedDecoderMode]),
                         items = decoderEntries,
                         selectedIndex = selectedDecoderMode,
                         onSelectedIndexChange = { index ->
@@ -428,12 +445,12 @@ fun BackupSettingsScreen(
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use { output ->
                         output.write(backup.toString(2).toByteArray(Charsets.UTF_8))
-                    } ?: error("无法打开备份文件")
+                    } ?: error(context.getString(R.string.settings_backup_open_failed))
                 }
             }.onSuccess {
-                Toast.makeText(context, "备份已导出", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_backup_export_success), Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "备份导出失败", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_backup_export_failed), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -446,15 +463,15 @@ fun BackupSettingsScreen(
                 val text = withContext(Dispatchers.IO) {
                     context.contentResolver.openInputStream(uri)?.use { input ->
                         input.bufferedReader(Charsets.UTF_8).readText()
-                    } ?: error("无法读取备份文件")
+                    } ?: error(context.getString(R.string.settings_backup_read_failed))
                 }
                 val root = JSONObject(text)
                 settingsManager.restoreSettingsJson(root.optJSONObject("settings") ?: root)
                 root.optJSONObject("playback")?.let { playbackStatsStore.restoreJson(it) }
             }.onSuccess {
-                Toast.makeText(context, "备份已恢复", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_backup_restore_success), Toast.LENGTH_SHORT).show()
             }.onFailure {
-                Toast.makeText(context, "备份恢复失败", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_backup_restore_failed), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -466,13 +483,13 @@ fun BackupSettingsScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = "备份",
+            title = stringResource(R.string.settings_backup),
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -487,20 +504,20 @@ fun BackupSettingsScreen(
                 .padding(horizontal = 12.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            SmallTitle(text = "备份")
+            SmallTitle(text = stringResource(R.string.settings_backup))
 
             SettingsCardGroup {
                 Column {
                     ArrowPreference(
-                        title = "导出设置和听歌统计",
-                        summary = "导出设置、听歌历史和排行热力图数据",
+                        title = stringResource(R.string.settings_backup_export_title),
+                        summary = stringResource(R.string.settings_backup_export_summary),
                         onClick = {
                             exportLauncher.launch("ella_backup_${System.currentTimeMillis()}.json")
                         }
                     )
                     ArrowPreference(
-                        title = "恢复设置和听歌统计",
-                        summary = "从备份 JSON 恢复设置、历史和统计",
+                        title = stringResource(R.string.settings_backup_restore_title),
+                        summary = stringResource(R.string.settings_backup_restore_summary),
                         onClick = {
                             importLauncher.launch(arrayOf("application/json", "text/json", "text/*"))
                         }
@@ -531,7 +548,7 @@ fun SettingsDetailScreen(
     val lyriconTranslation by settingsManager.lyriconTranslation.collectAsState(initial = true)
     val lyriconPronunciation by settingsManager.lyriconPronunciation.collectAsState(initial = false)
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
-    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.Blur)
+    val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
     val tickerEnabled by settingsManager.tickerEnabled.collectAsState(initial = false)
     val tickerHideNotification by settingsManager.tickerHideNotification.collectAsState(initial = false)
     val tickerHeadsUpLyrics by settingsManager.tickerHeadsUpLyrics.collectAsState(initial = false)
@@ -561,11 +578,9 @@ fun SettingsDetailScreen(
     val miniPlayerLyricsEnabled by settingsManager.miniPlayerLyricsEnabled.collectAsState(initial = true)
     val minDurationSec by settingsManager.minDurationSec.collectAsState(initial = 15)
     val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
-    val lyricPerspectiveEffect by settingsManager.lyricPerspectiveEffect.collectAsState(initial = false)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val dynamicCoverEnabled by settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
     val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = true)
-    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = true)
     val lyricShareCustomInfo by settingsManager.lyricShareCustomInfo.collectAsState(initial = "")
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = false)
@@ -594,7 +609,7 @@ fun SettingsDetailScreen(
         stringResource(R.string.theme_dark)
     )
     val selectedThemeMode = themeMode.coerceIn(themeLabels.indices)
-    val themeEntries = remember { themeLabels.map { DropdownItem(title = it) } }
+    val themeEntries = remember(themeLabels) { themeLabels.map { DropdownItem(title = it) } }
     val bottomBarGlassEffects = remember {
         listOf(BottomBarGlassEffect.Blur, BottomBarGlassEffect.LiquidGlass)
     }
@@ -624,20 +639,22 @@ fun SettingsDetailScreen(
             )
         }
     }
-    val metadataEditorOptions = remember {
-        listOf(
-            TagEditorOptionIds.ASK_EACH_TIME to "每次选择",
-            TagEditorOptionIds.LYRICO to "Lyrico",
-            TagEditorOptionIds.LUNABEAT_METADATA to "LunaBeat（编辑元数据）",
-            TagEditorOptionIds.MUSIC_TAG to "音乐标签"
-        )
-    }
-    val lyricTimingEditorOptions = remember {
-        listOf(
-            TagEditorOptionIds.ASK_EACH_TIME to "每次选择",
-            TagEditorOptionIds.LUNABEAT_LYRIC_TIMING to "LunaBeat（歌词打轴）"
-        )
-    }
+    val editorAskEveryTime = stringResource(R.string.settings_editor_ask_every_time)
+    val editorBuiltinCustomTag = stringResource(R.string.settings_editor_builtin_custom_tag)
+    val editorLunaBeatMetadata = stringResource(R.string.settings_editor_lunabeat_metadata)
+    val editorMusicTag = stringResource(R.string.settings_editor_music_tag)
+    val editorLunaBeatLyricTiming = stringResource(R.string.settings_editor_lunabeat_lyric_timing)
+    val metadataEditorOptions = listOf(
+        TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
+        TagEditorOptionIds.BUILTIN_CUSTOM_TAG to editorBuiltinCustomTag,
+        TagEditorOptionIds.LYRICO to "Lyrico",
+        TagEditorOptionIds.LUNABEAT_METADATA to editorLunaBeatMetadata,
+        TagEditorOptionIds.MUSIC_TAG to editorMusicTag
+    )
+    val lyricTimingEditorOptions = listOf(
+        TagEditorOptionIds.ASK_EACH_TIME to editorAskEveryTime,
+        TagEditorOptionIds.LUNABEAT_LYRIC_TIMING to editorLunaBeatLyricTiming
+    )
     val metadataEditorIndex = metadataEditorOptions
         .indexOfFirst { it.first == metadataEditorId }
         .takeIf { it >= 0 }
@@ -652,62 +669,74 @@ fun SettingsDetailScreen(
     val lyricTimingEditorEntries = remember(lyricTimingEditorOptions) {
         lyricTimingEditorOptions.map { DropdownItem(title = it.second) }
     }
-    val desktopLyricColorPresets = remember {
-        listOf(
-            "白色" to android.graphics.Color.WHITE,
-            "银灰" to android.graphics.Color.rgb(191, 191, 191),
-            "淡蓝" to android.graphics.Color.rgb(145, 205, 255),
-            "天蓝" to android.graphics.Color.rgb(3, 169, 244),
-            "浅粉" to android.graphics.Color.rgb(255, 188, 214),
-            "薄荷绿" to android.graphics.Color.rgb(166, 235, 203),
-            "荧光绿" to android.graphics.Color.rgb(26, 201, 125),
-            "淡紫" to android.graphics.Color.rgb(179, 136, 255),
-            "柔红" to android.graphics.Color.rgb(255, 112, 112),
-            "暖黄色" to android.graphics.Color.rgb(255, 224, 150),
-            "橙色" to android.graphics.Color.rgb(255, 87, 34)
-        )
-    }
+    val desktopLyricColorPresets = listOf(
+        stringResource(R.string.settings_color_white) to android.graphics.Color.WHITE,
+        stringResource(R.string.settings_color_silver_gray) to android.graphics.Color.rgb(191, 191, 191),
+        stringResource(R.string.settings_color_light_blue) to android.graphics.Color.rgb(145, 205, 255),
+        stringResource(R.string.settings_color_sky_blue) to android.graphics.Color.rgb(3, 169, 244),
+        stringResource(R.string.settings_color_soft_pink) to android.graphics.Color.rgb(255, 188, 214),
+        stringResource(R.string.settings_color_mint_green) to android.graphics.Color.rgb(166, 235, 203),
+        stringResource(R.string.settings_color_neon_green) to android.graphics.Color.rgb(26, 201, 125),
+        stringResource(R.string.settings_color_light_purple) to android.graphics.Color.rgb(179, 136, 255),
+        stringResource(R.string.settings_color_soft_red) to android.graphics.Color.rgb(255, 112, 112),
+        stringResource(R.string.settings_color_warm_yellow) to android.graphics.Color.rgb(255, 224, 150),
+        stringResource(R.string.settings_color_orange) to android.graphics.Color.rgb(255, 87, 34)
+    )
     val desktopLyricColorEntries = remember(desktopLyricColorPresets) {
         desktopLyricColorPresets.map { DropdownItem(title = it.first) }
     }
     val selectedDesktopLyricColorIndex =
         desktopLyricColorPresets.indexOfFirst { it.second == desktopLyricTextColor }.takeIf { it >= 0 } ?: 0
-    val statusLyricPositionLabels = remember { listOf("左侧", "居中", "右侧") }
+    val statusLyricPositionLeft = stringResource(R.string.settings_status_position_left)
+    val statusLyricPositionCenter = stringResource(R.string.settings_status_position_center)
+    val statusLyricPositionRight = stringResource(R.string.settings_status_position_right)
+    val statusLyricPositionLabels = remember(
+        statusLyricPositionLeft,
+        statusLyricPositionCenter,
+        statusLyricPositionRight
+    ) {
+        listOf(statusLyricPositionLeft, statusLyricPositionCenter, statusLyricPositionRight)
+    }
     val statusLyricPositionEntries = remember(statusLyricPositionLabels) {
         statusLyricPositionLabels.map { DropdownItem(title = it) }
     }
-    val statusLyricSecondaryLabels = remember { listOf("关闭", "翻译", "注音") }
+    val statusLyricSecondaryOff = stringResource(R.string.settings_status_secondary_off)
+    val statusLyricSecondaryTranslation = stringResource(R.string.settings_status_secondary_translation)
+    val statusLyricSecondaryPronunciation = stringResource(R.string.settings_status_secondary_pronunciation)
+    val statusLyricSecondaryLabels = remember(
+        statusLyricSecondaryOff,
+        statusLyricSecondaryTranslation,
+        statusLyricSecondaryPronunciation
+    ) {
+        listOf(statusLyricSecondaryOff, statusLyricSecondaryTranslation, statusLyricSecondaryPronunciation)
+    }
     val statusLyricSecondaryEntries = remember(statusLyricSecondaryLabels) {
         statusLyricSecondaryLabels.map { DropdownItem(title = it) }
     }
-    val homeSectionItems = remember {
-        listOf(
-            HomePreferenceItem("library", "音乐库", "首页音乐库入口区块"),
-            HomePreferenceItem("online", "在线音乐", "LX 在线音乐入口"),
-            HomePreferenceItem("recent", "最近听过", "最近播放歌曲")
-        )
-    }
-    val homeLibraryTileItems = remember {
-        listOf(
-            HomePreferenceItem("artist", "艺术家", "按艺术家浏览"),
-            HomePreferenceItem("album", "专辑", "按专辑浏览"),
-            HomePreferenceItem("folder", "文件夹", "按文件夹分类浏览"),
-            HomePreferenceItem("folder_tree", "文件夹层次结构", "按嵌套目录浏览"),
-            HomePreferenceItem("playlist", "歌单", "收藏与自建歌单"),
-            HomePreferenceItem("analytics", "听歌统计", "历史、热力图和排行"),
-            HomePreferenceItem("genre", "流派", "按流派浏览"),
-            HomePreferenceItem("year", "年份", "按年份归档"),
-            HomePreferenceItem("composer", "作曲家", "按作曲家浏览"),
-            HomePreferenceItem("lyricist", "作词家", "按作词家浏览")
-        )
-    }
+    val homeSectionItems = listOf(
+        HomePreferenceItem("library", stringResource(R.string.settings_home_section_library), stringResource(R.string.settings_home_section_library_summary)),
+        HomePreferenceItem("online", stringResource(R.string.settings_home_section_online), stringResource(R.string.settings_home_section_online_summary)),
+        HomePreferenceItem("recent", stringResource(R.string.settings_home_section_recent), stringResource(R.string.settings_home_section_recent_summary))
+    )
+    val homeLibraryTileItems = listOf(
+        HomePreferenceItem("artist", stringResource(R.string.settings_library_tile_artist), stringResource(R.string.settings_library_tile_artist_summary)),
+        HomePreferenceItem("album", stringResource(R.string.settings_library_tile_album), stringResource(R.string.settings_library_tile_album_summary)),
+        HomePreferenceItem("folder", stringResource(R.string.settings_library_tile_folder), stringResource(R.string.settings_library_tile_folder_summary)),
+        HomePreferenceItem("folder_tree", stringResource(R.string.settings_library_tile_folder_tree), stringResource(R.string.settings_library_tile_folder_tree_summary)),
+        HomePreferenceItem("playlist", stringResource(R.string.settings_library_tile_playlist), stringResource(R.string.settings_library_tile_playlist_summary)),
+        HomePreferenceItem("analytics", stringResource(R.string.settings_library_tile_analytics), stringResource(R.string.settings_library_tile_analytics_summary)),
+        HomePreferenceItem("genre", stringResource(R.string.settings_library_tile_genre), stringResource(R.string.settings_library_tile_genre_summary)),
+        HomePreferenceItem("year", stringResource(R.string.settings_library_tile_year), stringResource(R.string.settings_library_tile_year_summary)),
+        HomePreferenceItem("composer", stringResource(R.string.settings_library_tile_composer), stringResource(R.string.settings_library_tile_composer_summary)),
+        HomePreferenceItem("lyricist", stringResource(R.string.settings_library_tile_lyricist), stringResource(R.string.settings_library_tile_lyricist_summary))
+    )
     var showHomeDisplayPage by remember { mutableStateOf(false) }
     val dynamicCoverPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         scope.launch { settingsManager.setDynamicCoverEnabled(granted) }
         if (granted) {
-            Toast.makeText(context, "已开启动态封面", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.settings_dynamic_cover_enabled), Toast.LENGTH_SHORT).show()
         } else {
             val activity = context as? android.app.Activity
             val shouldShowRationale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activity != null) {
@@ -716,7 +745,7 @@ fun SettingsDetailScreen(
                 true
             }
             if (!shouldShowRationale && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                Toast.makeText(context, "请在系统设置中授予视频权限后再开启动态封面", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.settings_dynamic_cover_permission_grant), Toast.LENGTH_LONG).show()
                 runCatching {
                     context.startActivity(
                         Intent(
@@ -726,7 +755,7 @@ fun SettingsDetailScreen(
                     )
                 }
             } else {
-                Toast.makeText(context, "未授予视频权限，动态封面已关闭", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_dynamic_cover_permission_denied), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -764,16 +793,16 @@ fun SettingsDetailScreen(
     ) {
         EllaSmallTopAppBar(
             title = when {
-                showHomeDisplayPage -> "首页显示"
-                showOnlyLyrics -> "歌词"
-                else -> "应用偏好"
+                showHomeDisplayPage -> stringResource(R.string.settings_home_display)
+                showOnlyLyrics -> stringResource(R.string.settings_lyrics)
+                else -> stringResource(R.string.settings_preferences)
             },
             color = pageBackground,
             navigationIcon = {
                 IconButton(onClick = { if (showHomeDisplayPage) showHomeDisplayPage = false else onBack() }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.common_back),
                         tint = MiuixTheme.colorScheme.onSurface,
                         modifier = Modifier.size(24.dp)
                     )
@@ -876,107 +905,91 @@ fun SettingsDetailScreen(
                             }
                         )
                         SwitchPreference(
-                            title = "动态封面",
-                            summary = "开启后读取本地视频封面文件；需要时才申请视频/相册权限",
+                            title = stringResource(R.string.settings_dynamic_cover),
+                            summary = stringResource(R.string.settings_dynamic_cover_summary),
                             checked = dynamicCoverEnabled,
                             onCheckedChange = ::setDynamicCoverEnabled
                         )
                         SwitchPreference(
-                            title = "沉浸专辑封面",
-                            summary = "开启后播放页封面延伸到顶部；关闭后使用收敛的圆角封面布局",
+                            title = stringResource(R.string.settings_player_immersive_cover),
+                            summary = stringResource(R.string.settings_player_immersive_cover_summary),
                             checked = playerImmersiveCover,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setPlayerImmersiveCover(it) }
                             }
                         )
-                        SwitchPreference(
-                            title = "动态流光",
-                            summary = "播放页背景流光动画；关闭后保留静态取色背景以降低播放中掉帧",
-                            checked = playerDynamicFlowEnabled,
-                            onCheckedChange = {
-                                scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
-                            }
-                        )
-                        SwitchPreference(
-                            title = stringResource(R.string.settings_lyric_perspective),
-                            summary = stringResource(R.string.settings_lyric_perspective_summary),
-                            checked = lyricPerspectiveEffect,
-                            onCheckedChange = {
-                                scope.launch { settingsManager.setLyricPerspectiveEffect(it) }
-                            }
-                        )
                         ArrowPreference(
-                            title = "歌词字体",
-                            summary = lyricFontName.ifBlank { "系统默认" },
+                            title = stringResource(R.string.settings_lyric_font),
+                            summary = lyricFontName.ifBlank { stringResource(R.string.settings_system_default) },
                             onClick = onNavigateToLyricFont
                         )
                     }
                 }
 
-                SmallTitle(text = "首页自定义")
+                SmallTitle(text = stringResource(R.string.settings_home_customize))
 
                 SettingsCardGroup {
                     Column {
                         SwitchPreference(
-                            title = "每日精选",
-                            summary = "控制首页顶部每日精选大卡片显示",
+                            title = stringResource(R.string.settings_daily_mix),
+                            summary = stringResource(R.string.settings_daily_mix_summary),
                             checked = homeDailyMixVisible,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setHomeDailyMixVisible(it) }
                             }
                         )
                         ArrowPreference(
-                            title = "首页显示项目",
-                            summary = "显示项目、首页区块顺序和音乐库宫格顺序",
+                            title = stringResource(R.string.settings_home_display_items),
+                            summary = stringResource(R.string.settings_home_display_items_summary),
                             onClick = { showHomeDisplayPage = true }
                         )
                     }
                 }
 
-                SmallTitle(text = "AI 解读")
+                SmallTitle(text = stringResource(R.string.settings_ai_interpretation))
 
                 SettingsCardGroup {
                     Column {
                         SplitSettingTextField(
                             label = "OpenAI API Key",
                             value = openAiApiKey,
-                            summary = "用于歌曲 AI 解读；只保存在本机",
+                            summary = stringResource(R.string.settings_openai_api_key_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setOpenAiApiKey(value) } }
                         )
                         SplitSettingTextField(
                             label = "OpenAI Base URL",
                             value = openAiBaseUrl,
-                            summary = "OpenAI 兼容 Chat Completions 地址；会自动补全 /chat/completions",
+                            summary = stringResource(R.string.settings_openai_base_url_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setOpenAiBaseUrl(value) } }
                         )
                         SplitSettingTextField(
-                            label = "OpenAI 模型",
+                            label = stringResource(R.string.settings_openai_model),
                             value = openAiModel,
-                            summary = "例如 ${SettingsManager.DEFAULT_OPENAI_MODEL}；可按账号可用模型自行修改",
+                            summary = stringResource(R.string.settings_openai_model_summary, SettingsManager.DEFAULT_OPENAI_MODEL),
                             onValueChange = { value -> scope.launch { settingsManager.setOpenAiModel(value) } }
                         )
                     }
                 }
 
-                SmallTitle(text = "歌词卡片分享")
+                SmallTitle(text = stringResource(R.string.settings_lyric_share_card))
 
                 SettingsCardGroup {
                     Column {
                         SplitSettingTextField(
-                            label = "自定义信息",
+                            label = stringResource(R.string.settings_lyric_share_custom_info),
                             value = lyricShareCustomInfo,
-                            summary = "留空显示 Via Ella；填写名称后显示为 Via @名称",
+                            summary = stringResource(R.string.settings_lyric_share_custom_info_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setLyricShareCustomInfo(value) } }
                         )
                     }
                 }
 
-                SmallTitle(text = "音乐标签刮削")
+                SmallTitle(text = stringResource(R.string.settings_tag_scraping))
 
                 SettingsCardGroup {
                     Column {
                         WindowSpinnerPreference(
-                            title = "元数据编辑软件",
+                            title = stringResource(R.string.settings_metadata_editor),
                             summary = "",
                             items = metadataEditorEntries,
                             selectedIndex = metadataEditorIndex,
@@ -989,7 +1002,7 @@ fun SettingsDetailScreen(
                             }
                         )
                         WindowSpinnerPreference(
-                            title = "歌词打轴软件",
+                            title = stringResource(R.string.settings_lyric_timing_editor),
                             summary = "",
                             items = lyricTimingEditorEntries,
                             selectedIndex = lyricTimingEditorIndex,
@@ -1004,41 +1017,41 @@ fun SettingsDetailScreen(
                     }
                 }
 
-                SmallTitle(text = "桌面快捷方式")
+                SmallTitle(text = stringResource(R.string.settings_desktop_shortcuts))
 
                 SettingsCardGroup {
                     Column {
                         SplitSettingTextField(
-                            label = "音乐库",
+                            label = stringResource(R.string.settings_shortcut_library),
                             value = shortcutLibraryLabel,
-                            summary = "长按桌面图标时显示的快捷方式名称",
+                            summary = stringResource(R.string.settings_shortcut_summary),
                             singleLine = true,
                             onValueChange = { value -> scope.launch { settingsManager.setShortcutLibraryLabel(value) } }
                         )
                         SplitSettingTextField(
-                            label = "歌单",
+                            label = stringResource(R.string.settings_shortcut_playlists),
                             value = shortcutPlaylistsLabel,
-                            summary = "长按桌面图标时显示的快捷方式名称",
+                            summary = stringResource(R.string.settings_shortcut_summary),
                             singleLine = true,
                             onValueChange = { value -> scope.launch { settingsManager.setShortcutPlaylistsLabel(value) } }
                         )
                         SplitSettingTextField(
-                            label = "文件夹",
+                            label = stringResource(R.string.settings_shortcut_folder),
                             value = shortcutFolderLabel,
-                            summary = "长按桌面图标时显示的快捷方式名称",
+                            summary = stringResource(R.string.settings_shortcut_summary),
                             singleLine = true,
                             onValueChange = { value -> scope.launch { settingsManager.setShortcutFolderLabel(value) } }
                         )
                     }
                 }
 
-                SmallTitle(text = "扫描")
+                SmallTitle(text = stringResource(R.string.settings_scan))
 
                 SettingsCardGroup {
                     Column {
                         SwitchPreference(
-                            title = "自动扫描",
-                            summary = "启动时自动扫描音乐文件",
+                            title = stringResource(R.string.settings_auto_scan),
+                            summary = stringResource(R.string.settings_auto_scan_summary),
                             checked = autoScan,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setAutoScan(it) }
@@ -1047,12 +1060,12 @@ fun SettingsDetailScreen(
 
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                             Text(
-                                text = "最短时长过滤",
+                                text = stringResource(R.string.settings_min_duration_filter),
                                 fontSize = 15.sp,
                                 color = MiuixTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "过滤短于 ${minDurationSec} 秒的音频文件",
+                                text = stringResource(R.string.settings_min_duration_filter_summary, minDurationSec),
                                 fontSize = 13.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                             )
@@ -1066,39 +1079,39 @@ fun SettingsDetailScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(text = "0秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(text = stringResource(R.string.settings_seconds_value, 0), fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                                 Spacer(modifier = Modifier.weight(1f))
-                                Text(text = "60秒", fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+                                Text(text = stringResource(R.string.settings_seconds_value, 60), fontSize = 11.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
                             }
                         }
 
                         SplitSettingTextField(
-                            label = "自定义艺术家分隔符",
+                            label = stringResource(R.string.settings_artist_separators),
                             value = artistSeparators,
-                            summary = "一行一个；例如 /、feat.、&",
+                            summary = stringResource(R.string.settings_artist_separators_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setArtistSeparators(value) } }
                         )
                         SplitSettingTextField(
-                            label = "不拆分的艺术家",
+                            label = stringResource(R.string.settings_artist_protected_names),
                             value = artistProtectedNames,
-                            summary = "一行一个；会先保护再按分隔符拆分",
+                            summary = stringResource(R.string.settings_artist_protected_names_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setArtistProtectedNames(value) } }
                         )
                         SplitSettingTextField(
-                            label = "自定义流派分隔符",
+                            label = stringResource(R.string.settings_genre_separators),
                             value = genreSeparators,
-                            summary = "一行一个；用于流派分类",
+                            summary = stringResource(R.string.settings_genre_separators_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setGenreSeparators(value) } }
                         )
                         SplitSettingTextField(
-                            label = "不拆分的流派",
+                            label = stringResource(R.string.settings_genre_protected_names),
                             value = genreProtectedNames,
-                            summary = "一行一个；例如带 / 的复合流派名",
+                            summary = stringResource(R.string.settings_genre_protected_names_summary),
                             onValueChange = { value -> scope.launch { settingsManager.setGenreProtectedNames(value) } }
                         )
                         SwitchPreference(
-                            title = "标签忽略大小写",
-                            summary = "开启后 LiSA 与 LISA 等大小写不同的标签会合并显示",
+                            title = stringResource(R.string.settings_tag_ignore_case),
+                            summary = stringResource(R.string.settings_tag_ignore_case_summary),
                             checked = tagIgnoreCase,
                             onCheckedChange = {
                                 scope.launch { settingsManager.setTagIgnoreCase(it) }
@@ -1114,8 +1127,8 @@ fun SettingsDetailScreen(
                 SettingsCardGroup {
                     Column {
                     SwitchPreference(
-                        title = "迷你播放条显示歌词",
-                        summary = "播放时在迷你播放条显示当前歌词；关闭后显示歌曲标题和歌手",
+                        title = stringResource(R.string.settings_mini_player_lyrics),
+                        summary = stringResource(R.string.settings_mini_player_lyrics_summary),
                         checked = miniPlayerLyricsEnabled,
                         onCheckedChange = { enabled ->
                             scope.launch { settingsManager.setMiniPlayerLyricsEnabled(enabled) }
@@ -1123,8 +1136,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "迷你播放条显示翻译",
-                        summary = "播放栏显示歌词时同时显示翻译",
+                        title = stringResource(R.string.settings_mini_player_translation),
+                        summary = stringResource(R.string.settings_mini_player_translation_summary),
                         enabled = miniPlayerLyricsEnabled,
                         checked = miniPlayerLyricTranslation,
                         onCheckedChange = { enabled ->
@@ -1133,8 +1146,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "迷你播放条封面旋转",
-                        summary = "播放时旋转迷你播放条封面；关闭后保持静态封面",
+                        title = stringResource(R.string.settings_mini_player_cover_rotation),
+                        summary = stringResource(R.string.settings_mini_player_cover_rotation_summary),
                         checked = miniPlayerCoverRotation,
                         onCheckedChange = { enabled ->
                             scope.launch { settingsManager.setMiniPlayerCoverRotation(enabled) }
@@ -1142,8 +1155,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用词幕",
-                        summary = "将歌词推送到词幕（Lyricon）",
+                        title = stringResource(R.string.settings_enable_lyricon),
+                        summary = stringResource(R.string.settings_enable_lyricon_summary),
                         checked = lyriconEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setLyriconEnabled(enabled)
@@ -1152,8 +1165,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "传递翻译",
-                        summary = "在词幕中显示歌词翻译",
+                        title = stringResource(R.string.settings_lyricon_translation),
+                        summary = stringResource(R.string.settings_lyricon_translation_summary),
                         enabled = lyriconEnabled,
                         checked = lyriconTranslation,
                         onCheckedChange = { enabled ->
@@ -1166,8 +1179,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "词幕传递注音",
-                        summary = "开启后向词幕传递注音/罗马音副行",
+                        title = stringResource(R.string.settings_lyricon_pronunciation),
+                        summary = stringResource(R.string.settings_lyricon_pronunciation_summary),
                         enabled = lyriconEnabled,
                         checked = lyriconPronunciation,
                         onCheckedChange = { enabled ->
@@ -1180,8 +1193,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用桌面歌词",
-                        summary = "通过悬浮窗在其他应用上方显示当前歌词",
+                        title = stringResource(R.string.settings_enable_desktop_lyric),
+                        summary = stringResource(R.string.settings_enable_desktop_lyric_summary),
                         checked = desktopLyricEnabled,
                         onCheckedChange = { enabled ->
                             if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
@@ -1256,8 +1269,11 @@ fun SettingsDetailScreen(
                     }
 
                     WindowSpinnerPreference(
-                        title = "状态栏歌词位置",
-                        summary = "当前：${statusLyricPositionLabels[desktopLyricStatusBarPosition.coerceIn(0, 2)]}",
+                        title = stringResource(R.string.settings_status_bar_lyric_position),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            statusLyricPositionLabels[desktopLyricStatusBarPosition.coerceIn(0, 2)]
+                        ),
                         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
                         items = statusLyricPositionEntries,
                         selectedIndex = desktopLyricStatusBarPosition.coerceIn(0, 2),
@@ -1270,8 +1286,11 @@ fun SettingsDetailScreen(
                     )
 
                     WindowSpinnerPreference(
-                        title = "状态栏歌词副行",
-                        summary = "当前：${statusLyricSecondaryLabels[desktopLyricStatusBarSecondary.coerceIn(0, 2)]}",
+                        title = stringResource(R.string.settings_status_bar_lyric_secondary),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            statusLyricSecondaryLabels[desktopLyricStatusBarSecondary.coerceIn(0, 2)]
+                        ),
                         enabled = desktopLyricEnabled && desktopLyricStatusBarMode,
                         items = statusLyricSecondaryEntries,
                         selectedIndex = desktopLyricStatusBarSecondary.coerceIn(0, 2),
@@ -1284,8 +1303,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "锁定桌面歌词",
-                        summary = "锁定后悬浮歌词不可拖动；可在这里或锁定通知中解除",
+                        title = stringResource(R.string.settings_lock_desktop_lyric),
+                        summary = stringResource(R.string.settings_lock_desktop_lyric_summary),
                         enabled = desktopLyricEnabled,
                         checked = desktopLyricLocked,
                         onCheckedChange = { enabled ->
@@ -1316,12 +1335,12 @@ fun SettingsDetailScreen(
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Text(
-                            text = "桌面歌词大小 ${desktopLyricFontScale}%",
+                            text = stringResource(R.string.settings_desktop_lyric_font_scale, desktopLyricFontScale),
                             fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "调大主歌词和注音的显示尺寸",
+                            text = stringResource(R.string.settings_desktop_lyric_font_scale_summary),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -1347,12 +1366,12 @@ fun SettingsDetailScreen(
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Text(
-                            text = "翻译大小 ${desktopLyricTranslationScale}%",
+                            text = stringResource(R.string.settings_desktop_lyric_translation_scale, desktopLyricTranslationScale),
                             fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "单独放大桌面歌词的翻译行",
+                            text = stringResource(R.string.settings_desktop_lyric_translation_scale_summary),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -1378,12 +1397,12 @@ fun SettingsDetailScreen(
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Text(
-                            text = "桌面歌词透明度 ${desktopLyricOpacity}%",
+                            text = stringResource(R.string.settings_desktop_lyric_opacity, desktopLyricOpacity),
                             fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "调低后歌词会更淡，锁定状态也会保留",
+                            text = stringResource(R.string.settings_desktop_lyric_opacity_summary),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -1409,12 +1428,12 @@ fun SettingsDetailScreen(
 
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                         Text(
-                            text = "桌面歌词阴影 ${desktopLyricShadowStrength}%",
+                            text = stringResource(R.string.settings_desktop_lyric_shadow_strength, desktopLyricShadowStrength),
                             fontSize = 15.sp,
                             color = MiuixTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "增强浅色壁纸上的可读性；设为 0 可关闭阴影",
+                            text = stringResource(R.string.settings_desktop_lyric_shadow_strength_summary),
                             fontSize = 13.sp,
                             color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                         )
@@ -1439,8 +1458,11 @@ fun SettingsDetailScreen(
                     }
 
                     WindowSpinnerPreference(
-                        title = "桌面歌词颜色",
-                        summary = "当前：${desktopLyricColorPresets[selectedDesktopLyricColorIndex].first}",
+                        title = stringResource(R.string.settings_desktop_lyric_color),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            desktopLyricColorPresets[selectedDesktopLyricColorIndex].first
+                        ),
                         enabled = desktopLyricEnabled,
                         items = desktopLyricColorEntries,
                         selectedIndex = selectedDesktopLyricColorIndex,
@@ -1454,8 +1476,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用 SuperLyric",
-                        summary = "通过 SuperLyricApi 向 SuperLyric 生态发布逐字歌词",
+                        title = stringResource(R.string.settings_enable_super_lyric),
+                        summary = stringResource(R.string.settings_enable_super_lyric_summary),
                         checked = superLyricEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setSuperLyricEnabled(enabled)
@@ -1464,8 +1486,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "SuperLyric 传递翻译",
-                        summary = "关闭后只传原文，不再通过 SuperLyricApi 传递翻译行",
+                        title = stringResource(R.string.settings_super_lyric_translation),
+                        summary = stringResource(R.string.settings_super_lyric_translation_summary),
                         enabled = superLyricEnabled,
                         checked = superLyricTranslation,
                         onCheckedChange = { enabled ->
@@ -1478,8 +1500,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "SuperLyric 传递注音",
-                        summary = "开启后通过 SuperLyricApi 传递注音/罗马音副行",
+                        title = stringResource(R.string.settings_super_lyric_pronunciation),
+                        summary = stringResource(R.string.settings_super_lyric_pronunciation_summary),
                         enabled = superLyricEnabled,
                         checked = superLyricPronunciation,
                         onCheckedChange = { enabled ->
@@ -1492,8 +1514,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用 Lyric Getter",
-                        summary = "通过 Lyric Getter API 传递当前原文歌词",
+                        title = stringResource(R.string.settings_enable_lyric_getter),
+                        summary = stringResource(R.string.settings_enable_lyric_getter_summary),
                         checked = lyricGetterEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setLyricGetterEnabled(enabled)
@@ -1502,8 +1524,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用 FLYme 状态栏歌词",
-                        summary = "在魅族设备上通过 Ticker 通知显示歌词",
+                        title = stringResource(R.string.settings_enable_flyme_ticker),
+                        summary = stringResource(R.string.settings_enable_flyme_ticker_summary),
                         checked = tickerEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setTickerEnabled(enabled)
@@ -1512,8 +1534,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "隐藏 FLYme 歌词通知",
-                        summary = "复用播放通知只更新 Ticker，避免通知栏额外出现歌词通知。",
+                        title = stringResource(R.string.settings_hide_flyme_ticker_notification),
+                        summary = stringResource(R.string.settings_hide_flyme_ticker_notification_summary),
                         enabled = tickerEnabled,
                         checked = tickerHideNotification,
                         onCheckedChange = { enabled ->
@@ -1537,11 +1559,11 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "Samsung 浮动歌词翻译",
+                        title = stringResource(R.string.settings_samsung_floating_translation),
                         summary = if (tickerHideNotification) {
-                            "隐藏 FLYme 歌词通知时复用播放通知，无法同时写入三星浮动通知正文。"
+                            stringResource(R.string.settings_samsung_floating_translation_summary_blocked)
                         } else {
-                            "开启后把翻译写入通知正文，三星浮动通知可尝试双行显示。"
+                            stringResource(R.string.settings_samsung_floating_translation_summary)
                         },
                         enabled = tickerEnabled && !tickerHideNotification,
                         checked = samsungFloatingLyricTranslation && !tickerHideNotification,
@@ -1555,8 +1577,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "状态栏显示注音/副行",
-                        summary = "开启后将注音或翻译副行作为状态栏歌词的第二行传递。",
+                        title = stringResource(R.string.settings_status_bar_phonetic_secondary),
+                        summary = stringResource(R.string.settings_status_bar_phonetic_secondary_summary),
                         enabled = tickerEnabled,
                         checked = statusBarAllowPhonetic,
                         onCheckedChange = { enabled ->
@@ -1569,8 +1591,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "启用蓝牙车载歌词",
-                        summary = "将当前歌词写入媒体标题，供蓝牙设备或车机显示。",
+                        title = stringResource(R.string.settings_enable_bluetooth_lyric),
+                        summary = stringResource(R.string.settings_enable_bluetooth_lyric_summary),
                         checked = bluetoothLyricEnabled,
                         onCheckedChange = { enabled ->
                             playerViewModel?.setBluetoothLyricEnabled(enabled)
@@ -1579,8 +1601,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "车载歌词传递翻译",
-                        summary = "开启后用当前歌词翻译替换媒体歌手行。",
+                        title = stringResource(R.string.settings_bluetooth_lyric_translation),
+                        summary = stringResource(R.string.settings_bluetooth_lyric_translation_summary),
                         enabled = bluetoothLyricEnabled,
                         checked = bluetoothLyricTranslation,
                         onCheckedChange = { enabled ->
@@ -1593,8 +1615,8 @@ fun SettingsDetailScreen(
                     )
 
                     SwitchPreference(
-                        title = "车载歌词传递注音",
-                        summary = "开启后用当前歌词注音/罗马音替换媒体歌手行。",
+                        title = stringResource(R.string.settings_bluetooth_lyric_pronunciation),
+                        summary = stringResource(R.string.settings_bluetooth_lyric_pronunciation_summary),
                         enabled = bluetoothLyricEnabled,
                         checked = bluetoothLyricPronunciation,
                         onCheckedChange = { enabled ->
@@ -1712,32 +1734,32 @@ private fun HomeDisplaySettingsPage(
     val hiddenTileIds = remember(hiddenTiles) { hiddenTiles.csvIdSet() }
 
     HomeDisplayGroup(
-        title = "首页区块",
+        title = stringResource(R.string.settings_home_sections_title),
         items = orderedSections,
         hiddenIds = hiddenSectionIds,
         onHiddenIdsChange = onHiddenSectionsChange
     )
-    SmallTitle(text = "音乐库宫格")
+    SmallTitle(text = stringResource(R.string.settings_home_library_grid_title))
     HomeDisplayGroup(
         title = null,
         items = orderedTiles,
         hiddenIds = hiddenTileIds,
         onHiddenIdsChange = onHiddenTilesChange
     )
-    SmallTitle(text = "显示顺序")
+    SmallTitle(text = stringResource(R.string.settings_display_order_title))
     SettingsCardGroup {
         Column {
             SplitSettingTextField(
-                label = "首页区块顺序",
+                label = stringResource(R.string.settings_home_sections_order),
                 value = sectionOrder,
-                summary = "用英文逗号分隔：library,online,recent",
+                summary = stringResource(R.string.settings_home_sections_order_summary),
                 singleLine = true,
                 onValueChange = onSectionOrderChange
             )
             SplitSettingTextField(
-                label = "音乐库宫格顺序",
+                label = stringResource(R.string.settings_home_library_grid_order),
                 value = tileOrder,
-                summary = "artist,album,folder,folder_tree,playlist,analytics,genre,year,composer,lyricist",
+                summary = stringResource(R.string.settings_home_library_grid_order_summary),
                 onValueChange = onTileOrderChange
             )
         }
@@ -1763,12 +1785,12 @@ private fun HomeDisplayGroup(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 HomeDisplayCommand(
-                    text = "全选",
+                    text = stringResource(R.string.common_select_all),
                     modifier = Modifier.weight(1f),
                     onClick = { onHiddenIdsChange("") }
                 )
                 HomeDisplayCommand(
-                    text = "反选",
+                    text = stringResource(R.string.common_invert_selection),
                     modifier = Modifier.weight(1f),
                     onClick = {
                         val allIds = items.map { it.id }.toSet()

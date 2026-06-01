@@ -78,6 +78,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.neteaseAlbumUrl
 import com.ella.music.data.neteaseArtistUrl
 import com.ella.music.data.neteaseSongUrl
@@ -136,6 +137,7 @@ fun LibraryScreen(
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
@@ -179,9 +181,13 @@ fun LibraryScreen(
         pendingSystemDeleteSongs = emptyList()
         if (result.resultCode == Activity.RESULT_OK && songsToDelete.isNotEmpty()) {
             mainViewModel.removeSongsFromLibrary(songsToDelete)
-            Toast.makeText(context, "已删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.library_deleted_songs, songsToDelete.size),
+                Toast.LENGTH_SHORT
+            ).show()
         } else if (songsToDelete.isNotEmpty()) {
-            Toast.makeText(context, "已取消删除", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.library_delete_cancelled), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -203,13 +209,21 @@ fun LibraryScreen(
                 }.onFailure {
                     pendingSystemDeleteSongs = emptyList()
                     mainViewModel.deleteSongs(songsToDelete)
-                    Toast.makeText(context, "正在删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.library_deleting_songs, songsToDelete.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 return
             }
         }
         mainViewModel.deleteSongs(songsToDelete)
-        Toast.makeText(context, "正在删除 ${songsToDelete.size} 首歌曲", Toast.LENGTH_SHORT).show()
+        Toast.makeText(
+            context,
+            context.getString(R.string.library_deleting_songs, songsToDelete.size),
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     LaunchedEffect(Unit) {
@@ -325,7 +339,7 @@ fun LibraryScreen(
                         }) {
                             Icon(
                                 imageVector = MiuixIcons.Regular.SelectAll,
-                                contentDescription = "多选",
+                                contentDescription = stringResource(R.string.common_select_all),
                                 tint = MiuixTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(24.dp)
                             )
@@ -387,7 +401,7 @@ fun LibraryScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = mode.label,
+                            text = stringResource(mode.labelRes),
                             fontSize = 14.sp,
                             fontWeight = if (sortMode == mode) FontWeight.Bold else FontWeight.Normal,
                             color = if (sortMode == mode) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface
@@ -415,7 +429,7 @@ fun LibraryScreen(
             exit = shrinkVertically()
         ) {
             Text(
-                text = "正在扫描 ${scanProgress} 首歌曲...",
+                    text = stringResource(R.string.library_scanning_count, scanProgress),
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -428,7 +442,7 @@ fun LibraryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "未找到歌曲，点击右上角刷新扫描",
+                    text = stringResource(R.string.library_empty_hint),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
@@ -438,7 +452,7 @@ fun LibraryScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "正在整理歌曲...",
+                    text = stringResource(R.string.library_organizing),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary
                 )
             }
@@ -479,9 +493,13 @@ fun LibraryScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text(
                         text = if (selectionMode) {
-                            "已选择 ${selectedIds.size} 首"
+                            stringResource(R.string.library_selected_count, selectedIds.size)
                         } else {
-                            "${sortedSongs.size} 首歌曲 · ${sortMode.label}"
+                            stringResource(
+                                R.string.library_song_count_sorted,
+                                sortedSongs.size,
+                                stringResource(sortMode.labelRes)
+                            )
                         },
                         fontSize = 13.sp,
                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -504,6 +522,8 @@ fun LibraryScreen(
                                 albumArtUri = if (listCoversEnabled) mainViewModel.getAlbumArtUri(song.albumId) else null,
                                 loadCoverArt = mainViewModel::getCoverArtBitmap,
                                 loadAudioInfo = mainViewModel::getAudioInfo,
+                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                                loadSongRating = mainViewModel::getSongRating,
                                 selectionMode = selectionMode,
                                 selected = selected,
                                 onLongClick = {
@@ -568,7 +588,7 @@ fun LibraryScreen(
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_my_location),
-                            contentDescription = "定位当前歌曲",
+                            contentDescription = stringResource(R.string.player_locate_current_song),
                             tint = MiuixTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(21.dp)
                         )
@@ -591,7 +611,7 @@ fun LibraryScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "选择歌手",
+                title = stringResource(R.string.song_more_select_artist),
                 onDismissRequest = { artistChoices = emptyList() }
             ) {
                 ArtistPickerSheet(
@@ -609,7 +629,7 @@ fun LibraryScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "添加到歌单",
+                title = stringResource(R.string.song_more_add_to_playlist_title),
                 onDismissRequest = { playlistPickerSongs = null }
             ) {
                 AddToPlaylistMenu(
@@ -626,7 +646,11 @@ fun LibraryScreen(
                         selectedPlaylists.forEach { playlist ->
                             mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
                         }
-                        Toast.makeText(context, "已添加到 ${selectedPlaylists.size} 个歌单", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                            Toast.LENGTH_SHORT
+                        ).show()
                         playlistPickerSongs = null
                         selectedIds = emptySet()
                         selectionMode = false
@@ -643,7 +667,11 @@ fun LibraryScreen(
                     mainViewModel.createPlaylist(name) { playlist ->
                         if (playlist != null) {
                             mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
-                            Toast.makeText(context, "已添加到 ${playlist.name}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.player_added_to_playlist_named, playlist.name),
+                                Toast.LENGTH_SHORT
+                            ).show()
                             selectedIds = emptySet()
                             selectionMode = false
                         }
@@ -655,9 +683,9 @@ fun LibraryScreen(
 
         ConfirmDangerDialog(
             show = pendingConfirmDeleteSongs.isNotEmpty(),
-            title = "永久删除歌曲",
-            message = "确定要永久删除选中的 ${pendingConfirmDeleteSongs.size} 首歌曲吗？此操作可能会删除本地音频文件。",
-            confirmText = "永久删除",
+            title = stringResource(R.string.song_more_delete_song_title),
+            message = stringResource(R.string.library_delete_selected_message, pendingConfirmDeleteSongs.size),
+            confirmText = stringResource(R.string.song_more_delete_permanently),
             onDismiss = { pendingConfirmDeleteSongs = emptyList() },
             onConfirm = {
                 requestDeleteSongs(pendingConfirmDeleteSongs)
@@ -671,7 +699,7 @@ fun LibraryScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "编辑歌曲标签信息",
+                title = stringResource(R.string.song_more_edit_tags_title),
                 onDismissRequest = { tagEditorSong = null }
             ) {
                 SongTagEditorMenu(
@@ -690,7 +718,7 @@ fun LibraryScreen(
             WindowBottomSheet(
                 show = true,
                 enableNestedScroll = false,
-                title = "歌曲信息",
+                title = stringResource(R.string.player_song_details),
                 onDismissRequest = { songInfoSheetSong = null }
             ) {
                 SongInfoMenu(
@@ -752,17 +780,29 @@ private fun SongActionMenu(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
-        LibraryMenuItem("添加到歌单", onAddToPlaylist)
-        LibraryMenuItem("下一首播放", onPlayNext)
-        LibraryMenuItem("分享", onShare)
-        LibraryMenuItem("查看频谱", onSpectrum)
-        LibraryMenuItem("AI 解读歌曲", onAiInterpret)
-        LibraryMenuItem("查看歌曲信息", onInfo)
-        LibraryMenuItem("艺术家：${song.artist.ifBlank { "未知艺术家" }}", onArtist)
-        LibraryMenuItem("专辑：${song.album.ifBlank { "未知专辑" }}", onAlbum)
-        LibraryMenuItem("编辑歌曲标签信息", onEditTag)
-        LibraryMenuItem("永久删除", onDelete, danger = true)
-        LibraryMenuItem("取消", onDismiss)
+        LibraryMenuItem(stringResource(R.string.song_more_add_to_playlist), onAddToPlaylist)
+        LibraryMenuItem(stringResource(R.string.song_more_play_next), onPlayNext)
+        LibraryMenuItem(stringResource(R.string.common_share), onShare)
+        LibraryMenuItem(stringResource(R.string.song_more_view_spectrum), onSpectrum)
+        LibraryMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
+        LibraryMenuItem(stringResource(R.string.song_more_view_song_info), onInfo)
+        LibraryMenuItem(
+            stringResource(
+                R.string.song_more_artist_entry,
+                song.artist.ifBlank { stringResource(R.string.player_unknown_artist) }
+            ),
+            onArtist
+        )
+        LibraryMenuItem(
+            stringResource(
+                R.string.song_more_album_entry,
+                song.album.ifBlank { stringResource(R.string.player_unknown_album) }
+            ),
+            onAlbum
+        )
+        LibraryMenuItem(stringResource(R.string.song_more_edit_tags_title), onEditTag)
+        LibraryMenuItem(stringResource(R.string.song_more_delete_permanently), onDelete, danger = true)
+        LibraryMenuItem(stringResource(R.string.common_cancel), onDismiss)
     }
 }
 
@@ -806,36 +846,38 @@ private fun SongInfoMenu(
     ) {
         SheetHandle()
         Text(
-            text = "歌曲信息",
+            text = stringResource(R.string.player_song_details),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
-        LibraryMenuItem("AI 解读歌曲", onAiInterpret)
-        SongInfoRow("标题", tagInfo?.title?.ifBlank { song.title } ?: song.title)
-        SongInfoRow("艺术家", tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
-        SongInfoRow("专辑", tagInfo?.album?.ifBlank { song.album } ?: song.album)
-        SongInfoRow("专辑艺术家", tagInfo?.albumArtist.orEmpty())
-        SongInfoRow("流派", tagInfo?.genre?.ifBlank { song.genre }.orEmpty())
-        SongInfoRow("年份", tagInfo?.year?.ifBlank { song.year }.orEmpty())
-        SongInfoRow("作曲家", tagInfo?.composer?.ifBlank { song.composer }.orEmpty())
-        SongInfoRow("作词家", tagInfo?.lyricist?.ifBlank { song.lyricist }.orEmpty())
-        SongInfoRow("注释", tagInfo?.displayComment.orEmpty())
+        LibraryMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
+        SongInfoRow(stringResource(R.string.player_detail_song), tagInfo?.title?.ifBlank { song.title } ?: song.title)
+        SongInfoRow(stringResource(R.string.player_detail_artist), tagInfo?.artist?.ifBlank { song.artist } ?: song.artist)
+        SongInfoRow(stringResource(R.string.player_detail_album), tagInfo?.album?.ifBlank { song.album } ?: song.album)
+        SongInfoRow(stringResource(R.string.song_more_detail_album_artist), tagInfo?.albumArtist.orEmpty())
+        SongInfoRow(stringResource(R.string.song_more_detail_genre), tagInfo?.genre?.ifBlank { song.genre }.orEmpty())
+        SongInfoRow(stringResource(R.string.song_more_detail_year), tagInfo?.year?.ifBlank { song.year }.orEmpty())
+        SongInfoRow(stringResource(R.string.player_detail_composer), tagInfo?.composer?.ifBlank { song.composer }.orEmpty())
+        SongInfoRow(stringResource(R.string.player_detail_lyricist), tagInfo?.lyricist?.ifBlank { song.lyricist }.orEmpty())
+        SongInfoRow(stringResource(R.string.player_detail_comment), tagInfo?.displayComment.orEmpty())
         if (!tagInfo?.neteaseKey.isNullOrBlank()) {
             SongInfoActionRow(
-                label = "163 key",
+                label = stringResource(R.string.song_more_netease_key),
                 value = neteaseInfo?.musicName?.ifBlank { null }
-                    ?: neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let { "网易云歌曲 ID：$it" }
-                    ?: "点击查看网易云关联信息",
+                    ?: neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let {
+                        stringResource(R.string.song_more_netease_song_id, it)
+                    }
+                    ?: stringResource(R.string.song_more_view_netease_info),
                 onClick = { showNeteaseKeyInfo = true }
             )
         }
-        SongInfoRow("格式", audioInfo?.let { detailedAudioInfo(it) }.orEmpty())
-        SongInfoRow("时长", song.durationText)
-        SongInfoRow("大小", formatLibraryFileSize(song.fileSize))
-        SongInfoRow("文件名", song.fileName.ifBlank { song.path.substringAfterLast('/') })
-        SongInfoRow("路径", song.path)
+        SongInfoRow(stringResource(R.string.song_more_detail_format), audioInfo?.let { detailedAudioInfo(it) }.orEmpty())
+        SongInfoRow(stringResource(R.string.song_more_detail_duration), song.durationText)
+        SongInfoRow(stringResource(R.string.song_more_detail_size), formatLibraryFileSize(song.fileSize))
+        SongInfoRow(stringResource(R.string.song_more_detail_file_name), song.fileName.ifBlank { song.path.substringAfterLast('/') })
+        SongInfoRow(stringResource(R.string.song_more_detail_path), song.path)
     }
 }
 
@@ -848,6 +890,8 @@ private fun SongAiInterpretationMenu(
     val context = LocalContext.current
     val settingsManager = remember(context) { SettingsManager(context) }
     val openAiApiKey by settingsManager.openAiApiKey.collectAsState(initial = "")
+    val missingApiKeyText = stringResource(R.string.library_ai_missing_api_key)
+    val aiFailedText = stringResource(R.string.song_more_ai_failed)
     var requestKey by remember(song.id) { mutableStateOf(0) }
     var isLoading by remember(song.id) { mutableStateOf(false) }
     var resultText by remember(song.id) { mutableStateOf("") }
@@ -857,7 +901,7 @@ private fun SongAiInterpretationMenu(
         if (openAiApiKey.isBlank()) {
             isLoading = false
             resultText = ""
-            errorText = "请先到 设置 > 应用偏好 > AI 解读 填写 OpenAI API Key。"
+            errorText = missingApiKeyText
             return@LaunchedEffect
         }
         isLoading = true
@@ -868,14 +912,14 @@ private fun SongAiInterpretationMenu(
         }.onSuccess {
             resultText = it
         }.onFailure {
-            errorText = it.message ?: "AI 解读失败"
+            errorText = it.message ?: aiFailedText
         }
         isLoading = false
     }
 
     WindowBottomSheet(
         show = true,
-        title = "AI 解读歌曲",
+        title = stringResource(R.string.song_more_ai_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -897,11 +941,14 @@ private fun SongAiInterpretationMenu(
 
             when {
                 isLoading -> {
-                    SongInfoRow("状态", "正在读取歌曲信息和歌词，并请求 OpenAI 解读...")
+                    SongInfoRow(
+                        stringResource(R.string.library_status_label),
+                        stringResource(R.string.library_ai_loading)
+                    )
                 }
                 errorText != null -> {
-                    SongInfoRow("状态", errorText.orEmpty())
-                    LibraryMenuItem("重试", onClick = { requestKey++ })
+                    SongInfoRow(stringResource(R.string.library_status_label), errorText.orEmpty())
+                    LibraryMenuItem(stringResource(R.string.library_retry), onClick = { requestKey++ })
                 }
                 resultText.isNotBlank() -> {
                     Text(
@@ -915,11 +962,11 @@ private fun SongAiInterpretationMenu(
                             .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
                             .padding(horizontal = 16.dp, vertical = 14.dp)
                     )
-                    LibraryMenuItem("重新解读", onClick = { requestKey++ })
+                    LibraryMenuItem(stringResource(R.string.library_reinterpret), onClick = { requestKey++ })
                 }
             }
 
-            LibraryMenuItem("关闭", onDismiss)
+            LibraryMenuItem(stringResource(R.string.common_close), onDismiss)
         }
     }
 }
@@ -946,7 +993,7 @@ private fun NeteaseKeyInfoMenu(
     ) {
         SheetHandle()
         Text(
-            text = if (showArtistPicker) "选择网易云歌手" else "163 key",
+            text = if (showArtistPicker) stringResource(R.string.player_choose_netease_artist) else stringResource(R.string.song_more_netease_key),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
@@ -959,15 +1006,15 @@ private fun NeteaseKeyInfoMenu(
                     onClick = { onOpenUrl(neteaseArtistUrl(artist.id)) }
                 )
             }
-            LibraryMenuItem("返回 163 key", onClick = { showArtistPicker = false })
+            LibraryMenuItem(stringResource(R.string.song_more_back_to_netease_key), onClick = { showArtistPicker = false })
             return@Column
         }
         if (!info.hasDecodedContent) {
-            SongInfoRow("状态", "没有解析出可跳转的网易云信息")
+            SongInfoRow(stringResource(R.string.library_status_label), stringResource(R.string.library_netease_info_unavailable))
         }
         if (info.musicId.isNotBlank()) {
             SongInfoActionRow(
-                label = "网易云歌曲页",
+                label = stringResource(R.string.player_netease_song_page),
                 value = listOf(info.musicName, "ID ${info.musicId}").filter { it.isNotBlank() }.joinToString(" · "),
                 onClick = { onOpenUrl(neteaseSongUrl(info.musicId)) }
             )
@@ -975,10 +1022,10 @@ private fun NeteaseKeyInfoMenu(
         info.aliases
             .joinToString(" / ")
             .takeIf { it.isNotBlank() }
-            ?.let { SongInfoRow("别名", it) }
+            ?.let { SongInfoRow(stringResource(R.string.song_more_alias), it) }
         if (info.albumId.isNotBlank()) {
             SongInfoActionRow(
-                label = "网易云专辑页",
+                label = stringResource(R.string.player_netease_album_page),
                 value = listOf(info.albumName, "ID ${info.albumId}").filter { it.isNotBlank() }.joinToString(" · "),
                 onClick = { onOpenUrl(neteaseAlbumUrl(info.albumId)) }
             )
@@ -988,7 +1035,7 @@ private fun NeteaseKeyInfoMenu(
             .takeIf { it.isNotBlank() }
         if (neteaseArtists.isNotEmpty()) {
             SongInfoActionRow(
-                label = "网易云歌手页",
+                label = stringResource(R.string.player_netease_artist_page),
                 value = artistSummary.orEmpty(),
                 onClick = {
                     if (neteaseArtists.size == 1) {
@@ -999,12 +1046,12 @@ private fun NeteaseKeyInfoMenu(
                 }
             )
         } else {
-            artistSummary?.let { SongInfoRow("网易云歌手页", it) }
+            artistSummary?.let { SongInfoRow(stringResource(R.string.player_netease_artist_page), it) }
         }
-        SongInfoRow("注释", info.comment)
-        SongInfoRow("原始 163 key", info.raw)
-        SongInfoRow("解密 JSON", info.decodedJson)
-        LibraryMenuItem("返回歌曲信息", onBack)
+        SongInfoRow(stringResource(R.string.player_detail_comment), info.comment)
+        SongInfoRow(stringResource(R.string.song_more_raw_netease_key), info.raw)
+        SongInfoRow(stringResource(R.string.library_decoded_json), info.decodedJson)
+        LibraryMenuItem(stringResource(R.string.library_back_to_song_info), onBack)
     }
 }
 
@@ -1039,13 +1086,16 @@ private fun openNeteaseUrl(context: Context, url: String) {
     runCatching {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.onFailure {
-        Toast.makeText(context, "无法打开网易云链接", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.library_open_netease_failed), Toast.LENGTH_SHORT).show()
     }
 }
 
 @Composable
 private fun SongInfoRow(label: String, value: String) {
     if (value.isBlank()) return
+    val pathLabel = stringResource(R.string.song_more_detail_path)
+    val rawNeteaseKeyLabel = stringResource(R.string.song_more_raw_netease_key)
+    val decodedJsonLabel = stringResource(R.string.library_decoded_json)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1063,8 +1113,8 @@ private fun SongInfoRow(label: String, value: String) {
             fontSize = 14.sp,
             color = MiuixTheme.colorScheme.onSurface,
             maxLines = when (label) {
-                "路径" -> 3
-                "原始 163 key", "解密 JSON" -> 6
+                pathLabel -> 3
+                rawNeteaseKeyLabel, decodedJsonLabel -> 6
                 else -> 2
             },
             overflow = TextOverflow.Ellipsis,
@@ -1094,16 +1144,16 @@ private fun AddToPlaylistMenu(
     ) {
         SheetHandle()
         Text(
-            text = "添加 $songCount 首到歌单",
+            text = stringResource(R.string.library_add_to_playlist_count, songCount),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
         )
-        LibraryMenuItem("新建歌单", onCreatePlaylist)
+        LibraryMenuItem(stringResource(R.string.song_more_create_playlist), onCreatePlaylist)
         if (playlists.isEmpty()) {
             Text(
-                text = "暂无自定义歌单",
+                text = stringResource(R.string.song_more_no_custom_playlists),
                 fontSize = 14.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp)
@@ -1112,7 +1162,12 @@ private fun AddToPlaylistMenu(
             playlists.forEach { playlist ->
                 val selected = playlist.id in selectedPlaylistIds
                 LibraryMenuItem(
-                    text = "${if (selected) "✓ " else ""}${playlist.name} · ${playlist.songs.size} 首",
+                    text = stringResource(
+                        R.string.song_more_playlist_item_summary,
+                        if (selected) "\u2713 " else "",
+                        playlist.name,
+                        playlist.songs.size
+                    ),
                     onClick = {
                         selectedPlaylistIds = if (selected) {
                             selectedPlaylistIds - playlist.id
@@ -1125,7 +1180,7 @@ private fun AddToPlaylistMenu(
         }
         if (playlists.isNotEmpty()) {
             LibraryMenuItem(
-                text = "完成（${selectedPlaylistIds.size}）",
+                text = stringResource(R.string.song_more_done_selected, selectedPlaylistIds.size),
                 onClick = {
                     if (selectedPlaylists.isNotEmpty()) {
                         onPlaylistsConfirm(selectedPlaylists)
@@ -1133,7 +1188,7 @@ private fun AddToPlaylistMenu(
                 }
             )
         }
-        LibraryMenuItem("取消", onDismiss)
+        LibraryMenuItem(stringResource(R.string.common_cancel), onDismiss)
     }
 }
 
@@ -1153,7 +1208,7 @@ private fun CreatePlaylistAndAddSheet(
     }
     WindowBottomSheet(
         show = true,
-        title = "新建歌单",
+        title = stringResource(R.string.playlist_create_title),
         onDismissRequest = onDismiss
     ) {
         Column(
@@ -1161,7 +1216,7 @@ private fun CreatePlaylistAndAddSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = "创建后会添加 $songCount 首歌曲",
+                text = stringResource(R.string.library_create_playlist_add_count, songCount),
                 fontSize = 13.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -1169,7 +1224,7 @@ private fun CreatePlaylistAndAddSheet(
             TextField(
                 value = name,
                 onValueChange = { name = it },
-                label = "歌单名称",
+                label = stringResource(R.string.playlist_name_label),
                 useLabelAsPlaceholder = true,
                 singleLine = true,
                 insideMargin = DpSize(12.dp, 10.dp),
@@ -1184,9 +1239,9 @@ private fun CreatePlaylistAndAddSheet(
                     .focusRequester(focusRequester)
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Button(onClick = onDismiss) { Text("取消") }
+                Button(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = { onCreate(name) }) { Text("创建") }
+                Button(onClick = { onCreate(name) }) { Text(stringResource(R.string.common_create)) }
             }
         }
     }
@@ -1210,7 +1265,7 @@ private fun SongTagEditorMenu(
     ) {
         SheetHandle()
         Text(
-            text = "编辑歌曲标签信息",
+            text = stringResource(R.string.song_more_edit_tags_title),
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             color = MiuixTheme.colorScheme.onSurface,
@@ -1226,7 +1281,7 @@ private fun SongTagEditorMenu(
         )
         if (options.isEmpty()) {
             Text(
-                text = "未找到 Lyrico、LunaBeat 或音乐标签，请先安装后再试",
+                text = stringResource(R.string.player_no_metadata_editor_found),
                 fontSize = 14.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 18.dp)
@@ -1240,7 +1295,7 @@ private fun SongTagEditorMenu(
                 )
             }
         }
-        LibraryMenuItem("取消", onDismiss)
+        LibraryMenuItem(stringResource(R.string.common_cancel), onDismiss)
     }
 }
 
@@ -1307,15 +1362,15 @@ private fun formatLibraryFileSize(bytes: Long): String {
     }
 }
 
-private enum class HomeSortMode(val label: String) {
-    Title("歌曲名称"),
-    FileName("文件名"),
-    DateAdded("添加时间"),
-    DateAddedAsc("添加时间升序"),
-    DateModified("修改时间"),
-    DateModifiedAsc("修改时间升序"),
-    YearAsc("发行时间正序"),
-    YearDesc("发行时间倒序")
+private enum class HomeSortMode(val labelRes: Int) {
+    Title(R.string.playlist_song_sort_title),
+    FileName(R.string.playlist_song_sort_file_name),
+    DateAdded(R.string.playlist_song_sort_date_added),
+    DateAddedAsc(R.string.playlist_song_sort_date_added_asc),
+    DateModified(R.string.playlist_song_sort_date_modified),
+    DateModifiedAsc(R.string.playlist_song_sort_date_modified_asc),
+    YearAsc(R.string.playlist_song_sort_year_asc),
+    YearDesc(R.string.playlist_song_sort_year_desc)
 }
 
 private fun List<Song>.sortedByReleaseDate(ascending: Boolean): List<Song> {

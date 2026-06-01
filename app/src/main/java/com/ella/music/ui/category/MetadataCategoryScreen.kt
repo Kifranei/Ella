@@ -67,6 +67,8 @@ import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.MetadataCategoryItem
 import com.ella.music.viewmodel.PlayerViewModel
@@ -306,6 +308,7 @@ fun MetadataCategoryDetailScreen(
     onBack: () -> Unit,
     onAlbumClick: (Long) -> Unit = {},
     onArtistClick: (String) -> Unit = {},
+    onMetadataCategoryClick: (String, String) -> Unit = { _, _ -> },
     onNavigateToPlayer: () -> Unit
 ) {
     val context = LocalContext.current
@@ -313,6 +316,7 @@ fun MetadataCategoryDetailScreen(
     val libraryAlbums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = true)
     val songs = remember(type, name, librarySongs) { mainViewModel.getSongsForMetadataCategory(type, name) }
@@ -343,6 +347,12 @@ fun MetadataCategoryDetailScreen(
     }
     val hasSameNameArtist = remember(type, name, librarySongs) {
         (type == "composer" || type == "lyricist") && mainViewModel.getSongsForArtist(name).isNotEmpty()
+    }
+    val hasSameNameComposer = remember(type, name, librarySongs) {
+        type == "lyricist" && mainViewModel.getSongsForMetadataCategory("composer", name).isNotEmpty()
+    }
+    val hasSameNameLyricist = remember(type, name, librarySongs) {
+        type == "composer" && mainViewModel.getSongsForMetadataCategory("lyricist", name).isNotEmpty()
     }
     val pageBackground = ellaPageBackground()
     val listState = rememberLazyListState()
@@ -511,20 +521,41 @@ fun MetadataCategoryDetailScreen(
             ) {
                 item {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        Text(
-                            text = if (selectionMode) {
-                                "已选择 ${selectedIds.size} 首"
-                            } else if (selectedTab == MetadataDetailTab.Albums) {
-                                "${sortedAlbums.size} 张专辑 · ${type.categoryTitle()} · ${albumSortMode.label}"
-                            } else {
-                                "${sortedSongs.size} 首歌曲 · ${type.categoryTitle()} · ${sortMode.label}"
-                            },
-                            fontSize = 13.sp,
-                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                        )
+                        val summaryText = if (selectionMode) {
+                            "已选择 ${selectedIds.size} 首"
+                        } else if (selectedTab == MetadataDetailTab.Albums) {
+                            "${sortedAlbums.size} 张专辑 · ${type.categoryTitle()} · ${albumSortMode.label}"
+                        } else {
+                            "${sortedSongs.size} 首歌曲 · ${type.categoryTitle()} · ${sortMode.label}"
+                        }
+                        if (type == "composer" || type == "lyricist") {
+                            Row(
+                                modifier = Modifier.padding(bottom = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (hasSameNameArtist) {
+                                    MetadataDetailLinkChip(
+                                        text = "艺术家页",
+                                        onClick = { onArtistClick(name) }
+                                    )
+                                }
+                                if (hasSameNameComposer) {
+                                    MetadataDetailLinkChip(
+                                        text = "作曲家页",
+                                        onClick = { onMetadataCategoryClick("composer", name) }
+                                    )
+                                }
+                                if (hasSameNameLyricist) {
+                                    MetadataDetailLinkChip(
+                                        text = "作词家页",
+                                        onClick = { onMetadataCategoryClick("lyricist", name) }
+                                    )
+                                }
+                            }
+                        }
                         if (showAlbumTab) {
                             Row(
-                                modifier = Modifier.padding(top = 10.dp),
+                                modifier = Modifier.padding(bottom = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 MetadataDetailTab.entries.forEach { tab ->
@@ -545,20 +576,11 @@ fun MetadataCategoryDetailScreen(
                                 }
                             }
                         }
-                        if (hasSameNameArtist) {
-                            Text(
-                                text = "艺术家页",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MiuixTheme.colorScheme.primary,
-                                modifier = Modifier
-                                    .padding(top = 8.dp)
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                    .clickable { onArtistClick(name) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
-                        }
+                        Text(
+                            text = summaryText,
+                            fontSize = 13.sp,
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        )
                     }
                 }
                 if (selectedTab == MetadataDetailTab.Albums) {
@@ -577,9 +599,11 @@ fun MetadataCategoryDetailScreen(
                             song = song,
                             isCurrent = currentSong?.id == song.id,
                             albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
-                            loadCoverArt = mainViewModel::getCoverArtBitmap,
-                            loadAudioInfo = mainViewModel::getAudioInfo,
-                            selectionMode = selectionMode,
+                                loadCoverArt = mainViewModel::getCoverArtBitmap,
+                                loadAudioInfo = mainViewModel::getAudioInfo,
+                                isFavorite = song.playlistIdentityKey() in favoriteSongKeys,
+                                loadSongRating = mainViewModel::getSongRating,
+                                selectionMode = selectionMode,
                             selected = selected,
                             onLongClick = {
                                 selectionMode = true
@@ -787,6 +811,24 @@ private fun CategoryCreatePlaylistAndAddSelectedSheet(
             }
         }
     }
+}
+
+@Composable
+private fun MetadataDetailLinkChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        color = MiuixTheme.colorScheme.primary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    )
 }
 
 @Composable
@@ -1269,6 +1311,12 @@ private fun MetadataAlbumRow(
     albumArtUri: android.net.Uri?,
     onClick: () -> Unit
 ) {
+    val summary = buildList {
+        add("${album.songCount} 首歌曲")
+        if (album.year > 0) add("${album.year}年")
+        add(duration.formatDuration())
+    }.joinToString(" · ")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1306,7 +1354,7 @@ private fun MetadataAlbumRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "${album.songCount} 首歌曲 · ${duration.formatDuration()}",
+                text = summary,
                 fontSize = 12.sp,
                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 maxLines = 1,
@@ -1363,11 +1411,7 @@ private fun String.usesSingleColumnCategory(): Boolean {
 }
 
 private fun Long.formatDuration(): String {
-    if (this <= 0L) return "00:00"
-    val totalSeconds = this / 1000L
-    val hours = totalSeconds / 3600L
-    val minutes = (totalSeconds % 3600L) / 60L
-    return if (hours > 0) "${hours}小时${minutes}分" else "${minutes}分钟"
+    return formatPlaybackDuration()
 }
 
 private fun Long.formatDateText(): String {

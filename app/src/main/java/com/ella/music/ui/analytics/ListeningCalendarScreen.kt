@@ -49,6 +49,7 @@ import com.ella.music.data.PlaybackHistoryEntry
 import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.ellaPageBackground
@@ -146,7 +147,7 @@ fun ListeningCalendarHistoryScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 160.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 item("selected-day") {
@@ -720,28 +721,11 @@ private fun formatCalendarDetailDate(dateKey: String): String {
 }
 
 private fun formatCalendarTotalDuration(durationMs: Long): String {
-    val totalSeconds = (durationMs / 1000).coerceAtLeast(0L)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
-    } else {
-        "%d:%02d".format(minutes, seconds)
-    }
+    return durationMs.formatPlaybackDuration()
 }
 
 private fun formatTrackDuration(durationMs: Long): String {
-    if (durationMs <= 0L) return "--"
-    val totalSeconds = (durationMs / 1000).coerceAtLeast(0L)
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return when {
-        hours > 0L -> "%d:%02d:%02d".format(hours, minutes, seconds)
-        minutes > 0L -> "${minutes}分${seconds.toString().padStart(2, '0')}秒"
-        else -> "${seconds}秒"
-    }
+    return durationMs.formatPlaybackDuration()
 }
 
 private fun formatHistoryClock(timestampMs: Long): String {
