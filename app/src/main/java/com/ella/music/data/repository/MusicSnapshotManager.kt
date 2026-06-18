@@ -9,7 +9,10 @@ import org.json.JSONObject
 internal data class RatingSnapshotEntry(
     val rating: Int,
     val dateModified: Long,
-    val fileSize: Long
+    val fileSize: Long,
+    val path: String = "",
+    val id: Long = 0L,
+    val trustedLocalWrite: Boolean = false
 )
 
 internal class MusicSnapshotManager(
@@ -37,18 +40,31 @@ internal class MusicSnapshotManager(
     fun getSongRating(song: Song): Int {
         ensureRatingSnapshotLoaded()
         val key = song.searchSnapshotKey()
-        val entry = ratingSnapshotCache[key] ?: return 0
+        val entry = ratingSnapshotCache[key] ?: ratingSnapshotCache.values.firstOrNull { entry ->
+            entry.path.isNotBlank() && entry.path == song.path
+        }?.also { migrated ->
+            ratingSnapshotCache[key] = migrated.copy(id = song.id, path = song.path)
+            ratingSnapshotDirty = true
+        } ?: return 0
         return if (entry.isFreshFor(song)) entry.rating else 0
     }
 
-    fun updateRatingSnapshot(song: Song, rating: Int) {
+    fun updateRatingSnapshot(song: Song, rating: Int, trustedLocalWrite: Boolean = true) {
         ensureRatingSnapshotLoaded()
         ratingSnapshotCache[song.searchSnapshotKey()] = RatingSnapshotEntry(
             rating = rating.coerceIn(0, 5),
             dateModified = song.dateModified,
-            fileSize = song.fileSize
+            fileSize = song.fileSize,
+            path = song.path,
+            id = song.id,
+            trustedLocalWrite = trustedLocalWrite
         )
         ratingSnapshotDirty = true
+    }
+
+    internal fun ratingSnapshotEntry(song: Song): RatingSnapshotEntry? {
+        ensureRatingSnapshotLoaded()
+        return ratingSnapshotCache[song.searchSnapshotKey()]
     }
 
     fun preloadSearchSnapshot(songs: List<Song>) {
@@ -69,7 +85,12 @@ internal class MusicSnapshotManager(
             val key = song.searchSnapshotKey()
             if (!ratingSnapshotCache.containsKey(key)) {
                 ratingSnapshotCache[key] = RatingSnapshotEntry(
-                    rating = 0, dateModified = song.dateModified, fileSize = song.fileSize
+                    rating = 0,
+                    dateModified = song.dateModified,
+                    fileSize = song.fileSize,
+                    path = song.path,
+                    id = song.id,
+                    trustedLocalWrite = false
                 )
             }
         }
@@ -105,12 +126,28 @@ internal class MusicSnapshotManager(
 
     fun clearMetadataCache(song: Song) {
         ensureRatingSnapshotLoaded()
-        ratingSnapshotCache.keys.removeAll { it == song.searchSnapshotKey() || it.startsWith("${song.id}|") }
+        ratingSnapshotCache.keys.removeAll { it == song.searchSnapshotKey() }
         ratingSnapshotDirty = true
         saveRatingSnapshot()
         ensureSearchSnapshotLoaded()
-        searchTextCache.keys.removeAll { it == song.searchSnapshotKey() || it.startsWith("${song.id}|") }
+        searchTextCache.keys.removeAll { it == song.searchSnapshotKey() }
+        searchSnapshotDirty = true
         saveSearchSnapshot()
+    }
+
+    fun clearMissingFileSnapshots(existingPaths: Set<String>): Int {
+        ensureRatingSnapshotLoaded()
+        val before = ratingSnapshotCache.size
+        ratingSnapshotCache.keys.removeAll { key ->
+            val entry = ratingSnapshotCache[key] ?: return@removeAll false
+            entry.path.isNotBlank() && entry.path !in existingPaths
+        }
+        val removed = before - ratingSnapshotCache.size
+        if (removed > 0) {
+            ratingSnapshotDirty = true
+            saveRatingSnapshot()
+        }
+        return removed
     }
 
     fun saveAll() {
@@ -134,7 +171,7 @@ internal class MusicSnapshotManager(
                         searchTextCache[stableKey] = value
                     }
                 }.onFailure {
-                    Log.w("MusicRepo", "Failed to load library search snapshot", it)
+                    logSnapshotWarning("Failed to load library search snapshot", it)
                     searchTextCache.clear()
                 }
             }
@@ -150,7 +187,7 @@ internal class MusicSnapshotManager(
             librarySearchSnapshotFile.writeText(root.toString())
             searchSnapshotDirty = false
         }.onFailure {
-            Log.w("MusicRepo", "Failed to save library search snapshot", it)
+            logSnapshotWarning("Failed to save library search snapshot", it)
         }
     }
 
@@ -166,11 +203,14 @@ internal class MusicSnapshotManager(
                         ratingSnapshotCache[key] = RatingSnapshotEntry(
                             rating = value.optInt("rating", 0).coerceIn(0, 5),
                             dateModified = value.optLong("dateModified", 0L),
-                            fileSize = value.optLong("fileSize", 0L)
+                            fileSize = value.optLong("fileSize", 0L),
+                            path = value.optString("path", ""),
+                            id = value.optLong("id", 0L),
+                            trustedLocalWrite = value.optBoolean("trustedLocalWrite", false)
                         )
                     }
                 }.onFailure {
-                    Log.w("MusicRepo", "Failed to load library rating snapshot", it)
+                    logSnapshotWarning("Failed to load library rating snapshot", it)
                     ratingSnapshotCache.clear()
                 }
             }
@@ -186,15 +226,31 @@ internal class MusicSnapshotManager(
                 root.put(key, JSONObject()
                     .put("rating", value.rating)
                     .put("dateModified", value.dateModified)
-                    .put("fileSize", value.fileSize))
+                    .put("fileSize", value.fileSize)
+                    .put("path", value.path)
+                    .put("id", value.id)
+                    .put("trustedLocalWrite", value.trustedLocalWrite))
             }
             libraryRatingSnapshotFile.writeText(root.toString())
             ratingSnapshotDirty = false
         }.onFailure {
-            Log.w("MusicRepo", "Failed to save library rating snapshot", it)
+            logSnapshotWarning("Failed to save library rating snapshot", it)
         }
     }
 
-    private fun RatingSnapshotEntry.isFreshFor(song: Song): Boolean =
-        dateModified == song.dateModified && fileSize == song.fileSize
+    private fun logSnapshotWarning(message: String, error: Throwable) {
+        runCatching { Log.w("MusicRepo", message, error) }
+    }
+
+    private fun RatingSnapshotEntry.isFreshFor(song: Song): Boolean {
+        if (dateModified == song.dateModified && fileSize == song.fileSize) return true
+        val sameIdentity = when {
+            path.isNotBlank() && song.path.isNotBlank() -> path == song.path
+            id > 0L && song.id > 0L -> id == song.id
+            else -> false
+        }
+        if (!sameIdentity) return false
+        if (fileSize == song.fileSize) return true
+        return trustedLocalWrite
+    }
 }

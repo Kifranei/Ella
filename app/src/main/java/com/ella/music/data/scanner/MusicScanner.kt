@@ -39,6 +39,40 @@ data class MediaStoreAudioItem(
     val discNumber: Int
 )
 
+internal data class ScannerMergeStats(
+    val mediaStoreItemCount: Int,
+    val filesystemFallbackItemCount: Int,
+    val mergedItemCount: Int
+)
+
+internal fun mergeMediaStoreAndFilesystemItems(
+    mediaStoreItems: List<MediaStoreAudioItem>,
+    filesystemItems: List<MediaStoreAudioItem>
+): Pair<List<MediaStoreAudioItem>, ScannerMergeStats> {
+    val merged = ArrayList<MediaStoreAudioItem>(mediaStoreItems.size + filesystemItems.size)
+    val seenPaths = HashSet<String>()
+    mediaStoreItems.forEach { item ->
+        val key = item.path.normalizedAudioPathKey()
+        if (key.isNotBlank() && seenPaths.add(key)) merged += item
+    }
+    var fallbackCount = 0
+    filesystemItems.forEach { item ->
+        val key = item.path.normalizedAudioPathKey()
+        if (key.isNotBlank() && seenPaths.add(key)) {
+            merged += item
+            fallbackCount++
+        }
+    }
+    return merged to ScannerMergeStats(
+        mediaStoreItemCount = mediaStoreItems.size,
+        filesystemFallbackItemCount = fallbackCount,
+        mergedItemCount = merged.size
+    )
+}
+
+private fun String.normalizedAudioPathKey(): String =
+    trim().replace('\\', '/').lowercase()
+
 class MusicScanner(private val context: Context) {
     private val audioTagReader = LyricoAudioTagReaderWriter()
 
@@ -47,6 +81,10 @@ class MusicScanner(private val context: Context) {
 
         private val DEFAULT_EXCLUDE_FOLDERS = listOf(
             "/storage/emulated/0/Music/Recordings"
+        )
+        private val AUDIO_EXTENSIONS = setOf(
+            "mp3", "flac", "ogg", "oga", "opus", "aac", "m4a", "mp4",
+            "wav", "wave", "wma", "aiff", "aif", "ape", "alac"
         )
     }
 
@@ -101,6 +139,7 @@ class MusicScanner(private val context: Context) {
 
                 val rawTrackNumber = cursor.getInt(trackCol)
                 val dateModified = file.lastModified().takeIf { it > 0L } ?: (cursor.getLong(dateModifiedCol) * 1000L)
+                val fileSize = file.length().takeIf { it > 0L } ?: cursor.getLong(sizeCol)
                 items += MediaStoreAudioItem(
                     id = cursor.getLong(idCol),
                     title = cursor.getString(titleCol).orEmpty(),
@@ -110,7 +149,7 @@ class MusicScanner(private val context: Context) {
                     duration = cursor.getLong(durationCol),
                     path = path,
                     fileName = cursor.getString(nameCol).orEmpty(),
-                    fileSize = cursor.getLong(sizeCol),
+                    fileSize = fileSize,
                     mimeType = cursor.getString(mimeCol).orEmpty(),
                     dateAdded = cursor.getLong(dateAddedCol) * 1000L,
                     dateModified = dateModified,
@@ -119,7 +158,17 @@ class MusicScanner(private val context: Context) {
                 )
             }
         }
-        items
+        val fallbackItems = filesystemFallbackAudioItems(
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders,
+            existingPaths = items.map { it.path }.toSet()
+        )
+        val (merged, stats) = mergeMediaStoreAndFilesystemItems(items, fallbackItems)
+        Log.i(
+            TAG,
+            "enumerateAudioFiles mediaStore=${stats.mediaStoreItemCount} filesystemFallback=${stats.filesystemFallbackItemCount} merged=${stats.mergedItemCount}"
+        )
+        merged
     }
 
     suspend fun scanAudioItem(
@@ -306,13 +355,13 @@ class MusicScanner(private val context: Context) {
                 var duration = cursor.getLong(durationCol)
                 val path = cursor.getString(dataCol) ?: ""
                 val fileName = cursor.getString(nameCol) ?: ""
-                val size = cursor.getLong(sizeCol)
                 val mime = cursor.getString(mimeCol) ?: ""
                 val dateAdded = cursor.getLong(dateAddedCol) * 1000L
                 if (path.isEmpty()) continue
                 if (!path.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)) continue
                 val file = File(path)
                 if (!file.exists()) continue
+                val size = file.length().takeIf { it > 0L } ?: cursor.getLong(sizeCol)
                 val rawTrackNumber = cursor.getInt(trackCol)
                 var trackNumber = rawTrackNumber.normalizedTrackNumber()
                 var discNumber = rawTrackNumber.normalizedDiscNumber()
@@ -426,7 +475,65 @@ class MusicScanner(private val context: Context) {
                 }
             }
         }
+        val mediaStoreSongCount = songs.size
+        val fallbackItems = filesystemFallbackAudioItems(
+            includeFolders = includeFolders,
+            excludeFolders = excludeFolders,
+            existingPaths = songs.map { it.path }.toSet()
+        )
+        fallbackItems.forEach { item ->
+            scanAudioItem(item, minDurationMs = minDurationMs, deepMetadata = true)?.let { song ->
+                songs.add(song)
+                onProgress?.invoke(songs.size)
+            }
+        }
+        Log.i(
+            TAG,
+            "scanAllSongs mediaStore=$mediaStoreSongCount filesystemFallback=${songs.size - mediaStoreSongCount} total=${songs.size} deepMetadata=$deepMetadata"
+        )
         songs
+    }
+
+    internal fun filesystemFallbackAudioItems(
+        includeFolders: List<String>,
+        excludeFolders: List<String>,
+        existingPaths: Set<String> = emptySet()
+    ): List<MediaStoreAudioItem> {
+        if (includeFolders.isEmpty()) return emptyList()
+        val normalizedIncludeFolders = includeFolders.mapNotNull { it.normalizedFolderPath() }
+        if (normalizedIncludeFolders.isEmpty()) return emptyList()
+        val normalizedExcludeFolders = (DEFAULT_EXCLUDE_FOLDERS + excludeFolders).mapNotNull { it.normalizedFolderPath() }
+        val existingKeys = existingPaths.mapTo(HashSet()) { it.normalizedAudioPathKey() }
+        val fallback = mutableListOf<MediaStoreAudioItem>()
+        includeFolders
+            .asSequence()
+            .filterNot { it == "__ella_no_custom_folder__" }
+            .map { File(it) }
+            .filter { it.exists() && it.isDirectory }
+            .distinctBy { it.absolutePath.normalizedAudioPathKey() }
+            .forEach { root ->
+                runCatching {
+                    root.walkTopDown()
+                        .onEnter { dir ->
+                            dir.absolutePath.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)
+                        }
+                        .filter { file ->
+                            file.isFile &&
+                                file.extension.lowercase() in AUDIO_EXTENSIONS &&
+                                file.absolutePath.isAllowedByFolderFilters(normalizedIncludeFolders, normalizedExcludeFolders)
+                        }
+                        .forEach { file ->
+                            val path = file.absolutePath
+                            val key = path.normalizedAudioPathKey()
+                            if (key.isBlank() || key in existingKeys) return@forEach
+                            existingKeys += key
+                            fallback += file.toFallbackAudioItem()
+                        }
+                }.onFailure { error ->
+                    Log.w(TAG, "Filesystem fallback scan failed for ${root.absolutePath}", error)
+                }
+            }
+        return fallback
     }
 
     /**
@@ -470,7 +577,6 @@ class MusicScanner(private val context: Context) {
             android.provider.DocumentsContract.Document.COLUMN_SIZE,
             android.provider.DocumentsContract.Document.COLUMN_LAST_MODIFIED
         )
-        val audioExtensions = setOf("mp3", "flac", "ogg", "opus", "aac", "m4a", "wav", "wave", "wma", "aiff", "ape", "alac")
         try {
             context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
                 val docIdCol = cursor.getColumnIndexOrThrow(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID)
@@ -497,7 +603,7 @@ class MusicScanner(private val context: Context) {
                     }
 
                     val ext = name.substringAfterLast('.', "").lowercase()
-                    if (ext !in audioExtensions) continue
+                    if (ext !in AUDIO_EXTENSIONS) continue
 
                     val songUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(rootTreeUri, docId)
                     var title = name.substringBeforeLast('.')
@@ -703,6 +809,43 @@ class MusicScanner(private val context: Context) {
 
     fun getAlbumArtUri(albumId: Long): Uri =
         ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId)
+
+    private fun File.toFallbackAudioItem(): MediaStoreAudioItem {
+        val path = absolutePath
+        val extension = extension.lowercase()
+        val mime = when (extension) {
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "ogg", "oga" -> "audio/ogg"
+            "opus" -> "audio/opus"
+            "aac" -> "audio/aac"
+            "m4a", "mp4" -> "audio/mp4"
+            "wav", "wave" -> "audio/wav"
+            "wma" -> "audio/x-ms-wma"
+            "aiff", "aif" -> "audio/aiff"
+            "ape" -> "audio/ape"
+            "alac" -> "audio/alac"
+            else -> "audio/$extension"
+        }
+        val stableId = -kotlin.math.abs(path.normalizedAudioPathKey().hashCode().toLong()).coerceAtLeast(1L)
+        val modified = lastModified().takeIf { it > 0L } ?: System.currentTimeMillis()
+        return MediaStoreAudioItem(
+            id = stableId,
+            title = nameWithoutExtension,
+            artist = "",
+            album = "",
+            albumId = 0L,
+            duration = 0L,
+            path = path,
+            fileName = name,
+            fileSize = length().coerceAtLeast(0L),
+            mimeType = mime,
+            dateAdded = modified,
+            dateModified = modified,
+            trackNumber = 0,
+            discNumber = 0
+        )
+    }
 
     private fun isMissingTag(value: String?, fileName: String? = null): Boolean {
         return LibraryNormalizer.isMissingTag(value, fileName)

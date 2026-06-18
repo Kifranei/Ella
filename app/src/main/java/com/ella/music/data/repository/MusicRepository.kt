@@ -222,13 +222,14 @@ class MusicRepository(private val context: Context) {
             )
         }
         val scannedSongs = scanResult.songs
+        val clearedRatingSnapshots = snapshotManager.clearMissingFileSnapshots(scannedSongs.map { it.path }.toSet())
         _songs.value = scannedSongs
         _albums.value = scannedSongs.toAlbums()
         saveLibraryCache(scannedSongs, _albums.value)
         AppLogStore.info(
             context,
             "MusicScanner",
-            "Scan finished mode=$mode songs=${scannedSongs.size} albums=${_albums.value.size}",
+            "Scan finished mode=$mode songs=${scannedSongs.size} albums=${_albums.value.size} added=${scanResult.summary.added} removed=${scanResult.summary.deleted} updated=${scanResult.summary.updated} ratingSnapshotsCleared=$clearedRatingSnapshots",
             AppLogType.LIBRARY
         )
         return scanResult.summary.copy(total = scannedSongs.size)
@@ -517,7 +518,9 @@ class MusicRepository(private val context: Context) {
         scanEditedFile(song)
         delay(350)
 
-        val updated = querySystemSong(song) ?: song
+        val updated = (querySystemSong(song) ?: song.withCurrentFileSnapshot())
+            .withRepositoryTags()
+            .withCurrentFileSnapshot()
         clearMetadataCache(updated)
 
         val currentSongs = _songs.value
@@ -770,6 +773,8 @@ class MusicRepository(private val context: Context) {
     private suspend fun updateSongAfterLocalTagWrite(song: Song): Song = withContext(Dispatchers.IO) {
         clearMetadataCache(song)
         val updated = song.withCurrentFileSnapshot()
+            .withRepositoryTags()
+            .withCurrentFileSnapshot()
         val currentSongs = _songs.value
         if (currentSongs.isNotEmpty()) {
             val nextSongs = currentSongs.map { existing ->
@@ -1326,6 +1331,13 @@ class MusicRepository(private val context: Context) {
             }.getOrNull() ?: SongTagInfo()
             val wavInfo = runCatching { WavMetadataReader.read(song.effectiveLocalPathForMetadata()) }
                 .getOrNull()
+            val path = cursor.getString(6).orEmpty().ifBlank { song.path }
+            val file = File(path)
+            val fileSize = file.length().takeIf { file.exists() && it > 0L }
+                ?: cursor.getLong(8)
+            val dateModified = file.lastModified().takeIf { file.exists() && it > 0L }
+                ?: (cursor.getLong(11) * 1000L).takeIf { it > 0L }
+                ?: song.dateModified
             Song(
                 id = cursor.getLong(0),
                 title = tagInfo.title.usableTagText().ifBlank {
@@ -1345,12 +1357,12 @@ class MusicRepository(private val context: Context) {
                 },
                 albumId = cursor.getLong(4),
                 duration = cursor.getLong(5).takeIf { it > 0L } ?: song.duration,
-                path = cursor.getString(6).orEmpty().ifBlank { song.path },
+                path = path,
                 fileName = cursor.getString(7).orEmpty().ifBlank { song.fileName },
-                fileSize = cursor.getLong(8),
+                fileSize = fileSize,
                 mimeType = cursor.getString(9).orEmpty().ifBlank { song.mimeType },
                 dateAdded = cursor.getLong(10) * 1000L,
-                dateModified = cursor.getLong(11) * 1000L,
+                dateModified = dateModified,
                 trackNumber = tagInfo.track.takeIf { it.isNotBlank() }?.toIntOrNull()
                     ?: wavInfo?.trackNumber
                     ?: cursor.getInt(12).let { if (it > 1000) it % 1000 else it },
