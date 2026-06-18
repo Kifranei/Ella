@@ -29,6 +29,24 @@ private const val EXTRA_ONLINE_ID = "ella_song_online_id"
 private const val EXTRA_ONLINE_LYRICS = "ella_song_online_lyrics"
 private const val EXTRA_ONLINE_LYRIC_TRANSLATION = "ella_song_online_lyric_translation"
 
+internal const val EXTRA_METADATA_PATCH_REASON = "com.ella.music.extra.METADATA_PATCH_REASON"
+internal const val PATCH_REASON_OPLUS_LYRIC = "oplus_lyric"
+internal const val PATCH_REASON_BLUETOOTH_LYRIC = "bluetooth_lyric"
+internal const val PATCH_REASON_NOTIFICATION_ARTWORK = "notification_artwork"
+internal const val PATCH_REASON_BASE_SESSION_METADATA = "base_session_metadata"
+
+internal fun Bundle.markMetadataOnlyPatch(reason: String): Bundle = apply {
+    putString(EXTRA_METADATA_PATCH_REASON, reason)
+}
+
+internal fun MediaItem.metadataPatchReason(): String? =
+    mediaMetadata.extras
+        ?.getString(EXTRA_METADATA_PATCH_REASON)
+        ?.takeIf { it.isNotBlank() }
+
+internal fun MediaItem.isMetadataOnlyPatch(): Boolean =
+    metadataPatchReason() != null
+
 internal fun Song.toMediaItemExtras(): Bundle = Bundle().apply {
     putLong(EXTRA_ID, id)
     putString(EXTRA_TITLE, title)

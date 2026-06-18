@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.util.Log
@@ -204,6 +205,8 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TIMING_TAG, "controller media transition reason=$reason mediaId=${mediaItem?.mediaId}")
+                externalSnapshotGuard = null
+                clearBluetoothMetadataPatchState()
                 updateCurrentSong()
             }
 
@@ -811,6 +814,10 @@ class ExoPlayerManager(private val context: Context) {
         if (index < 0 || index >= controller.mediaItemCount) return
 
         val currentItem = controller.currentMediaItem ?: return
+        if (!currentItem.matchesSong(song)) {
+            clearBluetoothMetadataPatchState()
+            return
+        }
         val lyricText = text?.takeIf { it.isNotBlank() }
         val lyricSecondaryText = secondaryText?.takeIf { it.isNotBlank() }
         val payload = lyricText to lyricSecondaryText
@@ -840,7 +847,7 @@ class ExoPlayerManager(private val context: Context) {
             artistOverride = displayArtist,
             artworkData = cachedArtwork,
             includeArtworkUri = cachedArtwork != null
-        )
+        ).withPatchedExtrasFrom(currentItem, PATCH_REASON_BLUETOOTH_LYRIC)
 
         val newItem = currentItem.buildUpon()
             .setMediaMetadata(metadata)
@@ -915,6 +922,18 @@ class ExoPlayerManager(private val context: Context) {
             return
         }
 
+        if (isDisplayOnlyMetadataPatchSnapshot(
+                isMetadataOnlyPatch = snapshot.mediaItem?.isMetadataOnlyPatch() == true,
+                snapshotSong = snapshotSong,
+                currentSong = _currentSong.value
+            )
+        ) {
+            externalSnapshotGuard = null
+            _duration.value = snapshot.durationMs.takeIf { it > 0L }
+                ?: snapshotSong.duration.coerceAtLeast(0L)
+            return
+        }
+
         externalSnapshotGuard = ExternalSnapshotGuard(
             mediaId = snapshot.mediaItem?.mediaId,
             song = snapshotSong
@@ -940,8 +959,7 @@ class ExoPlayerManager(private val context: Context) {
             notificationArtworkJob = null
             artworkAppliedSongKey = null
             sessionMetadataSongKey = null
-            bluetoothMetadataSongKey = null
-            bluetoothMetadataPayload = null
+            clearBluetoothMetadataPatchState()
         }
 
         refreshCurrentNotificationArtwork(snapshotSong)
@@ -1069,6 +1087,7 @@ class ExoPlayerManager(private val context: Context) {
             notificationArtworkJob = null
             artworkAppliedSongKey = null
             sessionMetadataSongKey = null
+            clearBluetoothMetadataPatchState()
         }
         savePlaybackState(force = true)
     }
@@ -1076,6 +1095,15 @@ class ExoPlayerManager(private val context: Context) {
     private fun shouldIgnoreStaleControllerSong(controller: MediaController): Boolean {
         val guard = externalSnapshotGuard ?: return false
         if (controller.matchesExternalSnapshot(guard)) {
+            return false
+        }
+        val currentSong = _currentSong.value
+        val currentItem = controller.currentMediaItem
+        if (currentSong != null &&
+            currentItem?.isMetadataOnlyPatch() == true &&
+            currentItem.matchesSong(currentSong)
+        ) {
+            externalSnapshotGuard = null
             return false
         }
         return true
@@ -1227,7 +1255,7 @@ class ExoPlayerManager(private val context: Context) {
                         song.mediaMetadata(
                             artworkData = cachedArtwork,
                             includeArtworkUri = cachedArtwork != null
-                        )
+                        ).withPatchedExtrasFrom(currentItem, PATCH_REASON_BASE_SESSION_METADATA)
                     )
                     .build()
             )
@@ -1317,7 +1345,10 @@ class ExoPlayerManager(private val context: Context) {
             controller.replaceMediaItem(
                 index,
                 latestItem.buildUpon()
-                    .setMediaMetadata(song.mediaMetadata(artworkData = artworkData))
+                    .setMediaMetadata(
+                        song.mediaMetadata(artworkData = artworkData)
+                            .withPatchedExtrasFrom(latestItem, PATCH_REASON_NOTIFICATION_ARTWORK)
+                    )
                     .build()
             )
             Log.d(TIMING_TAG, "artwork metadata updated mediaId=${song.id}")
@@ -1332,6 +1363,20 @@ class ExoPlayerManager(private val context: Context) {
         if (song.path.isNotBlank() && localConfiguration?.uri?.toString().orEmpty() == song.path) return true
         if (song.id > 0L && mediaId == song.id.toString()) return true
         return localConfiguration?.uri?.toString().orEmpty() == song.path
+    }
+
+    private fun clearBluetoothMetadataPatchState() {
+        bluetoothMetadataSongKey = null
+        bluetoothMetadataPayload = null
+    }
+
+    private fun MediaMetadata.withPatchedExtrasFrom(item: MediaItem, reason: String): MediaMetadata {
+        val mergedExtras = Bundle(item.mediaMetadata.extras ?: Bundle.EMPTY)
+        extras?.let(mergedExtras::putAll)
+        mergedExtras.markMetadataOnlyPatch(reason)
+        return buildUpon()
+            .setExtras(mergedExtras)
+            .build()
     }
 
     private fun restoreSavedQueueIfNeeded() {

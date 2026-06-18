@@ -258,6 +258,7 @@ internal class OPlusLyricHandler(
             extras.putString(OPLUS_LYRIC_INFO_KEY, lyricInfoJson)
             rawLyric?.let { extras.putString(OPLUS_RAW_LYRIC_KEY, it) }
         }
+        extras.markMetadataOnlyPatch(PATCH_REASON_OPLUS_LYRIC)
 
         val updatedMetadata = currentItem.mediaMetadata.buildUpon()
             .setExtras(extras)
@@ -285,6 +286,7 @@ internal class OPlusLyricHandler(
         ) return
         extras.putString(OPLUS_LYRIC_INFO_KEY, lyricInfoJson)
         rawLyric?.let { extras.putString(OPLUS_RAW_LYRIC_KEY, it) }
+        extras.markMetadataOnlyPatch(PATCH_REASON_OPLUS_LYRIC)
 
         val updatedItem = mediaItem.buildUpon()
             .setMediaMetadata(
