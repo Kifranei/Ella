@@ -146,6 +146,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var loadedLyricSongKey: String? = null
     private var lastLyricPositionSongKey: String? = null
     private var lastLyricPositionMs: Long = 0L
+    private var suppressLeadingZeroLyric = false
 
     init {
         playerManager.connect()
@@ -621,6 +622,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         updateCurrentLyricIndex()
                         return@collectLatest
                     }
+                    suppressLeadingZeroLyric = true
+                    _rawLyrics.value = emptyList()
+                    _lyrics.value = emptyList()
+                    _currentLyricIndex.value = -1
                     // Clear external bridge state before async fetch to prevent stale lyrics
                     lastTickerPayload = null
                     lastBluetoothLyricPayload = null
@@ -656,6 +661,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 } else {
                     loadedLyricSongKey = null
+                    suppressLeadingZeroLyric = false
                     _rawLyrics.value = emptyList()
                     _lyrics.value = emptyList()
                     _currentLyricOffsetMs.value = 0L
@@ -719,12 +725,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             position <= 750L &&
             previousPosition - position > 1_500L
 
-        var index = -1
-        for (i in currentLyrics.indices.reversed()) {
-            if (position >= currentLyrics[i].timeMs) {
-                index = i
-                break
-            }
+        val indexResult = currentLyricIndexAt(
+            positionMs = position,
+            lyrics = currentLyrics,
+            suppressLeadingZero = suppressLeadingZeroLyric
+        )
+        val index = indexResult.index
+        if (!indexResult.suppressedLeadingZero) {
+            suppressLeadingZeroLyric = false
         }
         if (loopedToStart && index < 0 && _currentLyricIndex.value >= 0) {
             _currentLyricIndex.value = -1
@@ -854,6 +862,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (lyricsChanged) {
             _lyrics.value = nextLyrics
             _currentLyricIndex.value = -1
+            suppressLeadingZeroLyric = true
             updateCurrentLyricIndex()
             lastTickerPayload = null
             lastBluetoothLyricPayload = null
@@ -1055,9 +1064,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         lyriconBridge.seekTo(positionMs)
 
         val lyrics = _lyrics.value
-        val index = lyrics.indexOfLast { positionMs >= it.timeMs }
+        val index = currentLyricIndexAt(
+            positionMs = positionMs,
+            lyrics = lyrics,
+            suppressLeadingZero = positionMs in 0L until LEADING_ZERO_LYRIC_SUPPRESSION_MS
+        ).index
+        _currentLyricIndex.value = index
         if (index >= 0) {
-            _currentLyricIndex.value = index
             if (superLyricBridge.isEnabled() && isPlaying.value) {
                 superLyricBridge.sendLyric(
                     line = lyrics[index],
