@@ -28,11 +28,12 @@ class OPlusLyricPayloadTest {
         )
 
         val json = payload ?: error("payload is null")
-        assertEquals("[00:01.00]Hello world / 你好世界", OPlusLyricPayload.stringField(json, "lyric"))
+        assertEquals("[00:01.00]Hello world", OPlusLyricPayload.stringField(json, "lyric"))
         assertEquals(
             "[00:01.000]Hello [00:01.500]world[00:02.200]\n[00:01.000]你好世界",
             OPlusLyricPayload.stringField(json, "rawLyric")
         )
+        assertEquals("[00:01.000]你好世界", OPlusLyricPayload.stringField(json, "translationLyric"))
         assertTrue(OPlusLyricPayload.matchesSong(json, song))
     }
 
@@ -46,6 +47,7 @@ class OPlusLyricPayloadTest {
         val json = payload ?: error("payload is null")
         assertEquals("[00:02.34]Plain line", OPlusLyricPayload.stringField(json, "lyric"))
         assertEquals("[00:02.345]Plain line", OPlusLyricPayload.stringField(json, "rawLyric"))
+        assertEquals(null, OPlusLyricPayload.stringField(json, "translationLyric"))
     }
 
     private fun song(): Song = Song(

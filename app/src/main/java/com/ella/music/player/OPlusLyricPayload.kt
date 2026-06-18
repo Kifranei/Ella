@@ -7,17 +7,23 @@ import java.util.Locale
 
 internal object OPlusLyricPayload {
     const val RAW_LYRIC_INFO_KEY = "rawLyric"
+    const val TRANSLATION_LYRIC_INFO_KEY = "translationLyric"
 
     fun build(song: Song, lyrics: List<LyricLine>): String? {
         val lrc = lyrics.toOplusLrc().takeIf { it.isNotBlank() } ?: return null
         val rawLyric = lyrics.toOplusRawLyric().takeIf { it.isNotBlank() } ?: lrc
-        return buildJsonObject(
+        val translationLyric = lyrics.toOplusTranslationLyric().takeIf { it.isNotBlank() }
+        val fields = mutableListOf(
             "songName" to song.title,
             "artist" to song.artist,
             "songId" to song.oplusLyricSongId(),
             "lyric" to lrc,
             RAW_LYRIC_INFO_KEY to rawLyric
         )
+        if (translationLyric != null) {
+            fields += TRANSLATION_LYRIC_INFO_KEY to translationLyric
+        }
+        return buildJsonObject(*fields.toTypedArray())
     }
 
     fun matchesSong(rawJson: String, song: Song): Boolean {
@@ -50,17 +56,24 @@ internal object OPlusLyricPayload {
     private fun List<LyricLine>.toOplusLrc(): String {
         return mapNotNull { line ->
             val primaryText = line.primaryOplusTextOrNull() ?: return@mapNotNull null
-            val displayText = listOf(primaryText, line.translation.toOplusLrcTextOrNull())
-                .filterNotNull()
-                .distinct()
-                .joinToString(" / ")
-                .takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            line.timeMs.coerceAtLeast(0L) to displayText
+            line.timeMs.coerceAtLeast(0L) to primaryText
         }
             .sortedBy { it.first }
             .joinToString("\n") { (timeMs, text) ->
                 "${timeMs.toOplusLrcTimestamp(precision = TimestampPrecision.Centi)}$text"
+            }
+    }
+
+    private fun List<LyricLine>.toOplusTranslationLyric(): String {
+        return mapNotNull { line ->
+            val translation = line.translation.toOplusLrcTextOrNull()
+                ?.takeIf { it != line.primaryOplusTextOrNull() }
+                ?: return@mapNotNull null
+            line.rawLyricStartMs() to translation
+        }
+            .sortedBy { it.first }
+            .joinToString("\n") { (timeMs, text) ->
+                "${timeMs.toOplusLrcTimestamp(precision = TimestampPrecision.Milli)}$text"
             }
     }
 
