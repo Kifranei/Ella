@@ -91,6 +91,8 @@ class DesktopLyricService : Service() {
     private val settingsManager by lazy { SettingsManager.getInstance(this) }
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var settingsLoadJob: Job? = null
+    private val startupGate = DesktopLyricStartupGate()
+    private var pendingShowIntent: Intent? = null
     private val hideControlsRunnable = Runnable { hideControls() }
     private val panelBackground by lazy {
         GradientDrawable().apply {
@@ -142,7 +144,11 @@ class DesktopLyricService : Service() {
                 if (rootView == null) stopSelf()
             }
             ACTION_SHOW, ACTION_UPDATE -> showOrUpdate(intent)
-            ACTION_HIDE -> stopSelf()
+            ACTION_HIDE -> {
+                startupGate.clearPendingShow()
+                pendingShowIntent = null
+                stopSelf()
+            }
             ACTION_UNLOCK -> setLocked(false)
             ACTION_APPLY_SETTINGS -> applySettingsFromStore()
             ACTION_RESET_POSITION -> resetPosition()
@@ -158,6 +164,7 @@ class DesktopLyricService : Service() {
         rootView?.let { runCatching { windowManager.removeView(it) } }
         controllerFuture?.let { MediaController.releaseFuture(it) }
         notificationManager.cancel(NOTIFICATION_ID)
+        pendingShowIntent = null
         rootView = null
         lyricView = null
         controlsView = null
@@ -171,6 +178,10 @@ class DesktopLyricService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun showOrUpdate(intent: Intent) {
+        if (startupGate.shouldDeferShow()) {
+            pendingShowIntent = Intent(intent)
+            return
+        }
         if (!canDrawOverlay()) return
         if (userHidden) {
             stopSelf()
@@ -595,6 +606,11 @@ class DesktopLyricService : Service() {
                 applySettingsSnapshot(settings)
                 if (applyToExistingView) {
                     applyCurrentSettingsAfterLoad(oldStatusBarMode, oldStatusBarSecondaryMode)
+                }
+                if (startupGate.markSettingsLoaded()) {
+                    val pendingIntent = pendingShowIntent
+                    pendingShowIntent = null
+                    pendingIntent?.let(::showOrUpdate)
                 }
             }
         }
