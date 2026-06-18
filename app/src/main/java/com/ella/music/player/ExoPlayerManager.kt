@@ -235,8 +235,12 @@ class ExoPlayerManager(private val context: Context) {
                 if (shuffleModeEnabled) {
                     _shuffleEnabled.value = true
                     persistAppShuffleEnabled(true)
-                    markPendingShuffleReorder()
-                    mediaController?.shuffleModeEnabled = false
+                    if (!pendingShuffleReorder) {
+                        markPendingShuffleReorder()
+                    }
+                    if (!pendingShuffleReorder) {
+                        mediaController?.shuffleModeEnabled = false
+                    }
                 }
             }
 
@@ -782,11 +786,11 @@ class ExoPlayerManager(private val context: Context) {
     ) {
         val controller = mediaController ?: return
         val previousShuffle = _shuffleEnabled.value
-        controller.shuffleModeEnabled = false
+        var keepNativeShuffleUntilReorder = pendingShuffleReorder && shuffle
         if (reorderForShuffleChange) {
             if (shuffle) {
                 if (!previousShuffle || playlistBeforeShuffle == null) {
-                    markPendingShuffleReorder()
+                    keepNativeShuffleUntilReorder = markPendingShuffleReorder()
                 }
             } else {
                 if (pendingShuffleReorder) {
@@ -795,10 +799,12 @@ class ExoPlayerManager(private val context: Context) {
                 } else {
                     restorePlaylistOrderAfterShuffle()
                 }
+                keepNativeShuffleUntilReorder = false
             }
         }
         _shuffleEnabled.value = shuffle
         persistAppShuffleEnabled(shuffle)
+        controller.shuffleModeEnabled = keepNativeShuffleUntilReorder
         if (controller.repeatMode != repeatMode) {
             controller.repeatMode = repeatMode
         } else {
@@ -1154,7 +1160,12 @@ class ExoPlayerManager(private val context: Context) {
         } else {
             buildPseudoShuffleSeed(sourceOrder, current)
         }
-        val plan = buildShuffleQueueKeepingCurrent(sourceOrder, current, shuffleSeed) ?: return
+        val plan = buildShuffleQueueKeepingCurrent(
+            sourceOrder = sourceOrder,
+            current = current,
+            currentIndexHint = controller.currentMediaItemIndex,
+            seed = shuffleSeed
+        ) ?: return
         val newPlaylist = plan.queue
         val positionMs = controller.currentPosition.coerceAtLeast(0L)
         val wasPlaying = controller.isPlaying
@@ -1177,18 +1188,19 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 
-    private fun markPendingShuffleReorder() {
+    private fun markPendingShuffleReorder(): Boolean {
         if (!shouldDeferShuffleReorder(
                 enableShuffle = true,
                 previousShuffle = false,
                 queueSize = playlist.size,
                 hasVirtualQueue = virtualPlaylistCurrentIndex != null
             )
-        ) return
+        ) return false
         if (playlistBeforeShuffle == null) {
             playlistBeforeShuffle = playlist.toList()
         }
         pendingShuffleReorder = true
+        return true
     }
 
     private fun performPendingShuffleReorder(trigger: String, seekToNextAfterReorder: Boolean): Boolean {
@@ -1200,6 +1212,7 @@ class ExoPlayerManager(private val context: Context) {
             return false
         }
         Log.d(TIMING_TAG, "perform pending shuffle reorder trigger=$trigger")
+        controller.shuffleModeEnabled = false
         shufflePlaylistKeepingCurrent()
         pendingShuffleReorder = false
         if (seekToNextAfterReorder) {

@@ -1,0 +1,113 @@
+package com.ella.music.player
+
+import com.ella.music.data.model.Song
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ShuffleQueuePolicyTest {
+    @Test
+    fun enableShuffleDoesNotImmediatelyRequireQueueMutation() {
+        assertTrue(
+            shouldDeferShuffleReorder(
+                enableShuffle = true,
+                previousShuffle = false,
+                queueSize = 3,
+                hasVirtualQueue = false
+            )
+        )
+    }
+
+    @Test
+    fun smallOrVirtualQueuesDoNotDeferShuffleReorder() {
+        assertFalse(
+            shouldDeferShuffleReorder(
+                enableShuffle = true,
+                previousShuffle = false,
+                queueSize = 1,
+                hasVirtualQueue = false
+            )
+        )
+        assertFalse(
+            shouldDeferShuffleReorder(
+                enableShuffle = true,
+                previousShuffle = false,
+                queueSize = 3,
+                hasVirtualQueue = true
+            )
+        )
+    }
+
+    @Test
+    fun pendingShuffleReordersOnNextKeepingCurrentFirst() {
+        val songs = songs(4)
+        val plan = buildShuffleQueueKeepingCurrent(
+            sourceOrder = songs,
+            current = songs[1],
+            currentIndexHint = 1,
+            seed = 42L
+        )
+
+        assertEquals(songs[1], plan?.queue?.first())
+        assertEquals(0, plan?.currentIndex)
+        assertEquals(songs.toSet(), plan?.queue?.toSet())
+    }
+
+    @Test
+    fun pendingShuffleChoosesDifferentNextWhenPossible() {
+        val songs = songs(5)
+        val plan = buildShuffleQueueKeepingCurrent(
+            sourceOrder = songs,
+            current = songs[2],
+            currentIndexHint = 2,
+            seed = 7L
+        )
+
+        assertEquals(songs[2], plan?.queue?.first())
+        assertNotEquals(songs[2], plan?.queue?.get(1))
+    }
+
+    @Test
+    fun duplicateSongsKeepCurrentIndexHint() {
+        val duplicate = song(1, "/music/same.flac")
+        val songs = listOf(song(0), duplicate, song(2), duplicate, song(4))
+        val plan = buildShuffleQueueKeepingCurrent(
+            sourceOrder = songs,
+            current = duplicate,
+            currentIndexHint = 3,
+            seed = 11L
+        )
+
+        assertEquals(duplicate, plan?.queue?.first())
+        assertEquals(5, plan?.queue?.size)
+        assertEquals(1, plan?.queue?.drop(1)?.count { it.isSamePlaybackIdentity(duplicate) })
+    }
+
+    @Test
+    fun repeatOnePolicyCanSkipUnexpectedShuffleJump() {
+        assertNull(
+            buildShuffleQueueKeepingCurrent(
+                sourceOrder = listOf(song(1)),
+                current = song(1),
+                currentIndexHint = 0,
+                seed = 1L
+            )
+        )
+    }
+
+    private fun songs(count: Int): List<Song> = (0 until count).map(::song)
+
+    private fun song(id: Int, path: String = "/music/$id.flac"): Song = Song(
+        id = id.toLong(),
+        title = "Song $id",
+        artist = "Artist",
+        album = "Album",
+        albumId = 1L,
+        duration = 180_000L,
+        path = path,
+        fileName = path.substringAfterLast('/')
+    )
+}

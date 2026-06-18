@@ -565,7 +565,7 @@ class PlaybackService : MediaLibraryService() {
                 appShuffleEnabled = true
                 persistAppShuffleEnabled(true)
                 repeatMode = Player.REPEAT_MODE_ALL
-                shuffleModeEnabled = false
+                shuffleModeEnabled = true
             }
         }
     }

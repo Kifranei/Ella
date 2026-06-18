@@ -11,10 +11,14 @@ internal data class ShuffleQueuePlan(
 internal fun buildShuffleQueueKeepingCurrent(
     sourceOrder: List<Song>,
     current: Song,
+    currentIndexHint: Int?,
     seed: Long
 ): ShuffleQueuePlan? {
     if (sourceOrder.size <= 1) return null
-    val currentIndex = sourceOrder.indexOfFirst { it.isSamePlaybackIdentity(current) }
+    val hintedIndex = currentIndexHint
+        ?.takeIf { it in sourceOrder.indices }
+        ?.takeIf { sourceOrder[it].isSamePlaybackIdentity(current) }
+    val currentIndex = hintedIndex ?: sourceOrder.indexOfFirst { it.isSamePlaybackIdentity(current) }
         .takeIf { it >= 0 }
         ?: return null
     val currentSong = sourceOrder[currentIndex]
