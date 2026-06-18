@@ -78,16 +78,7 @@ internal object OPlusLyricPayload {
     }
 
     private fun List<LyricLine>.toOplusRawLyric(): String {
-        return flatMap { line ->
-            val mainLine = line.toOplusRawMainLine() ?: return@flatMap emptyList()
-            val translation = line.translation.toOplusLrcTextOrNull()
-                ?.takeIf { it != line.primaryOplusTextOrNull() }
-            if (translation == null) {
-                listOf(mainLine)
-            } else {
-                listOf(mainLine, "${line.rawLyricStartMs().toOplusLrcTimestamp(precision = TimestampPrecision.Milli)}$translation")
-            }
-        }
+        return mapNotNull { line -> line.toOplusRawMainLine() }
             .joinToString("\n")
     }
 

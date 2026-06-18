@@ -71,4 +71,36 @@ class EllaLyricsParserTest {
         )
         assertEquals(listOf(1_000L, 2_000L, 3_000L), result.lyrics.map { it.timeMs })
     }
+
+    @Test
+    fun sameTimestampWordLineAndBlankPronunciationAttachTranslation() {
+        val result = LrcParser.parse(
+            """
+            [00:41.373] <00:41.373>wake <00:41.949>me <00:42.502>up <00:43.040>
+            [00:41.373]
+            [00:41.373]叫醒我
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("wake me up", result.lyrics.single().text)
+        assertEquals("叫醒我", result.lyrics.single().translation)
+        assertEquals(listOf("wake ", "me ", "up"), result.lyrics.single().words.map { it.text })
+    }
+
+    @Test
+    fun sameTimestampWordLineRomanizationAndTranslationAreMerged() {
+        val result = LrcParser.parse(
+            """
+            [00:21.853] <00:21.853>覚<00:22.261>醒 <00:22.719>READY <00:23.379>OK <00:23.935>
+            [00:21.853]ka ku se i READY OK
+            [00:21.853]该觉醒了 Ready，ok？
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("覚醒 READY OK", result.lyrics.single().text)
+        assertEquals("ka ku se i READY OK", result.lyrics.single().pronunciation)
+        assertEquals("该觉醒了 Ready，ok？", result.lyrics.single().translation)
+    }
 }
