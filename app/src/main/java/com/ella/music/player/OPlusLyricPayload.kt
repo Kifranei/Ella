@@ -70,6 +70,9 @@ internal object OPlusLyricPayload {
     fun rawLyric(rawJson: String): String? =
         stringField(rawJson, RAW_LYRIC_INFO_KEY)?.takeIf { it.isNotBlank() }
 
+    fun hasTranslation(rawJson: String?): Boolean =
+        rawJson?.let { stringField(it, TRANSLATION_LYRIC_INFO_KEY) }?.isNotBlank() == true
+
     internal fun stringField(rawJson: String, name: String): String? {
         val key = "\"${name.escapeJsonString()}\""
         val keyIndex = rawJson.indexOf(key)
