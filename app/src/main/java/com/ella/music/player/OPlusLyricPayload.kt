@@ -9,6 +9,13 @@ import java.util.Locale
 internal object OPlusLyricPayload {
     const val RAW_LYRIC_INFO_KEY = "rawLyric"
     const val TRANSLATION_LYRIC_INFO_KEY = "translationLyric"
+    private const val OPLUS_PREAMBLE_MAX_TIME_MS = 15_000L
+    private const val OPLUS_TITLE_CREDIT_MAX_TIME_MS = 5_000L
+    private val preambleCreditPattern = Regex(
+        """^(?:lyrics?\s+by|written\s+by|composed\s+by|composer|produced\s+by|producer|arranged\s+by|performed\s+by|作词|作曲|编曲|制作人|演唱)\s*[:：]?""",
+        RegexOption.IGNORE_CASE
+    )
+    private val titleArtistSeparatorPattern = Regex("""\s[-–—]\s""")
 
     fun build(song: Song, lyrics: List<LyricLine>, mode: Int = SettingsManager.OPLUS_LYRIC_MODE_MODULE): String? {
         return if (mode == SettingsManager.OPLUS_LYRIC_MODE_SYSTEM) {
@@ -29,9 +36,10 @@ internal object OPlusLyricPayload {
     }
 
     fun buildModulePayload(song: Song, lyrics: List<LyricLine>): String? {
-        val lrc = lyrics.toOplusLrc().takeIf { it.isNotBlank() } ?: return null
-        val rawLyric = lyrics.toOplusRawLyric().takeIf { it.isNotBlank() } ?: lrc
-        val translationLyric = lyrics.toOplusTranslationLyric().takeIf { it.isNotBlank() }
+        val moduleLyrics = lyrics.withoutOplusPreamble(song)
+        val lrc = moduleLyrics.toOplusLrc().takeIf { it.isNotBlank() } ?: return null
+        val rawLyric = moduleLyrics.toOplusRawLyric().takeIf { it.isNotBlank() } ?: lrc
+        val translationLyric = moduleLyrics.toOplusTranslationLyric().takeIf { it.isNotBlank() }
         val fields = mutableListOf(
             "songName" to song.title,
             "artist" to song.artist,
@@ -44,6 +52,45 @@ internal object OPlusLyricPayload {
         }
         return buildJsonObject(*fields.toTypedArray())
     }
+
+    private fun List<LyricLine>.withoutOplusPreamble(song: Song): List<LyricLine> {
+        val filtered = filterNot { it.isOplusPreambleLine(song) }
+        return filtered.takeIf { it.isNotEmpty() } ?: this
+    }
+
+    private fun LyricLine.isOplusPreambleLine(song: Song): Boolean {
+        val primary = primaryOplusTextOrNull() ?: return false
+        val startMs = rawLyricStartMs()
+        if (startMs > OPLUS_PREAMBLE_MAX_TIME_MS) return false
+
+        val normalized = primary.trim()
+        val lower = normalized.lowercase(Locale.ROOT)
+        if (preambleCreditPattern.containsMatchIn(normalized)) return true
+        if (
+            lower.contains("copyright") ||
+            lower.contains("all rights reserved") ||
+            normalized.contains("版权所有") ||
+            normalized.contains("著作权") ||
+            normalized.contains("未经许可") ||
+            normalized.contains("未经授权")
+        ) {
+            return true
+        }
+
+        if (startMs > OPLUS_TITLE_CREDIT_MAX_TIME_MS || !titleArtistSeparatorPattern.containsMatchIn(normalized)) {
+            return false
+        }
+        val lineKey = normalized.oplusIdentityKey()
+        val titleKey = song.title.oplusIdentityKey()
+        val artistKey = song.artist.oplusIdentityKey()
+        return titleKey.length >= 2 &&
+            artistKey.length >= 2 &&
+            lineKey.contains(titleKey) &&
+            lineKey.contains(artistKey)
+    }
+
+    private fun String.oplusIdentityKey(): String =
+        lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
     fun matchesMode(rawJson: String, mode: Int): Boolean {
         val hasRawLyric = rawLyric(rawJson) != null

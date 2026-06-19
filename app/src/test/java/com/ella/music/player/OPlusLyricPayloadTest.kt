@@ -5,6 +5,7 @@ import com.ella.music.data.model.LyricWord
 import com.ella.music.data.model.Song
 import com.ella.music.data.SettingsManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -80,6 +81,66 @@ class OPlusLyricPayloadTest {
         assertEquals("[00:02.34]Plain line", OPlusLyricPayload.stringField(json, "lyric"))
         assertEquals("[00:02.345]Plain line", OPlusLyricPayload.stringField(json, "rawLyric"))
         assertEquals(null, OPlusLyricPayload.stringField(json, "translationLyric"))
+    }
+
+    @Test
+    fun modulePayloadOmitsPreambleCreditsWithoutMovingFirstSungLine() {
+        val song = song().copy(title = "dorothea", artist = "Taylor Swift")
+        val payload = OPlusLyricPayload.build(
+            song = song,
+            mode = SettingsManager.OPLUS_LYRIC_MODE_MODULE,
+            lyrics = listOf(
+                LyricLine(
+                    timeMs = 0L,
+                    text = "dorothea - Taylor Swift (泰勒·斯威夫特)",
+                    words = listOf(LyricWord("dorothea - Taylor Swift (泰勒·斯威夫特)", 0L, 2_120L)),
+                    translation = "TME享有本翻译作品的著作权",
+                    endMs = 2_120L
+                ),
+                LyricLine(
+                    timeMs = 2_120L,
+                    text = "Lyrics by: Aaron Dessner/Taylor Swift",
+                    words = listOf(LyricWord("Lyrics by: Aaron Dessner/Taylor Swift", 2_120L, 4_250L)),
+                    endMs = 4_250L
+                ),
+                LyricLine(
+                    timeMs = 4_250L,
+                    text = "Composed by: Aaron Dessner/Taylor Swift",
+                    words = listOf(LyricWord("Composed by: Aaron Dessner/Taylor Swift", 4_250L, 6_380L)),
+                    endMs = 6_380L
+                ),
+                LyricLine(
+                    timeMs = 6_380L,
+                    text = "Produced by: Aaron Dessner",
+                    words = listOf(LyricWord("Produced by: Aaron Dessner", 6_380L, 8_500L)),
+                    endMs = 8_500L
+                ),
+                LyricLine(
+                    timeMs = 8_509L,
+                    text = "Hey Dorothea do you ever stop and think about me",
+                    words = listOf(
+                        LyricWord("Hey ", 8_509L, 8_756L),
+                        LyricWord("Dorothea ", 8_756L, 9_790L),
+                        LyricWord("do you ever stop and think about me", 9_790L, 13_335L)
+                    ),
+                    translation = "嘿 多萝西娅 你是否停下过脚步 思念起我",
+                    endMs = 13_335L
+                )
+            )
+        )
+
+        val json = payload ?: error("payload is null")
+        assertEquals(
+            "[00:08.50]Hey Dorothea do you ever stop and think about me",
+            OPlusLyricPayload.stringField(json, "lyric")
+        )
+        assertTrue(OPlusLyricPayload.stringField(json, "rawLyric")!!.startsWith("[00:08.509]Hey "))
+        assertEquals(
+            "[00:08.509]嘿 多萝西娅 你是否停下过脚步 思念起我",
+            OPlusLyricPayload.stringField(json, "translationLyric")
+        )
+        assertFalse(json.contains("Produced by"))
+        assertFalse(json.contains("著作权"))
     }
 
     private fun song(): Song = Song(
