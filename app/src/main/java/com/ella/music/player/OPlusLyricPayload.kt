@@ -12,7 +12,7 @@ internal object OPlusLyricPayload {
     private const val OPLUS_PREAMBLE_MAX_TIME_MS = 15_000L
     private const val OPLUS_TITLE_CREDIT_MAX_TIME_MS = 5_000L
     private val preambleCreditPattern = Regex(
-        """^(?:lyrics?\s+by|written\s+by|composed\s+by|composer|produced\s+by|producer|arranged\s+by|performed\s+by|作词|作曲|编曲|制作人|演唱)\s*[:：]?""",
+        """^(?:lyrics?\s+by|lyricist|written\s+by|composed\s+by|composer|produced\s+by|producer|arranged\s+by|arranger|performed\s+by|performer|作词|作曲|编曲|制作人|演唱)\s*[:：]?""",
         RegexOption.IGNORE_CASE
     )
     private val titleArtistSeparatorPattern = Regex("""\s[-–—]\s""")

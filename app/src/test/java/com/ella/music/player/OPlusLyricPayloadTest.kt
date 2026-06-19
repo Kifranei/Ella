@@ -143,6 +143,26 @@ class OPlusLyricPayloadTest {
         assertFalse(json.contains("著作权"))
     }
 
+    @Test
+    fun modulePayloadOmitsStandaloneEnglishCreditLabels() {
+        val payload = OPlusLyricPayload.build(
+            song = song(),
+            mode = SettingsManager.OPLUS_LYRIC_MODE_MODULE,
+            lyrics = listOf(
+                LyricLine(timeMs = 1_000L, text = "Lyricist: Taylor Swift"),
+                LyricLine(timeMs = 2_000L, text = "Arranger: Aaron Dessner"),
+                LyricLine(timeMs = 3_000L, text = "Performer: Taylor Swift"),
+                LyricLine(timeMs = 4_000L, text = "Actual lyric")
+            )
+        )
+
+        val json = payload ?: error("payload is null")
+        assertEquals("[00:04.00]Actual lyric", OPlusLyricPayload.stringField(json, "lyric"))
+        assertFalse(json.contains("Lyricist"))
+        assertFalse(json.contains("Arranger"))
+        assertFalse(json.contains("Performer"))
+    }
+
     private fun song(): Song = Song(
         id = 42L,
         title = "Test Song",
