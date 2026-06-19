@@ -39,6 +39,7 @@ import androidx.media3.common.Player
 import com.ella.music.R
 import com.ella.music.data.AudioQualitySummary
 import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.oem.MiPlayAudioSupport
 import top.yukonga.miuix.kmp.basic.Icon
 
 @Composable
@@ -192,6 +193,8 @@ internal fun GlowSeekBar(
 }
 
 internal fun openSystemOutputSwitcher(context: Context) {
+    if (MiPlayAudioSupport.openMiPlayDetailIfSupported(context)) return
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
         val shown = runCatching {
             MediaRouter2.getInstance(context).showSystemOutputSwitcher()
