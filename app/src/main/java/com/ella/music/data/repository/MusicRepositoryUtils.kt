@@ -140,7 +140,7 @@ internal fun AudioTagInfo.embeddedLyricsContent(preferTtml: Boolean): String? {
         listOf("TTML LYRICS", "TTML LYRIC", "TTMLLYRICS", "TTMLLYRIC", "TTML",
             "SYNCEDLYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRICS", "USLT", "SYLT", "LYRIC")
     } else {
-        listOf("SYNCEDLYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRICS", "USLT", "SYLT", "LYRIC")
+        listOf("SYNCEDLYRICS", "LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "USLT", "SYLT", "LYRIC")
     }
     names.forEach { target ->
         customTags.firstMatchingTagValue(target)?.takeIf { it.looksLikeTtmlLyrics() == preferTtml }?.let { return it }

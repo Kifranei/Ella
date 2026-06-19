@@ -49,6 +49,36 @@ internal class OPlusLyricHandler(
     @Volatile
     var colorOsLockScreenLyricMode = SettingsManager.OPLUS_LYRIC_MODE_SYSTEM
 
+    suspend fun prepareInitialOplusLyricInfo(
+        mediaItems: List<MediaItem>,
+        startIndex: Int
+    ): List<MediaItem> {
+        if (!colorOsLockScreenLyricEnabled || startIndex !in mediaItems.indices) return mediaItems
+        val item = mediaItems[startIndex]
+        val song = item.toSongFromMediaItemExtras() ?: return mediaItems
+        val deliveryMode = colorOsLockScreenLyricMode
+        val existing = item.oplusLyricInfoJsonFor(song, deliveryMode)
+        if (existing != null) return mediaItems
+        val lyricInfoJson = runCatching {
+            loadOplusLyricInfoJson(song, deliveryMode)
+        }.getOrElse { error ->
+            Log.w(TAG, "Failed to prepare initial OPlus lyricInfo for ${song.title}", error)
+            null
+        } ?: return mediaItems
+
+        val extras = Bundle(item.mediaMetadata.extras ?: Bundle.EMPTY).apply {
+            putString(OPLUS_LYRIC_INFO_KEY, lyricInfoJson)
+            OPlusLyricPayload.rawLyric(lyricInfoJson)?.let {
+                putString(OPLUS_RAW_LYRIC_KEY, it)
+            }
+        }
+        val preparedItem = item.buildUpon()
+            .setMediaMetadata(item.mediaMetadata.buildUpon().setExtras(extras).build())
+            .build()
+        Log.d(TIMING_TAG, "OPlus lyricInfo attached before initial publish mediaId=${song.id}")
+        return mediaItems.toMutableList().apply { this[startIndex] = preparedItem }
+    }
+
     fun refreshCurrentOplusLyricInfo(player: Player? = playerProvider()) {
         val currentPlayer = player ?: return
         val currentItem = currentPlayer.currentMediaItem

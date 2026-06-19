@@ -1242,7 +1242,7 @@ class MusicRepository(private val context: Context) {
             ?: "Unknown Artist"
         val mergedAlbum = tagInfo?.album.takeIf { it.isUsableAlbumText() }
             ?: wavMetadata?.album.takeIf { it.isUsableAlbumText() }
-            ?: album.takeIf { it.isUsableAlbumText() && !it.looksLikeLastFolderName(path) }
+            ?: album.takeIf { it.isUsableAlbumText() }
             ?: "Unknown Album"
         val mergedAlbumArtist = tagInfo?.albumArtist.takeIf { it.isUsableArtistText() }
             ?: wavMetadata?.albumArtist.takeIf { it.isUsableArtistText() }
@@ -1268,7 +1268,7 @@ class MusicRepository(private val context: Context) {
 
     private fun Song.withFinalLibraryFallbacks(): Song {
         val fallbackArtist = artist.takeIf { it.isUsableArtistText() } ?: "Unknown Artist"
-        val fallbackAlbum = album.takeIf { it.isUsableAlbumText() && !it.looksLikeLastFolderName(path) }
+        val fallbackAlbum = album.takeIf { it.isUsableAlbumText() }
             ?: "Unknown Album"
         return copy(
             title = title.takeIf { it.isUsableTagText() } ?: fileName.substringBeforeLast('.').ifBlank { path.substringAfterLast('/') },
@@ -1439,7 +1439,7 @@ class MusicRepository(private val context: Context) {
                 "LYRIC"
             )
         } else {
-            listOf("SYNCEDLYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "LYRICS", "USLT", "SYLT", "LYRIC")
+            listOf("SYNCEDLYRICS", "LYRICS", "UNSYNCEDLYRICS", "UNSYNCED LYRICS", "USLT", "SYLT", "LYRIC")
         }
         names.forEach { target ->
             customTags.firstMatchingTagValue(target)?.takeIf { it.looksLikeTtmlLyrics() == preferTtml }?.let { return it }

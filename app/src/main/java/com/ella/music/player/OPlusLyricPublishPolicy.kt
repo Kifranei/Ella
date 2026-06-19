@@ -2,7 +2,7 @@ package com.ella.music.player
 
 internal object OPlusLyricPublishPolicy {
     const val COMPAT_REAPPLY_DELAY_MS = 800L
-    val COMPAT_REAPPLY_DELAYS_MS = longArrayOf(400L, 800L, 1600L)
+    val COMPAT_REAPPLY_DELAYS_MS = longArrayOf(COMPAT_REAPPLY_DELAY_MS)
 
     fun actionFor(
         currentLyricInfo: String?,

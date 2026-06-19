@@ -13,8 +13,10 @@ internal object AccompanistLyricsParser {
     fun parse(content: String): LrcParser.LrcResult? {
         if (!parser.canParse(content)) return null
         val syncedLyrics = runCatching { parser.parse(content) }.getOrNull() ?: return null
+        val isTtmlFormat = content.contains("<tt", ignoreCase = true) &&
+            content.contains("</tt", ignoreCase = true)
         val lines = syncedLyrics.lines
-            .mapNotNull(::toLyricLine)
+            .mapNotNull { toLyricLine(it, isTtmlFormat) }
             .filterNot { line ->
                 val text = line.text.ifBlank { line.backgroundText.orEmpty() }
                 text.isBlank() || EllaLyricsParser.isIgnorableRawLyricLine(text)
@@ -31,16 +33,16 @@ internal object AccompanistLyricsParser {
         )
     }
 
-    private fun toLyricLine(line: ISyncedLine): LyricLine? {
+    private fun toLyricLine(line: ISyncedLine, isTtmlFormat: Boolean): LyricLine? {
         return when (line) {
-            is KaraokeLine.MainKaraokeLine -> line.toMainLyricLine()
-            is KaraokeLine.AccompanimentKaraokeLine -> line.toBackgroundLyricLine()
+            is KaraokeLine.MainKaraokeLine -> line.toMainLyricLine(isTtmlFormat)
+            is KaraokeLine.AccompanimentKaraokeLine -> line.toBackgroundLyricLine(isTtmlFormat)
             is SyncedLine -> line.toPlainLyricLine()
             else -> null
         }
     }
 
-    private fun KaraokeLine.MainKaraokeLine.toMainLyricLine(): LyricLine? {
+    private fun KaraokeLine.MainKaraokeLine.toMainLyricLine(isTtmlFormat: Boolean): LyricLine? {
         val text = syllables.joinToString(separator = "") { it.content }.trimMeaningful()
         if (text.isBlank()) return null
         val background = accompanimentLines?.firstOrNull()
@@ -56,12 +58,12 @@ internal object AccompanistLyricsParser {
             backgroundTranslation = background?.translation?.trimMeaningful(),
             backgroundStartMs = background?.start?.toLong()?.coerceAtLeast(0L),
             backgroundEndMs = background?.end?.toSafeEndMs(),
-            isTtml = true,
+            isTtml = isTtmlFormat,
             endMs = end.toSafeEndMs()
         )
     }
 
-    private fun KaraokeLine.AccompanimentKaraokeLine.toBackgroundLyricLine(): LyricLine? {
+    private fun KaraokeLine.AccompanimentKaraokeLine.toBackgroundLyricLine(isTtmlFormat: Boolean): LyricLine? {
         val text = syllables.joinToString(separator = "") { it.content }.trimMeaningful()
         if (text.isBlank()) return null
         return LyricLine(
@@ -73,7 +75,7 @@ internal object AccompanistLyricsParser {
             backgroundStartMs = start.toLong().coerceAtLeast(0L),
             backgroundEndMs = end.toSafeEndMs(),
             agent = alignment.toEllaAgent(),
-            isTtml = true,
+            isTtml = isTtmlFormat,
             endMs = end.toSafeEndMs()
         )
     }
