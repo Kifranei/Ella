@@ -19,4 +19,18 @@ class MusicLyricsSelectionTest {
 
         assertEquals(rich, tags.embeddedLyricsContent(preferTtml = false))
     }
+
+    @Test
+    fun richerLyricsTagAlsoWinsForTtml() {
+        val rich = "<tt><body><p begin=\"1s\">Hello</p><p begin=\"1s\">你好</p></body></tt>"
+        val plain = "<tt><body><p begin=\"1s\">Hello</p></body></tt>"
+        val tags = AudioTagInfo(
+            customTags = linkedMapOf(
+                "UNSYNCEDLYRICS" to listOf(plain),
+                "LYRICS" to listOf(rich)
+            )
+        )
+
+        assertEquals(rich, tags.embeddedLyricsContent(preferTtml = true))
+    }
 }

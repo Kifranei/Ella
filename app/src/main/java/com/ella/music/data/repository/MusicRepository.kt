@@ -1431,9 +1431,9 @@ class MusicRepository(private val context: Context) {
                 "TTMLLYRIC",
                 "TTML",
                 "SYNCEDLYRICS",
+                "LYRICS",
                 "UNSYNCEDLYRICS",
                 "UNSYNCED LYRICS",
-                "LYRICS",
                 "USLT",
                 "SYLT",
                 "LYRIC"

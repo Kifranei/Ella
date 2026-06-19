@@ -11,6 +11,7 @@ import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.repository.MusicRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -59,9 +60,11 @@ internal class OPlusLyricHandler(
         val deliveryMode = colorOsLockScreenLyricMode
         val existing = item.oplusLyricInfoJsonFor(song, deliveryMode)
         if (existing != null) return mediaItems
-        val lyricInfoJson = runCatching {
+        val lyricInfoJson = try {
             loadOplusLyricInfoJson(song, deliveryMode)
-        }.getOrElse { error ->
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
             Log.w(TAG, "Failed to prepare initial OPlus lyricInfo for ${song.title}", error)
             null
         } ?: return mediaItems

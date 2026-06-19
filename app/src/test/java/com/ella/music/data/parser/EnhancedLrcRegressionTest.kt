@@ -22,4 +22,17 @@ class EnhancedLrcRegressionTest {
         assertEquals(listOf("I'm ", "walking ", "fast"), line.words.map { it.text })
         assertFalse(line.isTtml)
     }
+
+    @Test
+    fun leadingTextKeepsRelativeInlineWordTimingRelativeToLineStart() {
+        val result = LrcParser.parse(
+            "[00:10.000]Lead <00:00.500>word<00:01.000>end"
+        )
+
+        val line = result.lyrics.single()
+        assertEquals(10_000L, line.timeMs)
+        assertEquals("Lead wordend", line.text)
+        assertEquals(listOf("Lead ", "word", "end"), line.words.map { it.text })
+        assertEquals(listOf(10_000L, 10_500L, 11_000L), line.words.map { it.startMs })
+    }
 }

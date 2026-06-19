@@ -58,11 +58,20 @@ object EnhancedLrcParser : ILyricsParser {
         }
 
         val matches = syllableRegex.findAll(content).toList()
+        val firstInlineTime = matches.asSequence()
+            .mapNotNull { match ->
+                match.groupValues[1]
+                    .trim()
+                    .takeIf(::isTimestamp)
+                    ?.let { runCatching { it.parseAsTime() }.getOrNull() }
+            }
+            .firstOrNull()
         val leadingText = matches.firstOrNull()
             ?.let { content.substring(0, it.range.first) }
             .orEmpty()
-        if (leadingText.isNotEmpty() && fallbackStart != null) {
-            syllables.add(KaraokeSyllable(leadingText, fallbackStart, fallbackStart))
+        if (leadingText.isNotEmpty() && fallbackStart != null && firstInlineTime != null) {
+            val leadingStart = if (firstInlineTime < fallbackStart) 0 else fallbackStart
+            syllables.add(KaraokeSyllable(leadingText, leadingStart, leadingStart))
         }
 
         for (match in matches) {

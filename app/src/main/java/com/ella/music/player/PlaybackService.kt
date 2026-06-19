@@ -54,6 +54,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -716,12 +717,14 @@ class PlaybackService : MediaLibraryService() {
             startPositionMs: Long
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            service.serviceScope.launch(Dispatchers.IO) {
-                val preparedItems = runCatching {
+            val job = service.serviceScope.launch(Dispatchers.IO) {
+                val preparedItems = try {
                     withTimeoutOrNull(1_500L) {
                         service.oplusLyricHandler.prepareInitialOplusLyricInfo(mediaItems, startIndex)
                     } ?: mediaItems
-                }.getOrElse { error ->
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
                     Log.w(TAG, "Failed to attach OPlus lyricInfo before initial publish", error)
                     mediaItems
                 }
@@ -732,6 +735,14 @@ class PlaybackService : MediaLibraryService() {
                         startPositionMs
                     )
                 )
+            }
+            job.invokeOnCompletion { cause ->
+                if (cause == null || result.isDone) return@invokeOnCompletion
+                if (cause is CancellationException) {
+                    result.cancel(false)
+                } else {
+                    result.setException(cause)
+                }
             }
             return result
         }
