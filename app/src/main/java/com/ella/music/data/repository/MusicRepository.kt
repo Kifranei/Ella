@@ -150,18 +150,15 @@ class MusicRepository(private val context: Context) {
     private val _albums = MutableStateFlow<List<Album>>(emptyList())
     val albums: StateFlow<List<Album>> = _albums.asStateFlow()
 
-    private val _isScanning = MutableStateFlow(false)
-    val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
-
-    private val _scanProgress = MutableStateFlow(0)
-    val scanProgress: StateFlow<Int> = _scanProgress.asStateFlow()
+    private val scanProgressState = LibraryScanProgressState()
+    val isScanning: StateFlow<Boolean> = scanProgressState.isScanning
+    val scanProgress: StateFlow<Int> = scanProgressState.scanProgress
 
     private val _scanSummaryEvents = MutableSharedFlow<MusicScanSummary>(extraBufferCapacity = 1)
     val scanSummaryEvents: SharedFlow<MusicScanSummary> = _scanSummaryEvents.asSharedFlow()
 
     fun startScanning() {
-        _isScanning.value = true
-        _scanProgress.value = 0
+        scanProgressState.start()
     }
 
     fun emitScanSummary(summary: MusicScanSummary) {
@@ -169,7 +166,7 @@ class MusicRepository(private val context: Context) {
     }
 
     fun finishScanning() {
-        _isScanning.value = false
+        scanProgressState.finish()
     }
 
     private val remoteAudioCacheDir = File(context.cacheDir, "webdav_audio")
@@ -208,7 +205,7 @@ class MusicRepository(private val context: Context) {
                 includeFolders = includeFolders,
                 excludeFolders = excludeFolders,
                 deepMetadata = true
-            ) { count -> _scanProgress.value = count }
+            ) { count -> scanProgressState.update(count) }
                 .map { song -> song.withRepositoryTags() }
             LibraryScanResult(
                 songs = scannedSongs,
@@ -262,7 +259,7 @@ class MusicRepository(private val context: Context) {
                 treeUri = uri,
                 minDurationMs = minDurationMs,
                 deepMetadata = deepMetadata
-            ) { count -> _scanProgress.value = count }
+            ) { count -> scanProgressState.update(count) }
             usbSongs.addAll(found.filter { it.path !in existingPaths })
         }
         if (usbSongs.isNotEmpty()) {
@@ -314,7 +311,7 @@ class MusicRepository(private val context: Context) {
             val cached = cachedBySyncKey[item.librarySyncKey()] ?: cachedByPath[item.path]
             val mediaStoreSaysTooShort = item.duration > 0L && item.duration < minDurationMs
             if (mediaStoreSaysTooShort) {
-                _scanProgress.value = index + 1
+                scanProgressState.update(index + 1)
                 return@forEachIndexed
             }
 
@@ -366,7 +363,7 @@ class MusicRepository(private val context: Context) {
                     if (cached.hasSameLibraryTags(reused)) reusedCount++ else updatedCount++
                 }
             }
-            _scanProgress.value = index + 1
+            scanProgressState.update(index + 1)
         }
 
         val deletedSongs = cachedSongs.filter { song ->

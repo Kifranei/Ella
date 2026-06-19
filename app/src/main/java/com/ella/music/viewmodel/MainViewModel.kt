@@ -26,6 +26,7 @@ import com.ella.music.data.metadata.AudioCoverInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.repository.CoverUsage
+import com.ella.music.data.repository.MusicScanSummary
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.analytics.prewarmLibraryAnalysisCache
@@ -115,12 +116,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun scanFromCurrentSettings(fullRescan: Boolean = false, deepRescan: Boolean = fullRescan) {
         repository.startScanning()
-        try {
+        val completedSummary = try {
             val minDuration = settingsManager.minDurationSec.first() * 1000L
             val includeFolders = settingsManager.scanIncludeFolders.first().toFolderFilterList()
             val excludeFolders = settingsManager.scanExcludeFolders.first().toFolderFilterList()
             val useAndroidMediaLibrary = settingsManager.useAndroidMediaLibrary.first()
-            val summary = repository.scanMusic(
+            var summary = repository.scanMusic(
                 minDuration,
                 if (useAndroidMediaLibrary) emptyList() else includeFolders.ifEmpty { listOf("__ella_no_custom_folder__") },
                 excludeFolders,
@@ -128,7 +129,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deepRescan = deepRescan
             )
             if (summary.total == 0 && useAndroidMediaLibrary && includeFolders.isNotEmpty()) {
-                repository.scanMusic(
+                summary = repository.scanMusic(
                     minDuration,
                     includeFolders,
                     excludeFolders,
@@ -148,13 +149,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     deepMetadata = deepRescan
                 )
             }
-            repository.emitScanSummary(summary)
-            preloadLibrarySearchSnapshot()
-            withContext(Dispatchers.IO) {
-                prewarmLibraryAnalysisCache(getApplication(), songs.value, this@MainViewModel)
-            }
+            summary
         } finally {
             repository.finishScanning()
+        }
+        repository.emitScanSummary(completedSummary)
+        preloadLibrarySearchSnapshot()
+        withContext(Dispatchers.IO) {
+            prewarmLibraryAnalysisCache(getApplication(), songs.value, this@MainViewModel)
         }
     }
 
