@@ -56,8 +56,6 @@ import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.rememberSongArtworkState
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
 import sh.calvin.reorderable.DragGestureDetector
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -71,6 +69,21 @@ private data class QueueEntry(
     val stableKey: String,
     val song: Song
 )
+
+internal data class QueueMoveCommit(
+    val fromIndex: Int,
+    val toIndex: Int
+)
+
+internal fun resolveQueueMoveCommit(
+    fromIndex: Int?,
+    toIndex: Int?,
+    queueSize: Int
+): QueueMoveCommit? {
+    if (fromIndex == null || toIndex == null || fromIndex == toIndex) return null
+    if (fromIndex !in 0 until queueSize || toIndex !in 0 until queueSize) return null
+    return QueueMoveCommit(fromIndex, toIndex)
+}
 
 private fun buildQueueEntries(items: List<Song>): List<QueueEntry> {
     val occurrenceByIdentity = linkedMapOf<String, Int>()
@@ -226,12 +239,15 @@ internal fun PlayerQueueMenu(
                         key = item.stableKey
                     ) { isDragging ->
                         val dragHandleModifier = Modifier.draggableHandle(
-                            dragGestureDetector = OneSecondLongPressDragGestureDetector,
+                            dragGestureDetector = ImmediateDragHandleGestureDetector,
                             onDragStopped = {
-                                val fromIndex = pendingMoveStart
-                                val toIndex = pendingMoveTarget
-                                if (fromIndex != null && toIndex != null && fromIndex != toIndex) {
-                                    onMoveSong(fromIndex, toIndex)
+                                val move = resolveQueueMoveCommit(
+                                    fromIndex = pendingMoveStart,
+                                    toIndex = pendingMoveTarget,
+                                    queueSize = manualPlaylist.size
+                                )
+                                if (move != null) {
+                                    onMoveSong(move.fromIndex, move.toIndex)
                                 }
                                 pendingMoveStart = null
                                 pendingMoveTarget = null
@@ -282,8 +298,8 @@ internal fun PlayerQueueMenu(
                             Box(
                                 modifier = Modifier
                                     .then(dragHandleModifier)
-                                    .size(30.dp)
-                                    .clip(RoundedCornerShape(15.dp))
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(22.dp))
                                     .background(
                                         if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
                                         else Color.Transparent
@@ -303,7 +319,7 @@ internal fun PlayerQueueMenu(
                             Spacer(modifier = Modifier.width(4.dp))
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(38.dp)
                                     .clip(CircleShape)
                                     .playerNoIndicationClick { onRemoveSong(index) },
                                 contentAlignment = Alignment.Center
@@ -323,7 +339,7 @@ internal fun PlayerQueueMenu(
     }
 }
 
-private object OneSecondLongPressDragGestureDetector : DragGestureDetector {
+private object ImmediateDragHandleGestureDetector : DragGestureDetector {
     override suspend fun PointerInputScope.detect(
         onDragStart: (Offset) -> Unit,
         onDragEnd: () -> Unit,
@@ -332,27 +348,7 @@ private object OneSecondLongPressDragGestureDetector : DragGestureDetector {
     ) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
-            var lastChange = down
-            val pressedForOneSecond = try {
-                withTimeout(QUEUE_REORDER_LONG_PRESS_MS) {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: return@withTimeout false
-                        if (!change.pressed || change.changedToUpIgnoreConsumed()) return@withTimeout false
-                        lastChange = change
-                    }
-                    true
-                }
-            } catch (_: TimeoutCancellationException) {
-                true
-            }
-
-            if (!pressedForOneSecond) {
-                onDragCancel()
-                return@awaitEachGesture
-            }
-
-            onDragStart(lastChange.position)
+            onDragStart(down.position)
             while (true) {
                 val event = awaitPointerEvent()
                 val change = event.changes.firstOrNull { it.id == down.id } ?: run {
@@ -372,8 +368,6 @@ private object OneSecondLongPressDragGestureDetector : DragGestureDetector {
         }
     }
 }
-
-private const val QUEUE_REORDER_LONG_PRESS_MS = 1_000L
 
 @Composable
 private fun QueueAlbumArtView(
