@@ -898,11 +898,13 @@ fun EllaApp(
                     onNavigate = { route ->
                         bottomDockMode = BottomDockMode.Expanded
                         if (!currentRoute.matchesRoute(route)) {
+                            val preserveAlbumState = route.matchesRoute(Screen.Album.createRoute())
                             navController.navigate(route) {
                                 popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = false
+                                    saveState = preserveAlbumState
                                 }
                                 launchSingleTop = true
+                                restoreState = preserveAlbumState
                             }
                         }
                     },

@@ -199,13 +199,23 @@ fun AppNavigation(
             }
         }
 
+        fun navigateAlbumCategory() {
+            navController.navigate(Screen.Album.createRoute()) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+
         composable(Screen.Home.route) {
             HomeScreen(
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
                 onNavigateToLibrary = { navigateTopLevel(Screen.Library.route) },
                 onNavigateToArtist = { navController.navigate(Screen.Artist.createRoute()) },
-                onNavigateToAlbum = { navController.navigate(Screen.Album.createRoute()) },
+                onNavigateToAlbum = { navigateAlbumCategory() },
                 onNavigateToFolder = { navController.navigate(Screen.Folder.createRoute()) },
                 onNavigateToFolderPlaylists = { navController.navigate(Screen.FolderPlaylists.route) },
                 onNavigateToPlaylists = { navController.navigate(Screen.Playlists.createRoute()) },
