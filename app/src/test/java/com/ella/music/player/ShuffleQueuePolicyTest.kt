@@ -98,6 +98,97 @@ class ShuffleQueuePolicyTest {
         )
     }
 
+    @Test
+    fun pendingShuffleUserSelectQueueItemClearsNativeShuffleButCanKeepOriginalOrder() {
+        val plan = clearPendingShufflePlan(
+            hasOriginalOrder = true,
+            disableNativeShuffle = true,
+            clearOriginalOrder = false
+        )
+
+        assertFalse(plan.pending)
+        assertFalse(plan.nativeShuffle)
+        assertTrue(plan.keepOriginalOrder)
+    }
+
+    @Test
+    fun pendingShuffleQueueMutationClearsStaleSourceOrder() {
+        val plan = clearPendingShufflePlan(
+            hasOriginalOrder = true,
+            disableNativeShuffle = true,
+            clearOriginalOrder = true
+        )
+
+        assertFalse(plan.pending)
+        assertFalse(plan.nativeShuffle)
+        assertFalse(plan.keepOriginalOrder)
+    }
+
+    @Test
+    fun pendingShuffleDisableShuffleCleansNativeAndOriginalOrder() {
+        val action = pendingShuffleReorderAction(
+            pending = true,
+            shuffleEnabled = false,
+            repeatOne = false,
+            queueSize = 4,
+            hasVirtualQueue = false
+        )
+        val cleanup = clearPendingShufflePlan(
+            hasOriginalOrder = true,
+            disableNativeShuffle = true,
+            clearOriginalOrder = true
+        )
+
+        assertEquals(PendingShuffleReorderAction.Clear, action)
+        assertFalse(cleanup.pending)
+        assertFalse(cleanup.nativeShuffle)
+        assertFalse(cleanup.keepOriginalOrder)
+    }
+
+    @Test
+    fun repeatOneWithPendingShuffleClearsInsteadOfHangingForever() {
+        val action = pendingShuffleReorderAction(
+            pending = true,
+            shuffleEnabled = true,
+            repeatOne = true,
+            queueSize = 4,
+            hasVirtualQueue = false
+        )
+
+        assertEquals(PendingShuffleReorderAction.Clear, action)
+    }
+
+    @Test
+    fun notificationNativeShuffleCanBeAdoptedAsPendingWhenManagerReconnects() {
+        assertTrue(
+            shouldAdoptNativeShuffleAsPending(
+                appShuffleEnabled = true,
+                pending = false,
+                nativeShuffleEnabled = true,
+                queueSize = 4,
+                hasVirtualQueue = false
+            )
+        )
+        assertFalse(
+            shouldAdoptNativeShuffleAsPending(
+                appShuffleEnabled = true,
+                pending = false,
+                nativeShuffleEnabled = true,
+                queueSize = 1,
+                hasVirtualQueue = false
+            )
+        )
+        assertFalse(
+            shouldAdoptNativeShuffleAsPending(
+                appShuffleEnabled = false,
+                pending = false,
+                nativeShuffleEnabled = true,
+                queueSize = 4,
+                hasVirtualQueue = false
+            )
+        )
+    }
+
     private fun songs(count: Int): List<Song> = (0 until count).map(::song)
 
     private fun song(id: Int, path: String = "/music/$id.flac"): Song = Song(

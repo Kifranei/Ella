@@ -42,3 +42,59 @@ internal fun shouldDeferShuffleReorder(
         queueSize > 1 &&
         !hasVirtualQueue
 }
+
+internal enum class PendingShuffleReorderAction {
+    None,
+    Materialize,
+    Clear
+}
+
+internal fun pendingShuffleReorderAction(
+    pending: Boolean,
+    shuffleEnabled: Boolean,
+    repeatOne: Boolean,
+    queueSize: Int,
+    hasVirtualQueue: Boolean
+): PendingShuffleReorderAction {
+    if (!pending) return PendingShuffleReorderAction.None
+    if (!shuffleEnabled || repeatOne || queueSize <= 1 || hasVirtualQueue) {
+        return PendingShuffleReorderAction.Clear
+    }
+    return PendingShuffleReorderAction.Materialize
+}
+
+internal data class PendingShuffleCleanupPlan(
+    val pending: Boolean,
+    val nativeShuffle: Boolean,
+    val keepOriginalOrder: Boolean
+)
+
+internal fun clearPendingShufflePlan(
+    hasOriginalOrder: Boolean,
+    disableNativeShuffle: Boolean = true,
+    clearOriginalOrder: Boolean = false
+): PendingShuffleCleanupPlan {
+    return PendingShuffleCleanupPlan(
+        pending = false,
+        nativeShuffle = !disableNativeShuffle,
+        keepOriginalOrder = hasOriginalOrder && !clearOriginalOrder
+    )
+}
+
+internal fun shouldAdoptNativeShuffleAsPending(
+    appShuffleEnabled: Boolean,
+    pending: Boolean,
+    nativeShuffleEnabled: Boolean,
+    queueSize: Int,
+    hasVirtualQueue: Boolean
+): Boolean {
+    return nativeShuffleEnabled &&
+        appShuffleEnabled &&
+        !pending &&
+        shouldDeferShuffleReorder(
+            enableShuffle = true,
+            previousShuffle = false,
+            queueSize = queueSize,
+            hasVirtualQueue = hasVirtualQueue
+        )
+}
