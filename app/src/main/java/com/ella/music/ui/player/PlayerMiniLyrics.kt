@@ -99,6 +99,7 @@ internal fun MiniLyricsPreview(
         onLineClick = onLineClick,
         nonCurrentLineBlurEnabled = false,
         nonCurrentLineBlurDistance = Int.MAX_VALUE,
+        lineAlphaAnimationsEnabled = false,
         autoScrollResumeEnabled = true,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,

@@ -58,6 +58,7 @@ class LyricView @JvmOverloads constructor(
         private const val POP_UP_MS = 300L
         private const val POP_DOWN_MS = 200L
         private const val EXIT_MS = 250L
+        private const val LAYOUT_SHIFT_MS = 280L
         private const val BOTTOM_FADE_RATIO = 0.2775f
         private const val TOP_OFFSET_RATIO = 0.08f
         private const val BOTTOM_OFFSET_RATIO = 0.5f
@@ -206,6 +207,9 @@ class LyricView @JvmOverloads constructor(
 
     private var totalHeight = 0f
     private val lineAlphas = ConcurrentHashMap<Int, Float>()
+    private var layoutShiftAnimator: ValueAnimator? = null
+    private var layoutShiftProgress = 1f
+    private var layoutShiftOffsetsByBegin: Map<Long, Float> = emptyMap()
     private data class LineEntry(
         val yTop: Float,
         val preH: Float,
@@ -622,6 +626,8 @@ class LyricView @JvmOverloads constructor(
         clearInterlude()
         popAnimators.values.toList().forEach { it.cancel() }
         popAnimators.clear()
+        layoutShiftAnimator?.cancel()
+        clearLayoutShiftAnimation()
         scrollAnimator?.cancel()
         scrollAnimator = null
         previousIndex = -1
@@ -651,6 +657,11 @@ class LyricView @JvmOverloads constructor(
     }
 
     private fun rebuildEntries() {
+        val oldCentersByBegin = if (enableAnim && positionInitialized && !isUserScrolling && entries.isNotEmpty()) {
+            entries.associate { it.begin to it.yTop + it.totalH / 2f }
+        } else {
+            emptyMap()
+        }
         clearBlurCache()
         clearInterlude()
         val result = mutableListOf<LineEntry>()
@@ -726,10 +737,63 @@ class LyricView @JvmOverloads constructor(
             y += totalH
         }
         entries = result.applyForcedVerticalAlignment()
+        startLayoutShiftAnimation(oldCentersByBegin, entries)
         totalHeight = entries.maxOfOrNull { it.yTop + it.totalH } ?: y
         val bottomPad = if (height > 0) height * BOTTOM_OFFSET_RATIO else 0f
         maxScrollY = max(0f, totalHeight + bottomPad - height)
     }
+
+    private fun startLayoutShiftAnimation(
+        oldCentersByBegin: Map<Long, Float>,
+        newEntries: List<LineEntry>
+    ) {
+        if (oldCentersByBegin.isEmpty() || newEntries.isEmpty() || height <= 0) {
+            layoutShiftAnimator?.cancel()
+            clearLayoutShiftAnimation()
+            return
+        }
+        val offsets = newEntries.mapNotNull { entry ->
+            val oldCenter = oldCentersByBegin[entry.begin] ?: return@mapNotNull null
+            val newCenter = entry.yTop + entry.totalH / 2f
+            val offset = oldCenter - newCenter
+            if (abs(offset) > 0.5f) entry.begin to offset else null
+        }.toMap()
+        if (offsets.isEmpty()) {
+            layoutShiftAnimator?.cancel()
+            clearLayoutShiftAnimation()
+            return
+        }
+        layoutShiftAnimator?.cancel()
+        layoutShiftOffsetsByBegin = offsets
+        layoutShiftProgress = 0f
+        layoutShiftAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = LAYOUT_SHIFT_MS
+            interpolator = scrollPath
+            addUpdateListener {
+                layoutShiftProgress = it.animatedValue as Float
+                invalidate()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (layoutShiftAnimator == animation) clearLayoutShiftAnimation()
+                }
+
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    if (layoutShiftAnimator == animation) clearLayoutShiftAnimation()
+                }
+            })
+        }
+        layoutShiftAnimator?.start()
+    }
+
+    private fun clearLayoutShiftAnimation() {
+        layoutShiftAnimator = null
+        layoutShiftProgress = 1f
+        layoutShiftOffsetsByBegin = emptyMap()
+    }
+
+    private fun LineEntry.layoutShiftOffset(): Float =
+        (layoutShiftOffsetsByBegin[begin] ?: 0f) * (1f - layoutShiftProgress)
 
     private fun MutableList<LineEntry>.applyForcedVerticalAlignment(): List<LineEntry> {
         if (forcedVerticalAlignment < 0 || height <= 0 || isEmpty()) return this
@@ -1103,7 +1167,7 @@ class LyricView @JvmOverloads constructor(
             val alpha = if (lineAlphaAnimationsEnabled) lineAlphas.getOrPut(i) { targetAlpha } else targetAlpha
             val scale = lineScales[i] ?: if (isLineHighlighted(i)) SCALE_HIGHLIGHT else SCALE_NORMAL
             val yExtra = if (expandOffset > 0f && i > interludePrevIdx) expandOffset else 0f
-            val lineCenterY = entry.yTop + entry.totalH / 2f - scrollY + yExtra
+            val lineCenterY = entry.yTop + entry.totalH / 2f - scrollY + yExtra + entry.layoutShiftOffset()
             if (lineCenterY + entry.totalH < -50f || lineCenterY - entry.totalH > viewH + 50f) continue
             val farBlur = nonCurrentLineBlurEnabled &&
                 !isUserScrolling &&
@@ -1141,7 +1205,7 @@ class LyricView @JvmOverloads constructor(
             }
             val scale = lineScales[index] ?: SCALE_HIGHLIGHT
             val yExtra = if (expandOffset > 0f && index > interludePrevIdx) expandOffset else 0f
-            val lineCenterY = entry.yTop + entry.totalH / 2f - scrollY + yExtra
+            val lineCenterY = entry.yTop + entry.totalH / 2f - scrollY + yExtra + entry.layoutShiftOffset()
             if (lineCenterY + entry.totalH < -50f || lineCenterY - entry.totalH > viewH + 50f) return@forEach
             canvas.save()
             val pivotX = entry.pivotX()

@@ -50,6 +50,7 @@ fun SmoothLyricView(
     topContentPadding: Dp = 0.dp,
     nonCurrentLineBlurDistance: Int = 2,
     nonCurrentLineBlurEnabled: Boolean = true,
+    lineAlphaAnimationsEnabled: Boolean = true,
     autoScrollResumeEnabled: Boolean = true,
     userScrollEnabled: Boolean = true,
     lineGapDp: Float? = null,
@@ -165,7 +166,7 @@ fun SmoothLyricView(
             view.setNonCurrentLineBlurEnabled(nonCurrentLineBlurEnabled)
             view.setNonCurrentLineBlurDistance(nonCurrentLineBlurDistance)
             view.setEdgeFadeEnabled(false)
-            view.setLineAlphaAnimationsEnabled(false)
+            view.setLineAlphaAnimationsEnabled(lineAlphaAnimationsEnabled && surfaceActive)
             view.setContinuousFrameUpdatesEnabled(hasTimedWordAnimations && surfaceActive)
             // Treat a hidden-but-resident player surface as not playing so the Choreographer frame
             // loop (karaoke word sweep) stops instead of animating full-speed behind another screen.
