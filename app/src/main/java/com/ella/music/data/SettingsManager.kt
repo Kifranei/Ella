@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import com.ella.music.player.FIXED_EQ_BAND_COUNT
 import com.ella.music.player.AudioEffectSettings
+import com.ella.music.player.PlaybackOutputSettings
 import com.ella.music.plugin.source.LyricoPluginManager
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
@@ -256,6 +257,9 @@ class SettingsManager(private val context: Context) {
         val KEY_GENRE_PROTECTED_NAMES = stringPreferencesKey("genre_protected_names")
         val KEY_TAG_IGNORE_CASE = booleanPreferencesKey("tag_ignore_case")
         val KEY_DECODER_MODE = intPreferencesKey("decoder_mode")
+        val KEY_AUDIO_OUTPUT_BACKEND = intPreferencesKey("audio_output_backend")
+        val KEY_AUDIO_OUTPUT_BIT_DEPTH = intPreferencesKey("audio_output_bit_depth")
+        val KEY_AUDIO_OUTPUT_SAMPLE_RATE = intPreferencesKey("audio_output_sample_rate")
         val KEY_SORT_LIBRARY_SONG = intPreferencesKey("sort_library_song")
         val KEY_SORT_ALBUM_LIST = intPreferencesKey("sort_album_list")
         val KEY_SORT_ARTIST_LIST = intPreferencesKey("sort_artist_list")
@@ -332,6 +336,30 @@ class SettingsManager(private val context: Context) {
         const val STARTUP_PLAY_OFF = 0
         const val STARTUP_PLAY_RANDOM = 1
         const val STARTUP_PLAY_RESUME = 2
+
+        const val AUDIO_OUTPUT_BACKEND_AUTO = 0
+        const val AUDIO_OUTPUT_BACKEND_OPENSLES = 1
+        const val AUDIO_OUTPUT_BACKEND_AAUDIO = 2
+        const val AUDIO_OUTPUT_BACKEND_HI_RES = 3
+        const val AUDIO_OUTPUT_BACKEND_AUDIOTRACK = 4
+
+        const val AUDIO_OUTPUT_BIT_DEPTH_AUTO = 0
+        const val AUDIO_OUTPUT_BIT_DEPTH_16 = 16
+        const val AUDIO_OUTPUT_BIT_DEPTH_24 = 24
+        const val AUDIO_OUTPUT_BIT_DEPTH_32 = 32
+        const val AUDIO_OUTPUT_BIT_DEPTH_FLOAT32 = 40
+
+        const val AUDIO_OUTPUT_SAMPLE_RATE_AUTO = 0
+        val AUDIO_OUTPUT_SAMPLE_RATES = intArrayOf(
+            44_100,
+            48_000,
+            88_200,
+            96_000,
+            176_400,
+            192_000,
+            352_800,
+            384_000
+        )
 
         const val PLAYER_BG_THEME_FOLLOW_SYSTEM = 0
         const val PLAYER_BG_THEME_LIGHT = 1
@@ -612,6 +640,25 @@ class SettingsManager(private val context: Context) {
     val resumePlaybackPosition: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_RESUME_PLAYBACK_POSITION] ?: false }
     val audioFocusDisabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_AUDIO_FOCUS_DISABLED] ?: false }
+    val audioOutputBackend: Flow<Int> =
+        context.dataStore.data.map { normalizeAudioOutputBackend(it[KEY_AUDIO_OUTPUT_BACKEND]) }
+    val audioOutputBitDepth: Flow<Int> =
+        context.dataStore.data.map { normalizeAudioOutputBitDepth(it[KEY_AUDIO_OUTPUT_BIT_DEPTH]) }
+    val audioOutputSampleRate: Flow<Int> =
+        context.dataStore.data.map { normalizeAudioOutputSampleRate(it[KEY_AUDIO_OUTPUT_SAMPLE_RATE]) }
+    val playbackOutputSettings: Flow<PlaybackOutputSettings> = combine(
+        audioOutputBackend,
+        audioOutputBitDepth,
+        audioOutputSampleRate,
+        context.dataStore.data.map { it[KEY_USB_DAC_MODE] ?: false }
+    ) { backend, bitDepth, sampleRate, usbExclusive ->
+        PlaybackOutputSettings(
+            backend = backend,
+            bitDepth = bitDepth,
+            sampleRate = sampleRate,
+            usbExclusive = usbExclusive
+        )
+    }
     val shuffleMode: Flow<Int> =
         context.dataStore.data.map { it[KEY_SHUFFLE_MODE] ?: SHUFFLE_MODE_PSEUDO }
     val previousButtonAction: Flow<Int> =
@@ -2352,6 +2399,9 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_DESKTOP_LYRIC_X)
             setInt(KEY_DESKTOP_LYRIC_Y)
             setInt(KEY_DECODER_MODE)
+            setInt(KEY_AUDIO_OUTPUT_BACKEND)
+            setInt(KEY_AUDIO_OUTPUT_BIT_DEPTH)
+            setInt(KEY_AUDIO_OUTPUT_SAMPLE_RATE)
             setInt(KEY_LYRIC_FONT_WEIGHT)
             setInt(KEY_LYRIC_FONT_SCALE)
             setInt(KEY_LYRIC_SECONDARY_FONT_SCALE)
@@ -2548,6 +2598,43 @@ class SettingsManager(private val context: Context) {
     suspend fun setDecoderMode(mode: Int) {
         context.dataStore.edit { it[KEY_DECODER_MODE] = mode.coerceIn(0, 2) }
     }
+
+    suspend fun setAudioOutputBackend(backend: Int) {
+        context.dataStore.edit { it[KEY_AUDIO_OUTPUT_BACKEND] = normalizeAudioOutputBackend(backend) }
+    }
+
+    suspend fun setAudioOutputBitDepth(bitDepth: Int) {
+        context.dataStore.edit { it[KEY_AUDIO_OUTPUT_BIT_DEPTH] = normalizeAudioOutputBitDepth(bitDepth) }
+    }
+
+    suspend fun setAudioOutputSampleRate(sampleRate: Int) {
+        context.dataStore.edit { it[KEY_AUDIO_OUTPUT_SAMPLE_RATE] = normalizeAudioOutputSampleRate(sampleRate) }
+    }
+
+    private fun normalizeAudioOutputBackend(backend: Int?): Int =
+        when (backend) {
+            AUDIO_OUTPUT_BACKEND_OPENSLES,
+            AUDIO_OUTPUT_BACKEND_AAUDIO,
+            AUDIO_OUTPUT_BACKEND_HI_RES,
+            AUDIO_OUTPUT_BACKEND_AUDIOTRACK -> backend
+            else -> AUDIO_OUTPUT_BACKEND_AUTO
+        }
+
+    private fun normalizeAudioOutputBitDepth(bitDepth: Int?): Int =
+        when (bitDepth) {
+            AUDIO_OUTPUT_BIT_DEPTH_16,
+            AUDIO_OUTPUT_BIT_DEPTH_24,
+            AUDIO_OUTPUT_BIT_DEPTH_32,
+            AUDIO_OUTPUT_BIT_DEPTH_FLOAT32 -> bitDepth
+            else -> AUDIO_OUTPUT_BIT_DEPTH_AUTO
+        }
+
+    private fun normalizeAudioOutputSampleRate(sampleRate: Int?): Int =
+        if (sampleRate != null && AUDIO_OUTPUT_SAMPLE_RATES.contains(sampleRate)) {
+            sampleRate
+        } else {
+            AUDIO_OUTPUT_SAMPLE_RATE_AUTO
+        }
 
     private fun Preferences.lxSources(): List<LxSourceConfig> {
         val defaultName = context.getString(R.string.settings_default_lx_source_name)

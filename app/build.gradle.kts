@@ -115,6 +115,13 @@ android {
         targetSdk = 37
         versionCode = 28
         versionName = appVersionName
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-std=c++17"
+                // Oboe (prefab) ships against the shared STL.
+                arguments += "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     splits {
@@ -175,6 +182,14 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     packaging {
@@ -246,6 +261,7 @@ dependencies {
     implementation(project(":lyrico-audiotag"))
     implementation("wang.harlon.quickjs:wrapper-android:2.4.0")
     implementation(project(":ffmpeg-decoder"))
+    implementation("com.google.oboe:oboe:1.9.0")
 
     implementation(libs.miuix.ui)
     implementation(libs.miuix.icons)

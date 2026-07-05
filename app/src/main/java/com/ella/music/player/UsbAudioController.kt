@@ -63,6 +63,29 @@ class UsbAudioController private constructor(
         }
     }
 
+    /**
+     * Requests USB access permission for the connected USB-audio device (shows the system
+     * authorization dialog). AAudio exclusive routing does not strictly need this, but it surfaces
+     * the "authorize" prompt users expect and is a prerequisite for future direct-USB output.
+     */
+    fun requestUsbAudioPermission() {
+        val usbManager = context.getSystemService(Context.USB_SERVICE) as? android.hardware.usb.UsbManager ?: return
+        val device = usbManager.deviceList.values.firstOrNull { device ->
+            (0 until device.interfaceCount).any {
+                device.getInterface(it).interfaceClass == android.hardware.usb.UsbConstants.USB_CLASS_AUDIO
+            }
+        } ?: return
+        if (usbManager.hasPermission(device)) return
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.app.PendingIntent.FLAG_IMMUTABLE
+        } else {
+            0
+        }
+        val intent = android.content.Intent(ACTION_USB_PERMISSION).setPackage(context.packageName)
+        val pendingIntent = android.app.PendingIntent.getBroadcast(context, 0, intent, flags)
+        runCatching { usbManager.requestPermission(device, pendingIntent) }
+    }
+
     fun clearUsbRouting() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!clearUsbRoutingInternal(audioManager)) {
@@ -72,6 +95,8 @@ class UsbAudioController private constructor(
     }
 
     companion object {
+        private const val ACTION_USB_PERMISSION = "com.ella.music.action.USB_PERMISSION"
+
         @Volatile
         private var instance: UsbAudioController? = null
 

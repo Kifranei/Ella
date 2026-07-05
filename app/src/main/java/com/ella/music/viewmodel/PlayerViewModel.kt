@@ -22,6 +22,7 @@ import com.ella.music.player.isM4aOrAppleLosslessOrAAC
 import com.ella.music.player.LyricGetterBridge
 import com.ella.music.player.LyriconBridge
 import com.ella.music.player.MediaNotificationLyricPatchPolicy
+import com.ella.music.player.PlaybackOutputSettings
 import com.ella.music.player.PlaybackService
 import com.ella.music.player.SuperLyricBridge
 import com.ella.music.player.TickerBridge
@@ -149,6 +150,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var appliedDecoderMode: Int? = null
     private var appliedDecoderModeOverride: Int? = null
     private var appliedAudioFocusDisabled: Boolean? = null
+    private var appliedPlaybackOutputSettings: PlaybackOutputSettings? = null
     private var appliedLyricSourceMode: Int? = null
     private var previousButtonAction = SettingsManager.PREVIOUS_BUTTON_PREVIOUS
     private var manualSeekAfterPreviousButton = false
@@ -179,6 +181,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initDecoderMode()
         observeAutoDecoderMode()
         initAudioFocusMode()
+        initPlaybackOutputSettings()
         initReplayGain()
         initLyricSourceMode()
         initLyricLineBlacklist()
@@ -491,6 +494,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 appliedAudioFocusDisabled = disabled
                 playerManager.recreatePlaybackService()
                 AppLogStore.info(getApplication(), "PlayerDecoder", "Audio focus disabled changed to $disabled")
+            }
+        }
+    }
+
+    private fun initPlaybackOutputSettings() {
+        viewModelScope.launch {
+            settingsManager.playbackOutputSettings.distinctUntilChanged().collect { settings ->
+                if (appliedPlaybackOutputSettings == null) {
+                    appliedPlaybackOutputSettings = settings
+                    return@collect
+                }
+                if (appliedPlaybackOutputSettings == settings) return@collect
+                appliedPlaybackOutputSettings = settings
+                playerManager.recreatePlaybackService()
+                AppLogStore.info(
+                    getApplication(),
+                    "PlayerDecoder",
+                    "Playback output changed: backend=${settings.backend}, bitDepth=${settings.bitDepth}, sampleRate=${settings.sampleRate}"
+                )
             }
         }
     }

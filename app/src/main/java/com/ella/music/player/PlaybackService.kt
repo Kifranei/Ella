@@ -245,6 +245,9 @@ class PlaybackService : MediaLibraryService() {
         val handleAudioFocus = runBlocking(Dispatchers.IO) {
             !settingsManager.audioFocusDisabled.first()
         }
+        val playbackOutputSettings = runBlocking(Dispatchers.IO) {
+            settingsManager.playbackOutputSettings.first()
+        }
         val renderersFactory = EllaRenderersFactory(this).apply {
             setExtensionRendererMode(
                 when (decoderMode) {
@@ -256,7 +259,13 @@ class PlaybackService : MediaLibraryService() {
         }
         equalizerAudioProcessor = EqualizerAudioProcessor()
         renderersFactory.setEqualizerAudioProcessor(equalizerAudioProcessor)
+        renderersFactory.setPlaybackOutputSettings(playbackOutputSettings)
         AppLogStore.info(this, TAG, "Decoder mode=${decoderMode.decoderModeLabel()}")
+        AppLogStore.info(
+            this,
+            TAG,
+            "Audio output backend=${playbackOutputSettings.backend}, bitDepth=${playbackOutputSettings.bitDepth}, sampleRate=${playbackOutputSettings.sampleRate}"
+        )
 
         val player = ExoPlayer.Builder(this, renderersFactory)
             .setAudioAttributes(

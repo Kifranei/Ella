@@ -59,6 +59,12 @@ fun AudioSettingsScreen(
     val playNextMode by settingsManager.playNextMode.collectAsState(initial = SettingsManager.PLAY_NEXT_MODE_REVERSE_STACK)
     val previousButtonAction by settingsManager.previousButtonAction.collectAsState(initial = SettingsManager.PREVIOUS_BUTTON_PREVIOUS)
     val decoderMode by settingsManager.decoderMode.collectAsState(initial = 2)
+    val audioOutputBackend by settingsManager.audioOutputBackend.collectAsState(initial = SettingsManager.AUDIO_OUTPUT_BACKEND_AUTO)
+    val audioOutputBitDepth by settingsManager.audioOutputBitDepth.collectAsState(initial = SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_AUTO)
+    val audioOutputSampleRate by settingsManager.audioOutputSampleRate.collectAsState(initial = SettingsManager.AUDIO_OUTPUT_SAMPLE_RATE_AUTO)
+    val usbDacMode by settingsManager.usbDacMode.collectAsState(initial = false)
+    val usbAudioController = remember(context) { com.ella.music.player.UsbAudioController.getInstance(context) }
+    val connectedUsbDevice by usbAudioController.preferredUsbDevice.collectAsState(initial = null)
     val startupPlayMode by settingsManager.startupPlayMode.collectAsState(initial = SettingsManager.STARTUP_PLAY_OFF)
     val bluetoothAutoPlay by settingsManager.bluetoothAutoPlay.collectAsState(initial = false)
     val decoderLabels = listOf(
@@ -67,6 +73,49 @@ fun AudioSettingsScreen(
         stringResource(R.string.settings_audio_decoder_auto)
     )
     val selectedDecoderMode = decoderMode.coerceIn(decoderLabels.indices)
+    val audioOutputBackendValues = listOf(
+        SettingsManager.AUDIO_OUTPUT_BACKEND_AUTO,
+        SettingsManager.AUDIO_OUTPUT_BACKEND_OPENSLES,
+        SettingsManager.AUDIO_OUTPUT_BACKEND_AAUDIO,
+        SettingsManager.AUDIO_OUTPUT_BACKEND_HI_RES,
+        SettingsManager.AUDIO_OUTPUT_BACKEND_AUDIOTRACK
+    )
+    val audioOutputBackendLabels = listOf(
+        stringResource(R.string.settings_audio_output_backend_auto),
+        stringResource(R.string.settings_audio_output_backend_opensles),
+        stringResource(R.string.settings_audio_output_backend_aaudio),
+        stringResource(R.string.settings_audio_output_backend_hires),
+        stringResource(R.string.settings_audio_output_backend_audiotrack)
+    )
+    val selectedAudioOutputBackendIndex = audioOutputBackendValues.indexOf(audioOutputBackend).let {
+        if (it >= 0) it else 0
+    }
+    val audioOutputBitDepthValues = listOf(
+        SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_AUTO,
+        SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_16,
+        SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_24,
+        SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_32,
+        SettingsManager.AUDIO_OUTPUT_BIT_DEPTH_FLOAT32
+    )
+    val audioOutputBitDepthLabels = listOf(
+        stringResource(R.string.settings_audio_output_auto),
+        stringResource(R.string.settings_audio_output_bit_depth_16),
+        stringResource(R.string.settings_audio_output_bit_depth_24),
+        stringResource(R.string.settings_audio_output_bit_depth_32),
+        stringResource(R.string.settings_audio_output_bit_depth_float32)
+    )
+    val selectedAudioOutputBitDepthIndex = audioOutputBitDepthValues.indexOf(audioOutputBitDepth).let {
+        if (it >= 0) it else 0
+    }
+    val audioOutputSampleRateValues = listOf(SettingsManager.AUDIO_OUTPUT_SAMPLE_RATE_AUTO) +
+        SettingsManager.AUDIO_OUTPUT_SAMPLE_RATES.toList()
+    val audioOutputSampleRateLabels = listOf(stringResource(R.string.settings_audio_output_auto)) +
+        SettingsManager.AUDIO_OUTPUT_SAMPLE_RATES.map { rate ->
+            stringResource(R.string.settings_audio_output_sample_rate_khz, rate / 1000f)
+        }
+    val selectedAudioOutputSampleRateIndex = audioOutputSampleRateValues.indexOf(audioOutputSampleRate).let {
+        if (it >= 0) it else 0
+    }
     val shuffleModeLabels = listOf(
         stringResource(R.string.settings_shuffle_mode_pseudo_random),
         stringResource(R.string.settings_shuffle_mode_true_random)
@@ -123,6 +172,30 @@ fun AudioSettingsScreen(
             summary = stringResource(R.string.settings_audio_decoder_auto_summary)
         )
     )
+    val audioOutputBackendEntries = listOf(
+        DropdownItem(
+            title = audioOutputBackendLabels[0],
+            summary = stringResource(R.string.settings_audio_output_backend_auto_summary)
+        ),
+        DropdownItem(
+            title = audioOutputBackendLabels[1],
+            summary = stringResource(R.string.settings_audio_output_backend_compat_summary)
+        ),
+        DropdownItem(
+            title = audioOutputBackendLabels[2],
+            summary = stringResource(R.string.settings_audio_output_backend_compat_summary)
+        ),
+        DropdownItem(
+            title = audioOutputBackendLabels[3],
+            summary = stringResource(R.string.settings_audio_output_backend_hires_summary)
+        ),
+        DropdownItem(
+            title = audioOutputBackendLabels[4],
+            summary = stringResource(R.string.settings_audio_output_backend_audiotrack_summary)
+        )
+    )
+    val audioOutputBitDepthEntries = audioOutputBitDepthLabels.map { DropdownItem(title = it) }
+    val audioOutputSampleRateEntries = audioOutputSampleRateLabels.map { DropdownItem(title = it) }
     val shuffleModeEntries = listOf(
         DropdownItem(
             title = shuffleModeLabels[0],
@@ -208,6 +281,66 @@ fun AudioSettingsScreen(
                     summary = stringResource(R.string.settings_audio_equalizer_summary),
                     onClick = onNavigateToEqualizer
                 )
+            }
+
+            SmallTitle(text = stringResource(R.string.settings_audio_output_section))
+
+            SettingsCardGroup(highlight = highlightKey == "audio_output") {
+                Column {
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_audio_output_backend),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            audioOutputBackendLabels[selectedAudioOutputBackendIndex]
+                        ),
+                        items = audioOutputBackendEntries,
+                        selectedIndex = selectedAudioOutputBackendIndex,
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setAudioOutputBackend(audioOutputBackendValues[index])
+                            }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_audio_output_bit_depth),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            audioOutputBitDepthLabels[selectedAudioOutputBitDepthIndex]
+                        ),
+                        items = audioOutputBitDepthEntries,
+                        selectedIndex = selectedAudioOutputBitDepthIndex,
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setAudioOutputBitDepth(audioOutputBitDepthValues[index])
+                            }
+                        }
+                    )
+                    WindowSpinnerPreference(
+                        title = stringResource(R.string.settings_audio_output_sample_rate),
+                        summary = stringResource(
+                            R.string.settings_current_value,
+                            audioOutputSampleRateLabels[selectedAudioOutputSampleRateIndex]
+                        ),
+                        items = audioOutputSampleRateEntries,
+                        selectedIndex = selectedAudioOutputSampleRateIndex,
+                        onSelectedIndexChange = { index ->
+                            scope.launch {
+                                settingsManager.setAudioOutputSampleRate(audioOutputSampleRateValues[index])
+                            }
+                        }
+                    )
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_usb_dac_mode),
+                        summary = connectedUsbDevice?.let {
+                            stringResource(R.string.settings_usb_dac_connected, it.productName ?: "USB DAC")
+                        } ?: stringResource(R.string.settings_usb_dac_mode_summary),
+                        checked = usbDacMode,
+                        onCheckedChange = { enabled ->
+                            scope.launch { settingsManager.setUsbDacMode(enabled) }
+                            if (enabled) usbAudioController.requestUsbAudioPermission()
+                        }
+                    )
+                }
             }
 
             SmallTitle(text = stringResource(R.string.settings_playback_section))
