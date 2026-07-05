@@ -256,6 +256,8 @@ class SettingsManager(private val context: Context) {
         val KEY_SORT_FOLDER_LIST = intPreferencesKey("sort_folder_list")
         val KEY_SORT_FOLDER_DETAIL_SONG = intPreferencesKey("sort_folder_detail_song")
         val KEY_SORT_FOLDER_PLAYLIST_LIST = intPreferencesKey("sort_folder_playlist_list")
+        val KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG = intPreferencesKey("sort_folder_playlist_detail_song")
+        val KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER = intPreferencesKey("sort_folder_playlist_detail_folder")
         val KEY_SORT_PLAYLIST_LIST = intPreferencesKey("sort_playlist_list")
         val KEY_SORT_PLAYLIST_DETAIL_SONG = intPreferencesKey("sort_playlist_detail_song")
         val KEY_CATEGORY_GRID_COLUMNS = intPreferencesKey("category_grid_columns")
@@ -958,6 +960,8 @@ class SettingsManager(private val context: Context) {
     val folderListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_LIST] ?: 0 }
     val folderDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_DETAIL_SONG] ?: 0 }
     val folderPlaylistListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_LIST] ?: 2 }
+    val folderPlaylistDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG] ?: 0 }
+    val folderPlaylistDetailFolderSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER] ?: 0 }
     val playlistListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_PLAYLIST_LIST] ?: 2 }
     val playlistCustomOrder: Flow<List<String>> = context.dataStore.data.map {
         it[KEY_PLAYLIST_CUSTOM_ORDER]
@@ -1934,6 +1938,14 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setFolderPlaylistListSortIndex(index: Int) {
         context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_LIST] = index.coerceAtLeast(0) }
+    }
+
+    suspend fun setFolderPlaylistDetailSongSortIndex(index: Int) {
+        context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG] = index.coerceAtLeast(0) }
+    }
+
+    suspend fun setFolderPlaylistDetailFolderSortIndex(index: Int) {
+        context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER] = index.coerceAtLeast(0) }
     }
 
     suspend fun setPlaylistListSortIndex(index: Int) {

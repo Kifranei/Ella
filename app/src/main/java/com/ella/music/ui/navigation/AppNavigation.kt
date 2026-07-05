@@ -371,6 +371,7 @@ fun AppNavigation(
         composable(Screen.FolderPlaylists.route) {
             FolderPlaylistsScreen(
                 mainViewModel = mainViewModel,
+                playerViewModel = playerViewModel,
                 onBack = { navController.popBackStack() },
                 onOpenPlaylist = { playlistId ->
                     navController.navigate(Screen.FolderPlaylistDetail.createRoute(playlistId))
@@ -394,7 +395,9 @@ fun AppNavigation(
                 onNavigateToPlayer = onNavigateToPlayer,
                 onNavigateToFolder = { path ->
                     navController.navigate(Screen.FolderDetail.createRoute(path))
-                }
+                },
+                onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
+                onNavigateToArtist = { artistName -> navController.navigate(Screen.ArtistDetail.createRoute(artistName)) }
             )
         }
 

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.activity.compose.BackHandler
@@ -57,6 +58,15 @@ import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.ui.components.FolderOutlineIcon
+import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
+import com.ella.music.data.model.UserPlaylist
+import com.ella.music.ui.components.AddToPlaylistSheet
+import com.ella.music.ui.components.CreatePlaylistAndAddSheet
+import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
+import com.ella.music.ui.components.FloatingSelectionControls
+import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
+import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
+import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.SongItem
@@ -82,13 +92,16 @@ import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Refresh
 import top.yukonga.miuix.kmp.icon.extended.SelectAll
+import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.icon.basic.Search
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import androidx.compose.ui.graphics.Color
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun FolderPlaylistsScreen(
     mainViewModel: MainViewModel,
+    playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onOpenPlaylist: (String) -> Unit,
     showBackButton: Boolean = true
@@ -122,6 +135,13 @@ fun FolderPlaylistsScreen(
     var moreMenuTarget by remember { mutableStateOf<FolderPlaylist?>(null) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedPlaylistIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var rangeAnchorId by remember { mutableStateOf<String?>(null) }
+    var rangeTargetId by remember { mutableStateOf<String?>(null) }
+    var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var pendingBulkDelete by remember { mutableStateOf<List<FolderPlaylist>?>(null) }
+    var showSelectionActions by remember { mutableStateOf(false) }
+    val userPlaylists by mainViewModel.playlists.collectAsState()
 
     val songCountMap = remember(playlists, songs) {
         playlists.associateWith { playlist -> songs.songsForFolderPlaylist(playlist.folders).size }
@@ -161,15 +181,91 @@ fun FolderPlaylistsScreen(
         songs.songsForFolderPlaylist(editorDraftFolders.toList()).firstOrNull().folderPlaylistCoverModel()
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded || moreMenuTarget != null || pendingDelete != null || showEditor) {
+    // ---- Multi-select helpers for the folder-playlist list ----
+    val displayedPlaylistIds = filteredPlaylists.map { it.id }
+    val displayedIndexById = remember(displayedPlaylistIds) {
+        buildMap { displayedPlaylistIds.forEachIndexed { index, id -> put(id, index) } }
+    }
+    val selectedVisibleCount = displayedPlaylistIds.count { it in selectedPlaylistIds }
+    val rangeSelectionAvailable = run {
+        val anchor = rangeAnchorId
+        val target = rangeTargetId
+        anchor != null && target != null && anchor != target &&
+            anchor in selectedPlaylistIds && target in selectedPlaylistIds &&
+            anchor in displayedIndexById && target in displayedIndexById
+    }
+
+    fun exitSelection() {
+        selectionMode = false
+        selectedPlaylistIds = emptySet()
+        rangeAnchorId = null
+        rangeTargetId = null
+    }
+
+    fun updateAnchors(id: String, selectedNow: Boolean) {
+        if (selectedNow) {
+            when {
+                rangeAnchorId == null -> rangeAnchorId = id
+                rangeAnchorId == id -> Unit
+                else -> rangeTargetId = id
+            }
+        } else {
+            if (rangeTargetId == id) rangeTargetId = null
+            if (rangeAnchorId == id) {
+                rangeAnchorId = rangeTargetId ?: selectedPlaylistIds.firstOrNull { it != id }
+                rangeTargetId = null
+            }
+        }
+    }
+
+    fun togglePlaylist(id: String) {
+        val selecting = id !in selectedPlaylistIds
+        selectedPlaylistIds = if (selecting) selectedPlaylistIds + id else selectedPlaylistIds - id
+        updateAnchors(id, selecting)
+        if (selectedPlaylistIds.isEmpty()) exitSelection()
+    }
+
+    fun selectAllPlaylists() {
+        val ids = displayedPlaylistIds.toSet()
+        if (ids.isNotEmpty() && ids.all { it in selectedPlaylistIds }) {
+            selectedPlaylistIds = emptySet()
+            rangeAnchorId = null
+            rangeTargetId = null
+            selectionMode = false
+        } else {
+            selectedPlaylistIds = ids
+            rangeAnchorId = displayedPlaylistIds.firstOrNull()
+            rangeTargetId = displayedPlaylistIds.lastOrNull()
+            selectionMode = true
+        }
+    }
+
+    fun applyRangeSelection() {
+        val anchor = rangeAnchorId ?: return
+        val target = rangeTargetId ?: return
+        val anchorIndex = displayedIndexById[anchor] ?: return
+        val targetIndex = displayedIndexById[target] ?: return
+        if (anchorIndex == targetIndex) return
+        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
+        selectedPlaylistIds = selectedPlaylistIds + bounds.map { displayedPlaylistIds[it] }
+        rangeAnchorId = target
+        rangeTargetId = null
+    }
+
+    // Every song contained in the selected folder-playlists, de-duplicated.
+    fun selectedActionSongs(): List<Song> =
+        filteredPlaylists
+            .filter { it.id in selectedPlaylistIds }
+            .flatMap { songs.songsForFolderPlaylist(it.folders) }
+            .distinctBy { it.playlistIdentityKey() }
+
+    BackHandler(enabled = selectionMode || searchExpanded || moreMenuTarget != null || pendingDelete != null || pendingBulkDelete != null || showEditor) {
         when {
             showEditor -> showEditor = false
             pendingDelete != null -> pendingDelete = null
+            pendingBulkDelete != null -> pendingBulkDelete = null
             moreMenuTarget != null -> moreMenuTarget = null
-            selectionMode -> {
-                selectionMode = false
-                selectedPlaylistIds = emptySet()
-            }
+            selectionMode -> exitSelection()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -184,11 +280,15 @@ fun FolderPlaylistsScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = stringResource(R.string.folder_playlist_title),
+            title = if (selectionMode) {
+                stringResource(R.string.folder_playlist_selected_playlists, selectedPlaylistIds.size)
+            } else {
+                stringResource(R.string.folder_playlist_title)
+            },
             color = ellaPageBackground(),
             navigationIcon = {
-                if (showBackButton) {
-                    IconButton(onClick = onBack) {
+                if (showBackButton || selectionMode) {
+                    IconButton(onClick = { if (selectionMode) exitSelection() else onBack() }) {
                         Icon(
                             imageVector = MiuixIcons.Regular.Back,
                             contentDescription = stringResource(R.string.common_back),
@@ -199,45 +299,56 @@ fun FolderPlaylistsScreen(
                 }
             },
             actions = {
-                IconButton(onClick = {
-                    selectionMode = !selectionMode
-                    selectedPlaylistIds = emptySet()
-                }) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.SelectAll,
-                        contentDescription = stringResource(R.string.common_multi_select),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                ScanRefreshIconButton(
-                    enabled = true,
-                    onScan = { scope.launch { mainViewModel.scanMusic() } },
-                    onDeepRescan = { scope.launch { mainViewModel.fullRescanMusic() } }
-                )
-                IconButton(onClick = {
-                    searchExpanded = !searchExpanded
-                    if (!searchExpanded) searchQuery = ""
-                }) {
-                    Icon(
-                        imageVector = MiuixIcons.Basic.Search,
-                        contentDescription = stringResource(R.string.common_search),
-                        tint = MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                SortDropdownMenu(
-                    items = FolderPlaylistSortMode.entries.map { mode ->
-                        SortDropdownItem(
-                            text = stringResource(mode.labelRes),
-                            selected = sortMode == mode,
-                            onClick = {
-                                LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
-                                scope.launch { mainViewModel.settingsManager.setFolderPlaylistListSortIndex(mode.ordinal) }
-                            }
+                if (selectionMode) {
+                    IconButton(onClick = { if (selectedPlaylistIds.isNotEmpty()) showSelectionActions = true }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.More,
+                            contentDescription = stringResource(R.string.player_quick_more),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
-                )
+                } else {
+                    IconButton(onClick = {
+                        selectionMode = !selectionMode
+                        selectedPlaylistIds = emptySet()
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.SelectAll,
+                            contentDescription = stringResource(R.string.common_multi_select),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    ScanRefreshIconButton(
+                        enabled = true,
+                        onScan = { scope.launch { mainViewModel.scanMusic() } },
+                        onDeepRescan = { scope.launch { mainViewModel.fullRescanMusic() } }
+                    )
+                    IconButton(onClick = {
+                        searchExpanded = !searchExpanded
+                        if (!searchExpanded) searchQuery = ""
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Basic.Search,
+                            contentDescription = stringResource(R.string.common_search),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    SortDropdownMenu(
+                        items = FolderPlaylistSortMode.entries.map { mode ->
+                            SortDropdownItem(
+                                text = stringResource(mode.labelRes),
+                                selected = sortMode == mode,
+                                onClick = {
+                                    LibrarySortUiState.folderPlaylistListSortIndex = mode.ordinal
+                                    scope.launch { mainViewModel.settingsManager.setFolderPlaylistListSortIndex(mode.ordinal) }
+                                }
+                            )
+                        }
+                    )
+                }
             }
         )
 
@@ -297,6 +408,7 @@ fun FolderPlaylistsScreen(
                     }
                 )
             }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp),
@@ -314,15 +426,12 @@ fun FolderPlaylistsScreen(
                         selectionMode = selectionMode,
                         selected = playlist.id in selectedPlaylistIds,
                         onClick = {
-                            if (selectionMode) {
-                                selectedPlaylistIds = if (playlist.id in selectedPlaylistIds) {
-                                    selectedPlaylistIds - playlist.id
-                                } else {
-                                    selectedPlaylistIds + playlist.id
-                                }
-                            } else {
-                                onOpenPlaylist(playlist.id)
-                            }
+                            if (selectionMode) togglePlaylist(playlist.id)
+                            else onOpenPlaylist(playlist.id)
+                        },
+                        onLongClick = {
+                            selectionMode = true
+                            if (playlist.id !in selectedPlaylistIds) togglePlaylist(playlist.id)
                         },
                         onSync = {
                             scope.launch {
@@ -333,6 +442,17 @@ fun FolderPlaylistsScreen(
                         onMore = { moreMenuTarget = playlist }
                     )
                 }
+            }
+            FloatingSelectionControls(
+                visible = selectionMode && displayedPlaylistIds.isNotEmpty(),
+                rangeEnabled = rangeSelectionAvailable,
+                allSelected = displayedPlaylistIds.isNotEmpty() && selectedVisibleCount == displayedPlaylistIds.size,
+                onRangeSelect = ::applyRangeSelection,
+                onSelectAll = ::selectAllPlaylists,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+            )
             }
         }
     }
@@ -396,6 +516,7 @@ fun FolderPlaylistsScreen(
         show = showEditor,
         target = editorTarget,
         availableFolders = availableFolders,
+        songs = songs,
         coverModel = editorCoverModel,
         draftName = editorDraftName,
         onDraftNameChange = { editorDraftName = it },
@@ -437,6 +558,133 @@ fun FolderPlaylistsScreen(
             }
         )
     }
+
+    if (showSelectionActions) {
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.folder_playlist_selected_playlists, selectedPlaylistIds.size),
+            onDismissRequest = { showSelectionActions = false }
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.common_play),
+                    onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) playerViewModel.setPlaylist(selected, 0)
+                        showSelectionActions = false
+                        exitSelection()
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.song_more_play_next),
+                    onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.playNext(selected)
+                            Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                        }
+                        showSelectionActions = false
+                        exitSelection()
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.common_add_to_queue),
+                    onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.addToPlaylist(selected)
+                            Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                        }
+                        showSelectionActions = false
+                        exitSelection()
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.player_add_to_playlist),
+                    onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) playlistPickerSongs = selected
+                        showSelectionActions = false
+                    }
+                )
+                EllaMiuixMenuItem(
+                    text = stringResource(R.string.common_delete),
+                    danger = true,
+                    onClick = {
+                        val targets = playlists.filter { it.id in selectedPlaylistIds }
+                        if (targets.isNotEmpty()) pendingBulkDelete = targets
+                        showSelectionActions = false
+                    }
+                )
+            }
+        }
+    }
+
+    playlistPickerSongs?.let { songsToAdd ->
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_add_to_playlist_title),
+            onDismissRequest = { playlistPickerSongs = null }
+        ) {
+            AddToPlaylistSheet(
+                playlists = userPlaylists
+                    .sortedWith(compareByDescending<UserPlaylist> { it.id == FAVORITES_PLAYLIST_ID }.thenByDescending { it.createdAt }),
+                songCount = songsToAdd.size,
+                onDismiss = { playlistPickerSongs = null },
+                onCreatePlaylist = {
+                    createPlaylistSongs = songsToAdd
+                    playlistPickerSongs = null
+                },
+                onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
+                    selectedPlaylists.forEach { targetPlaylist ->
+                        mainViewModel.addSongsToPlaylist(targetPlaylist.id, songsToAdd, appendToEnd)
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    playlistPickerSongs = null
+                    exitSelection()
+                }
+            )
+        }
+    }
+
+    createPlaylistSongs?.let { songsToAdd ->
+        CreatePlaylistAndAddSheet(
+            onDismiss = { createPlaylistSongs = null },
+            onCreate = { name ->
+                mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { targetPlaylist ->
+                    mainViewModel.addSongsToPlaylist(targetPlaylist.id, songsToAdd)
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlist_named, targetPlaylist.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    createPlaylistSongs = null
+                    exitSelection()
+                }
+            }
+        )
+    }
+
+    pendingBulkDelete?.let { targets ->
+        ConfirmDangerDialog(
+            show = true,
+            title = stringResource(R.string.folder_playlist_delete_title),
+            message = stringResource(R.string.folder_playlist_delete_message, targets.joinToString("、") { it.name }),
+            confirmText = stringResource(R.string.common_delete),
+            onDismiss = { pendingBulkDelete = null },
+            onConfirm = {
+                scope.launch { targets.forEach { mainViewModel.settingsManager.deleteFolderPlaylist(it.id) } }
+                pendingBulkDelete = null
+                exitSelection()
+            }
+        )
+    }
 }
 
 @Composable
@@ -446,9 +694,12 @@ fun FolderPlaylistDetailScreen(
     playerViewModel: PlayerViewModel,
     onBack: () -> Unit,
     onNavigateToPlayer: () -> Unit,
-    onNavigateToFolder: (String) -> Unit = {}
+    onNavigateToFolder: (String) -> Unit = {},
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToArtist: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
@@ -468,8 +719,18 @@ fun FolderPlaylistDetailScreen(
     var selectedSongKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedFolderPaths by remember { mutableStateOf<Set<String>>(emptySet()) }
     var actionSong by remember { mutableStateOf<Song?>(null) }
-    var songSortMode by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistSongSortMode.Custom) }
-    var folderSortMode by rememberSaveable(playlistId) { mutableStateOf(FolderPlaylistFolderSortMode.Custom) }
+    var rangeAnchorKey by remember { mutableStateOf<String?>(null) }
+    var rangeTargetKey by remember { mutableStateOf<String?>(null) }
+    var playlistPickerSongs by remember { mutableStateOf<List<Song>?>(null) }
+    var createPlaylistSongs by remember { mutableStateOf<List<Song>?>(null) }
+    val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
+    val userPlaylists by mainViewModel.playlists.collectAsState()
+    // Sort selections persist across sessions (like the folder/playlist detail screens) instead of
+    // resetting to Custom every time the screen is re-entered.
+    val songSortIndex by mainViewModel.settingsManager.folderPlaylistDetailSongSortIndex.collectAsState(initial = 0)
+    val folderSortIndex by mainViewModel.settingsManager.folderPlaylistDetailFolderSortIndex.collectAsState(initial = 0)
+    val songSortMode = FolderPlaylistSongSortMode.entries.getOrElse(songSortIndex) { FolderPlaylistSongSortMode.Custom }
+    val folderSortMode = FolderPlaylistFolderSortMode.entries.getOrElse(folderSortIndex) { FolderPlaylistFolderSortMode.Custom }
     val detailQuery = searchQuery.trim()
     val folderEntries = remember(playlist, songs) {
         playlist?.folders.orEmpty().mapNotNull { folderPath ->
@@ -522,13 +783,124 @@ fun FolderPlaylistDetailScreen(
         }
     )
 
+    // ---- Multi-select helpers (shared by the Songs and Folders tabs) ----
+    val displayedKeysForTab: List<String> = when (selectedTab) {
+        FolderPlaylistTab.Songs -> displayedSongs.map { it.playlistIdentityKey() }
+        FolderPlaylistTab.Folders -> displayedFolderEntries.map { it.path }
+    }
+    val currentSelectedKeys: Set<String> = when (selectedTab) {
+        FolderPlaylistTab.Songs -> selectedSongKeys
+        FolderPlaylistTab.Folders -> selectedFolderPaths
+    }
+    val displayedIndexByKey = remember(displayedKeysForTab) {
+        buildMap { displayedKeysForTab.forEachIndexed { index, key -> put(key, index) } }
+    }
+    val selectedVisibleCount = displayedKeysForTab.count { it in currentSelectedKeys }
+    val rangeSelectionAvailable = run {
+        val anchor = rangeAnchorKey
+        val target = rangeTargetKey
+        anchor != null && target != null && anchor != target &&
+            anchor in currentSelectedKeys && target in currentSelectedKeys &&
+            anchor in displayedIndexByKey && target in displayedIndexByKey
+    }
+
+    fun setSelectedKeys(keys: Set<String>) {
+        when (selectedTab) {
+            FolderPlaylistTab.Songs -> selectedSongKeys = keys
+            FolderPlaylistTab.Folders -> selectedFolderPaths = keys
+        }
+    }
+
+    fun exitSelection() {
+        selectionMode = false
+        selectedSongKeys = emptySet()
+        selectedFolderPaths = emptySet()
+        rangeAnchorKey = null
+        rangeTargetKey = null
+    }
+
+    fun updateAnchorsForManualSelection(key: String, selectedNow: Boolean) {
+        if (selectedNow) {
+            when {
+                rangeAnchorKey == null -> rangeAnchorKey = key
+                rangeAnchorKey == key -> Unit
+                else -> rangeTargetKey = key
+            }
+        } else {
+            if (rangeTargetKey == key) rangeTargetKey = null
+            if (rangeAnchorKey == key) {
+                rangeAnchorKey = rangeTargetKey ?: currentSelectedKeys.firstOrNull { it != key }
+                rangeTargetKey = null
+            }
+        }
+    }
+
+    fun toggleKey(key: String) {
+        val selecting = key !in currentSelectedKeys
+        val next = if (selecting) currentSelectedKeys + key else currentSelectedKeys - key
+        setSelectedKeys(next)
+        updateAnchorsForManualSelection(key, selecting)
+        if (next.isEmpty()) exitSelection()
+    }
+
+    fun selectAllCurrent() {
+        val displayedKeys = displayedKeysForTab.toSet()
+        if (displayedKeys.isNotEmpty() && displayedKeys.all { it in currentSelectedKeys }) {
+            setSelectedKeys(emptySet())
+            rangeAnchorKey = null
+            rangeTargetKey = null
+            selectionMode = false
+        } else {
+            setSelectedKeys(displayedKeys)
+            rangeAnchorKey = displayedKeysForTab.firstOrNull()
+            rangeTargetKey = displayedKeysForTab.lastOrNull()
+            selectionMode = true
+        }
+    }
+
+    fun applyRangeSelection() {
+        val anchor = rangeAnchorKey ?: return
+        val target = rangeTargetKey ?: return
+        val anchorIndex = displayedIndexByKey[anchor] ?: return
+        val targetIndex = displayedIndexByKey[target] ?: return
+        if (anchorIndex == targetIndex) return
+        val bounds = if (anchorIndex < targetIndex) anchorIndex..targetIndex else targetIndex..anchorIndex
+        setSelectedKeys(currentSelectedKeys + bounds.map { displayedKeysForTab[it] })
+        rangeAnchorKey = target
+        rangeTargetKey = null
+    }
+
+    // Songs that the selection-mode actions operate on: the picked songs (Songs tab) or every song
+    // inside the picked folders (Folders tab).
+    fun selectedActionSongs(): List<Song> = when (selectedTab) {
+        FolderPlaylistTab.Songs -> displayedSongs.filter { it.playlistIdentityKey() in selectedSongKeys }
+        FolderPlaylistTab.Folders -> {
+            val normalizedSelected = selectedFolderPaths.map { it.normalizeFolderPath() }
+            playlistSongs.filter { song ->
+                val songFolder = song.folderPath().normalizeFolderPath()
+                normalizedSelected.any { songFolder.startsWith(it) }
+            }
+        }
+    }
+
+    fun removeSelectedFoldersFromPlaylist() {
+        val target = playlist ?: return
+        val remaining = target.folders.filter { it !in selectedFolderPaths }
+        scope.launch {
+            if (remaining.isEmpty()) {
+                mainViewModel.settingsManager.deleteFolderPlaylist(target.id)
+                exitSelection()
+                onBack()
+            } else {
+                mainViewModel.settingsManager.upsertFolderPlaylist(target.id, target.name, remaining)
+                exitSelection()
+            }
+        }
+    }
+
     BackHandler(enabled = selectionMode || searchExpanded) {
         when {
-            selectionMode -> {
-                selectionMode = false
-                selectedSongKeys = emptySet()
-                selectedFolderPaths = emptySet()
-            }
+            selectionMode -> exitSelection()
             searchExpanded -> {
                 searchExpanded = false
                 searchQuery = ""
@@ -543,10 +915,14 @@ fun FolderPlaylistDetailScreen(
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
         EllaSmallTopAppBar(
-            title = playlist?.name ?: stringResource(R.string.folder_playlist_title),
+            title = if (selectionMode) {
+                stringResource(R.string.library_selected_fraction, selectedVisibleCount, displayedKeysForTab.size)
+            } else {
+                playlist?.name ?: stringResource(R.string.folder_playlist_title)
+            },
             color = ellaPageBackground(),
             navigationIcon = {
-                IconButton(onClick = onBack) {
+                IconButton(onClick = { if (selectionMode) exitSelection() else onBack() }) {
                     Icon(
                         imageVector = MiuixIcons.Regular.Back,
                         contentDescription = stringResource(R.string.common_back),
@@ -556,6 +932,57 @@ fun FolderPlaylistDetailScreen(
                 }
             },
             actions = {
+                if (selectionMode) {
+                    IconButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) {
+                            playerViewModel.playNext(selected)
+                            Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                            exitSelection()
+                        }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Play,
+                            contentDescription = stringResource(R.string.song_more_play_next),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        val selected = selectedActionSongs()
+                        if (selected.isNotEmpty()) playlistPickerSongs = selected
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Add,
+                            contentDescription = stringResource(R.string.player_add_to_playlist),
+                            tint = MiuixTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    IconButton(onClick = {
+                        when (selectedTab) {
+                            FolderPlaylistTab.Songs -> {
+                                val selected = selectedActionSongs()
+                                if (selected.isNotEmpty()) {
+                                    requestDeleteSongs(selected)
+                                    exitSelection()
+                                }
+                            }
+                            FolderPlaylistTab.Folders -> {
+                                if (selectedFolderPaths.isNotEmpty()) removeSelectedFoldersFromPlaylist()
+                            }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Delete,
+                            contentDescription = stringResource(
+                                if (selectedTab == FolderPlaylistTab.Folders) R.string.common_remove else R.string.common_delete
+                            ),
+                            tint = Color(0xFFE5484D),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else {
                 IconButton(onClick = {
                     selectionMode = !selectionMode
                     selectedSongKeys = emptySet()
@@ -585,18 +1012,19 @@ fun FolderPlaylistDetailScreen(
                             SortDropdownItem(
                                 text = stringResource(mode.labelRes),
                                 selected = songSortMode == mode,
-                                onClick = { songSortMode = mode }
+                                onClick = { scope.launch { mainViewModel.settingsManager.setFolderPlaylistDetailSongSortIndex(mode.ordinal) } }
                             )
                         }
                         FolderPlaylistTab.Folders -> FolderPlaylistFolderSortMode.entries.map { mode ->
                             SortDropdownItem(
                                 text = stringResource(mode.labelRes),
                                 selected = folderSortMode == mode,
-                                onClick = { folderSortMode = mode }
+                                onClick = { scope.launch { mainViewModel.settingsManager.setFolderPlaylistDetailFolderSortIndex(mode.ordinal) } }
                             )
                         }
                     }
                 )
+                }
             }
         )
 
@@ -650,6 +1078,7 @@ fun FolderPlaylistDetailScreen(
             }
         }
 
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
         when (selectedTab) {
             FolderPlaylistTab.Songs -> {
                 LazyColumn(
@@ -691,11 +1120,7 @@ fun FolderPlaylistDetailScreen(
                             loadSongRating = mainViewModel::getSongRating,
                             onClick = {
                                 if (selectionMode) {
-                                    selectedSongKeys = if (songKey in selectedSongKeys) {
-                                        selectedSongKeys - songKey
-                                    } else {
-                                        selectedSongKeys + songKey
-                                    }
+                                    toggleKey(songKey)
                                 } else {
                                     playerViewModel.setPlaylist(displayedSongs, index)
                                     if (openPlayerOnPlay) onNavigateToPlayer()
@@ -703,7 +1128,7 @@ fun FolderPlaylistDetailScreen(
                             },
                             onLongClick = {
                                 selectionMode = true
-                                selectedSongKeys = selectedSongKeys + songKey
+                                if (songKey !in selectedSongKeys) toggleKey(songKey)
                             },
                             onPlayNext = { playerViewModel.playNext(song) },
                             onMore = { actionSong = song }
@@ -732,11 +1157,7 @@ fun FolderPlaylistDetailScreen(
                             cornerRadius = 12.dp,
                             onClick = {
                                 if (selectionMode) {
-                                    selectedFolderPaths = if (entry.path in selectedFolderPaths) {
-                                        selectedFolderPaths - entry.path
-                                    } else {
-                                        selectedFolderPaths + entry.path
-                                    }
+                                    toggleKey(entry.path)
                                 } else {
                                     onNavigateToFolder(entry.path)
                                 }
@@ -792,6 +1213,17 @@ fun FolderPlaylistDetailScreen(
                 }
             }
         }
+            FloatingSelectionControls(
+                visible = selectionMode && displayedKeysForTab.isNotEmpty(),
+                rangeEnabled = rangeSelectionAvailable,
+                allSelected = displayedKeysForTab.isNotEmpty() && selectedVisibleCount == displayedKeysForTab.size,
+                onRangeSelect = ::applyRangeSelection,
+                onSelectAll = ::selectAllCurrent,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
+            )
+        }
     }
 
     SongMoreActionHost(
@@ -799,8 +1231,60 @@ fun FolderPlaylistDetailScreen(
         mainViewModel = mainViewModel,
         playerViewModel = playerViewModel,
         onDismissAction = { actionSong = null },
+        onNavigateToAlbum = onNavigateToAlbum,
+        onNavigateToArtist = onNavigateToArtist,
         showDelete = false
     )
+
+    playlistPickerSongs?.let { songsToAdd ->
+        EllaMiuixBottomSheet(
+            show = true,
+            enableNestedScroll = false,
+            title = stringResource(R.string.song_more_add_to_playlist_title),
+            onDismissRequest = { playlistPickerSongs = null }
+        ) {
+            AddToPlaylistSheet(
+                playlists = userPlaylists
+                    .sortedWith(compareByDescending<UserPlaylist> { it.id == FAVORITES_PLAYLIST_ID }.thenByDescending { it.createdAt }),
+                songCount = songsToAdd.size,
+                onDismiss = { playlistPickerSongs = null },
+                onCreatePlaylist = {
+                    createPlaylistSongs = songsToAdd
+                    playlistPickerSongs = null
+                },
+                onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
+                    selectedPlaylists.forEach { targetPlaylist ->
+                        mainViewModel.addSongsToPlaylist(targetPlaylist.id, songsToAdd, appendToEnd)
+                    }
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    playlistPickerSongs = null
+                    exitSelection()
+                }
+            )
+        }
+    }
+
+    createPlaylistSongs?.let { songsToAdd ->
+        CreatePlaylistAndAddSheet(
+            onDismiss = { createPlaylistSongs = null },
+            onCreate = { name ->
+                mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { targetPlaylist ->
+                    mainViewModel.addSongsToPlaylist(targetPlaylist.id, songsToAdd)
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.player_added_to_playlist_named, targetPlaylist.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    createPlaylistSongs = null
+                    exitSelection()
+                }
+            }
+        )
+    }
 }
 
 private enum class FolderPlaylistTab(@param:StringRes val labelRes: Int) {
@@ -913,13 +1397,15 @@ private fun FolderPlaylistCard(
     selectionMode: Boolean = false,
     selected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onSync: () -> Unit,
     onMore: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = 16.dp,
-        onClick = onClick
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        cornerRadius = 16.dp
     ) {
         Row(
             modifier = Modifier
@@ -1006,6 +1492,7 @@ private fun FolderPlaylistEditorSheet(
     show: Boolean,
     target: FolderPlaylist?,
     availableFolders: List<String>,
+    songs: List<Song>,
     coverModel: Any?,
     draftName: String,
     onDraftNameChange: (String) -> Unit,
@@ -1041,6 +1528,21 @@ private fun FolderPlaylistEditorSheet(
             compareByDescending<String> { it in pinnedFolders }
                 .thenBy { base.indexOf(it) }
         )
+    }
+
+    // Each folder row shows that folder's own cover (first song in it), not the playlist cover.
+    val folderCovers = remember(sortedFilteredFolders, songs) {
+        val firstByFolder = HashMap<String, Song>()
+        songs.forEach { song ->
+            val normalized = song.folderPath().normalizeFolderPath()
+            if (normalized !in firstByFolder) firstByFolder[normalized] = song
+        }
+        sortedFilteredFolders.associateWith { folder ->
+            val normalized = folder.normalizeFolderPath()
+            (firstByFolder[normalized]
+                ?: songs.firstOrNull { it.folderPath().normalizeFolderPath().startsWith(normalized) })
+                .folderPlaylistCoverModel()
+        }
     }
 
     EllaMiuixBottomSheet(
@@ -1127,21 +1629,75 @@ private fun FolderPlaylistEditorSheet(
                     .verticalScroll(rememberScrollState())
             ) {
                 sortedFilteredFolders.forEach { folder ->
-                    SwitchPreference(
-                        title = folder.folderDisplayName(stringResource(R.string.folder_root)),
-                        summary = folder,
-                        checked = folder in selectedFolders,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                onSelectedFoldersChange(selectedFolders + folder)
-                                onPinnedFoldersChange(pinnedFolders + folder)
+                    val checked = folder in selectedFolders
+                    fun toggle(next: Boolean) {
+                        if (next) {
+                            onSelectedFoldersChange(selectedFolders + folder)
+                            onPinnedFoldersChange(pinnedFolders + folder)
+                        } else {
+                            onSelectedFoldersChange(selectedFolders - folder)
+                            // Intentionally do NOT remove from pinnedFolders so the folder
+                            // stays pinned for the rest of this editor session.
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { toggle(!checked) }
+                            .padding(horizontal = 4.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(MiuixTheme.colorScheme.surfaceContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val cover = folderCovers[folder]
+                            if (cover != null) {
+                                SafeCoverImage(
+                                    model = cover,
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    sizePx = 192
+                                )
                             } else {
-                                onSelectedFoldersChange(selectedFolders - folder)
-                                // Intentionally do NOT remove from pinnedFolders so the folder
-                                // stays pinned for the rest of this editor session.
+                                FolderOutlineIcon(
+                                    tint = MiuixTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(9.dp)
+                                )
                             }
                         }
-                    )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp)
+                        ) {
+                            Text(
+                                text = folder.folderDisplayName(stringResource(R.string.folder_root)),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MiuixTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = folder,
+                                fontSize = 12.sp,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Switch(
+                            checked = checked,
+                            onCheckedChange = { toggle(it) }
+                        )
+                    }
                 }
             }
             Button(
