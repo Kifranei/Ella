@@ -10,6 +10,7 @@
 -dontwarn io.github.proify.lyricon.**
 
 # SuperLyricApi references this hidden framework class on supported systems.
+-keep class com.hchen.superlyricapi.** { *; }
 -dontwarn android.os.ServiceManager
 
 # Lyric Getter's Xposed module finds and hooks the public API by class and member names.
