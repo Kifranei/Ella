@@ -108,6 +108,8 @@ android {
         releaseStorePassword.isNotBlank() &&
         releaseKeyAlias.isNotBlank() &&
         releaseKeyPassword.isNotBlank()
+    val allowDebugSignedRelease = System.getenv("CI").equals("true", ignoreCase = true) ||
+        System.getenv("ALLOW_DEBUG_SIGNED_RELEASE").equals("true", ignoreCase = true)
 
     defaultConfig {
         applicationId = "com.ella.music"
@@ -156,13 +158,18 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            if (!hasReleaseSigning) {
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else if (allowDebugSignedRelease) {
+                logger.warn("Release signing is not configured; using debug signing for this release build.")
+                signingConfigs.getByName("debug")
+            } else {
                 throw GradleException(
                     "Release signing is not configured. Put release.jks in app/ or project root, " +
-                    "or set RELEASE_STORE_FILE/RELEASE_STORE_PASSWORD/RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD."
+                    "set RELEASE_STORE_FILE/RELEASE_STORE_PASSWORD/RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD, " +
+                    "or set ALLOW_DEBUG_SIGNED_RELEASE=true to produce a debug-signed release APK."
                 )
             }
-            signingConfig = signingConfigs.getByName("release")
         }
 
     create("fastRelease") {
@@ -170,7 +177,13 @@ android {
         isMinifyEnabled = false
         isShrinkResources = false
         matchingFallbacks += listOf("release")
-        signingConfig = signingConfigs.getByName("release")
+        signingConfig = if (hasReleaseSigning) {
+            signingConfigs.getByName("release")
+        } else if (allowDebugSignedRelease) {
+            signingConfigs.getByName("debug")
+        } else {
+            signingConfigs.getByName("release")
+        }
         }
     }
 

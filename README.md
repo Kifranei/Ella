@@ -194,7 +194,7 @@ RELEASE_KEY_ALIAS
 RELEASE_KEY_PASSWORD
 ```
 
-如果未设置这些变量，会使用项目根目录下的 `release.jks`；如果没有可用的 release keystore，则 release 构建会直接失败，避免误产出 debug 签名的 release 包。
+如果未设置这些变量，会使用项目根目录下的 `release.jks`。如果没有可用的 release keystore，本地 release 构建默认失败；在 CI 或显式设置 `ALLOW_DEBUG_SIGNED_RELEASE=true` 时，会改用 debug 签名产出 release APK，便于 GitHub Actions 提供可测试安装包。
 
 日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。提交后请同时推送 GitHub 与 GitLab 远端。
 
