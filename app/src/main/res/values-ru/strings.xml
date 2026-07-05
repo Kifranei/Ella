@@ -1630,7 +1630,14 @@
     <string name="equalizer_preset_treble_boost">Усиление высоких</string>
     <string name="equalizer_reset_section">Сбросить по умолчанию</string>
     <string name="miui_uninstall_title">Уже прощаемся?</string>
-    <string name="miui_uninstall_content">Спасибо, что прошёл этот путь с Halcyon.
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Спасибо, что прошёл этот путь с Halcyon.</string>
+    <string name="remote_server_manage_title">Серверы %1$s</string>
+    <string name="remote_server_manage_summary">Управляйте несколькими адресами серверов и переключайте активный</string>
+    <string name="remote_server_add">Добавить сервер</string>
+    <string name="remote_server_edit">Изменить сервер</string>
+    <string name="remote_server_active">Активен</string>
+    <string name="remote_server_set_active">Сделать активным</string>
+    <string name="remote_server_name_label">Имя (необязательно)</string>
+    <string name="remote_server_empty">Серверы ещё не добавлены</string>
+    <string name="remote_server_delete_message">Удалить сервер «%1$s»?</string>
 </resources>

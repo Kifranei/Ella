@@ -1643,7 +1643,14 @@
     <string name="equalizer_preset_treble_boost">Renfort des aigus</string>
     <string name="equalizer_reset_section">Rétablir les valeurs par défaut</string>
     <string name="miui_uninstall_title">Deja un au revoir ?</string>
-    <string name="miui_uninstall_content">Merci d\'avoir fait ce bout de chemin avec Halcyon.
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Merci d\'avoir fait ce bout de chemin avec Halcyon.</string>
+    <string name="remote_server_manage_title">Serveurs %1$s</string>
+    <string name="remote_server_manage_summary">Gérer plusieurs adresses de serveur et changer celui actif</string>
+    <string name="remote_server_add">Ajouter un serveur</string>
+    <string name="remote_server_edit">Modifier le serveur</string>
+    <string name="remote_server_active">Utilisé</string>
+    <string name="remote_server_set_active">Activer</string>
+    <string name="remote_server_name_label">Nom (facultatif)</string>
+    <string name="remote_server_empty">Aucun serveur ajouté</string>
+    <string name="remote_server_delete_message">Supprimer le serveur « %1$s » ?</string>
 </resources>

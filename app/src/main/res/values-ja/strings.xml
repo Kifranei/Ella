@@ -1643,7 +1643,14 @@
     <string name="equalizer_preset_treble_boost">高音強調</string>
     <string name="equalizer_reset_section">デフォルトに戻す</string>
     <string name="miui_uninstall_title">もうお別れですか？</string>
-    <string name="miui_uninstall_content">Halcyon とここまで一緒に歩んでくれてありがとう。
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Halcyon とここまで一緒に歩んでくれてありがとう。</string>
+    <string name="remote_server_manage_title">%1$s サーバー</string>
+    <string name="remote_server_manage_summary">複数のサーバーアドレスを管理し、使用中を切り替え</string>
+    <string name="remote_server_add">サーバーを追加</string>
+    <string name="remote_server_edit">サーバーを編集</string>
+    <string name="remote_server_active">使用中</string>
+    <string name="remote_server_set_active">使用に設定</string>
+    <string name="remote_server_name_label">名前（任意）</string>
+    <string name="remote_server_empty">まだサーバーがありません</string>
+    <string name="remote_server_delete_message">サーバー「%1$s」を削除しますか？</string>
 </resources>

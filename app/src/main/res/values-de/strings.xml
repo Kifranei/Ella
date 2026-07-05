@@ -1643,7 +1643,14 @@
     <string name="equalizer_preset_treble_boost">Höhenverstärkung</string>
     <string name="equalizer_reset_section">Standard wiederherstellen</string>
     <string name="miui_uninstall_title">Schon dabei zu gehen?</string>
-    <string name="miui_uninstall_content">Danke, dass du dieses Stück mit Halcyon gegangen bist.
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Danke, dass du dieses Stück mit Halcyon gegangen bist.</string>
+    <string name="remote_server_manage_title">%1$s-Server</string>
+    <string name="remote_server_manage_summary">Mehrere Serveradressen verwalten und den aktiven wechseln</string>
+    <string name="remote_server_add">Server hinzufügen</string>
+    <string name="remote_server_edit">Server bearbeiten</string>
+    <string name="remote_server_active">Aktiv</string>
+    <string name="remote_server_set_active">Aktivieren</string>
+    <string name="remote_server_name_label">Name (optional)</string>
+    <string name="remote_server_empty">Noch keine Server hinzugefügt</string>
+    <string name="remote_server_delete_message">Server „%1$s“ löschen?</string>
 </resources>

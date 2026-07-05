@@ -1643,7 +1643,14 @@
     <string name="equalizer_preset_treble_boost">高音增強</string>
     <string name="equalizer_reset_section">恢復預設</string>
     <string name="miui_uninstall_title">就要說再見了嗎？</string>
-    <string name="miui_uninstall_content">謝謝你陪 Halcyon 走過這一程，願旋律仍在你心裡迴響。
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">謝謝你陪 Halcyon 走過這一程，願旋律仍在你心裡迴響。</string>
+    <string name="remote_server_manage_title">%1$s 源配置</string>
+    <string name="remote_server_manage_summary">管理多個伺服器位址並切換正在使用的</string>
+    <string name="remote_server_add">新增伺服器</string>
+    <string name="remote_server_edit">編輯伺服器</string>
+    <string name="remote_server_active">正在使用</string>
+    <string name="remote_server_set_active">設為正在使用</string>
+    <string name="remote_server_name_label">名稱（可選）</string>
+    <string name="remote_server_empty">還沒有新增伺服器</string>
+    <string name="remote_server_delete_message">確定刪除伺服器「%1$s」嗎？</string>
 </resources>

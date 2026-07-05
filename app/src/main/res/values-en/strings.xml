@@ -1649,7 +1649,14 @@
     <string name="equalizer_preset_treble_boost">Treble Boost</string>
     <string name="equalizer_reset_section">Restore defaults</string>
     <string name="miui_uninstall_title">Leaving so soon?</string>
-    <string name="miui_uninstall_content">Thanks for walking this stretch with Halcyon.
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Thanks for walking this stretch with Halcyon.</string>
+    <string name="remote_server_manage_title">%1$s Servers</string>
+    <string name="remote_server_manage_summary">Manage multiple server addresses and switch the active one</string>
+    <string name="remote_server_add">Add server</string>
+    <string name="remote_server_edit">Edit server</string>
+    <string name="remote_server_active">In use</string>
+    <string name="remote_server_set_active">Set active</string>
+    <string name="remote_server_name_label">Name (optional)</string>
+    <string name="remote_server_empty">No servers added yet</string>
+    <string name="remote_server_delete_message">Delete server “%1$s”?</string>
 </resources>

@@ -1643,7 +1643,14 @@
     <string name="equalizer_preset_treble_boost">고음 강화</string>
     <string name="equalizer_reset_section">기본값 복원</string>
     <string name="miui_uninstall_title">벌써 안녕인가요?</string>
-    <string name="miui_uninstall_content">Halcyon과 여기까지 함께해 줘서 고마워요.
-
-JM442234 · JM426287 · JM340806</string>
+    <string name="miui_uninstall_content">Halcyon과 여기까지 함께해 줘서 고마워요.</string>
+    <string name="remote_server_manage_title">%1$s 서버</string>
+    <string name="remote_server_manage_summary">여러 서버 주소를 관리하고 사용 중인 서버를 전환</string>
+    <string name="remote_server_add">서버 추가</string>
+    <string name="remote_server_edit">서버 편집</string>
+    <string name="remote_server_active">사용 중</string>
+    <string name="remote_server_set_active">사용으로 설정</string>
+    <string name="remote_server_name_label">이름(선택)</string>
+    <string name="remote_server_empty">추가된 서버가 없습니다</string>
+    <string name="remote_server_delete_message">서버 “%1$s”을(를) 삭제할까요?</string>
 </resources>

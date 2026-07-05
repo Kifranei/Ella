@@ -60,6 +60,11 @@
         <meta-data android:name="lyricon_module_description" android:value="愿所有的心声都在旋律里靠岸。" />
         <meta-data android:name="lyricon_module_tags" android:resource="@array/lyricon_module_tags" />
 
+        <!-- MIUI/HyperOS reads these when the user uninstalls the app and shows them in the
+             confirmation dialog. Used here as a small farewell easter egg. -->
+        <meta-data android:name="app_description_title" android:resource="@string/miui_uninstall_title" />
+        <meta-data android:name="app_description_content" android:resource="@string/miui_uninstall_content" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
