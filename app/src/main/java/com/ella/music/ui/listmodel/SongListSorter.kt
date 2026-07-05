@@ -70,8 +70,8 @@ internal object LibraryListSorter {
         }
 }
 
-internal fun Song.releaseYearOrNull(): Int? =
-    YearRegex.find(year)?.value?.toIntOrNull()
+internal fun Song.releaseDateSortKeyOrNull(): Int? =
+    parseReleaseDateSortKey(year)
 
 internal fun Song.resolvedFileName(): String =
     fileName.ifBlank { path.substringAfterLast('/') }
@@ -84,11 +84,11 @@ internal fun String.musicSortKey(): String =
 
 internal fun List<Song>.sortedByReleaseDate(direction: SortDirection): List<Song> {
     val comparator = if (direction == SortDirection.Ascending) {
-        compareBy<Song> { it.releaseYearOrNull() == null }
-            .thenBy { it.releaseYearOrNull() ?: Int.MAX_VALUE }
+        compareBy<Song> { it.releaseDateSortKeyOrNull() == null }
+            .thenBy { it.releaseDateSortKeyOrNull() ?: Int.MAX_VALUE }
     } else {
-        compareBy<Song> { it.releaseYearOrNull() == null }
-            .thenByDescending { it.releaseYearOrNull() ?: Int.MIN_VALUE }
+        compareBy<Song> { it.releaseDateSortKeyOrNull() == null }
+            .thenByDescending { it.releaseDateSortKeyOrNull() ?: Int.MIN_VALUE }
     }
     return sortedWith(
         comparator
@@ -141,4 +141,12 @@ private data class SongSortEntry(
     val originalIndex: Int
 )
 
-private val YearRegex = Regex("""\d{4}""")
+private val ReleaseDateRegex = Regex("""(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?""")
+
+private fun parseReleaseDateSortKey(value: String): Int? {
+    val match = ReleaseDateRegex.find(value) ?: return null
+    val year = match.groupValues.getOrNull(1)?.toIntOrNull() ?: return null
+    val month = match.groupValues.getOrNull(2)?.toIntOrNull()?.coerceIn(0, 12) ?: 0
+    val day = match.groupValues.getOrNull(3)?.toIntOrNull()?.coerceIn(0, 31) ?: 0
+    return year * 10_000 + month * 100 + day
+}

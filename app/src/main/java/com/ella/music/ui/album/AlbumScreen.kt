@@ -158,8 +158,8 @@ fun AlbumScreen(
             )
             AlbumSortMode.SongCount -> filteredAlbums.sortedByDescending { it.songCount }
             AlbumSortMode.Duration -> filteredAlbums.sortedByDescending { albumDurations[it.id] ?: 0L }
-            AlbumSortMode.YearAsc -> filteredAlbums.sortedWith(compareBy<Album> { it.yearInt <= 0 }.thenBy { it.yearInt }.thenBy { it.name.musicSortKey() })
-            AlbumSortMode.YearDesc -> filteredAlbums.sortedWith(compareBy<Album> { it.yearInt <= 0 }.thenByDescending { it.yearInt }.thenBy { it.name.musicSortKey() })
+            AlbumSortMode.YearAsc -> filteredAlbums.sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenBy { it.releaseDateSortKey }.thenBy { it.name.musicSortKey() })
+            AlbumSortMode.YearDesc -> filteredAlbums.sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenByDescending { it.releaseDateSortKey }.thenBy { it.name.musicSortKey() })
         }
         if (pinnedAlbumKeys.isEmpty()) {
             sorted

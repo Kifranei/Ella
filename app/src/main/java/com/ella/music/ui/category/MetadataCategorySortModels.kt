@@ -276,8 +276,8 @@ internal fun List<Album>.sortedForMetadataAlbumDetail(
     durations: Map<Long, Long>
 ): List<Album> {
     return when (mode) {
-        MetadataDetailAlbumSortMode.YearAsc -> sortedWith(compareBy<Album> { it.yearInt <= 0 }.thenBy { it.yearInt }.thenBy { it.name.lowercase(Locale.ROOT) })
-        MetadataDetailAlbumSortMode.YearDesc -> sortedWith(compareBy<Album> { it.yearInt <= 0 }.thenByDescending { it.yearInt }.thenBy { it.name.lowercase(Locale.ROOT) })
+        MetadataDetailAlbumSortMode.YearAsc -> sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenBy { it.releaseDateSortKey }.thenBy { it.name.lowercase(Locale.ROOT) })
+        MetadataDetailAlbumSortMode.YearDesc -> sortedWith(compareBy<Album> { it.releaseDateSortKey <= 0 }.thenByDescending { it.releaseDateSortKey }.thenBy { it.name.lowercase(Locale.ROOT) })
         MetadataDetailAlbumSortMode.SongCount -> sortedByDescending { it.songCount }
         MetadataDetailAlbumSortMode.Duration -> sortedByDescending { durations[it.id] ?: 0L }
         MetadataDetailAlbumSortMode.Name -> sortedBy { it.name.lowercase(Locale.ROOT) }
