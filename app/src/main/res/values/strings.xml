@@ -1529,6 +1529,15 @@
     <string name="remote_source_navidrome_summary">Subsonic 音乐库</string>
     <string name="remote_source_emby">Emby</string>
     <string name="remote_source_emby_summary">Emby 媒体库音乐</string>
+    <string name="remote_server_manage_title">%1$s 源配置</string>
+    <string name="remote_server_manage_summary">管理多个服务器地址并切换正在使用的</string>
+    <string name="remote_server_add">添加服务器</string>
+    <string name="remote_server_edit">编辑服务器</string>
+    <string name="remote_server_active">正在使用</string>
+    <string name="remote_server_set_active">设为正在使用</string>
+    <string name="remote_server_name_label">名称（可选）</string>
+    <string name="remote_server_empty">还没有添加服务器</string>
+    <string name="remote_server_delete_message">确定删除服务器「%1$s」吗？</string>
     <string name="remote_source_password_or_token">密码或 Subsonic token</string>
     <string name="remote_source_ready">已配置，可作为在线源使用</string>
     <string name="remote_source_not_configured">未配置</string>

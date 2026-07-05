@@ -115,17 +115,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setLibrarySource(source: String) {
+        val requestedSource = SettingsManager.normalizeLibrarySource(source)
         viewModelScope.launch {
-            settingsManager.setLibrarySource(source)
+            settingsManager.setLibrarySource(requestedSource)
+            val activeSource = settingsManager.librarySource.first()
             scanJob?.cancel()
+            _libraryCacheLoaded.value = false
             scanJob = viewModelScope.launch {
                 repository.clearInMemoryLibrary()
-                if (source == SettingsManager.LIBRARY_SOURCE_LOCAL) {
+                if (activeSource == SettingsManager.LIBRARY_SOURCE_LOCAL) {
                     repository.loadCachedLibrary()
                     scanFromCurrentSettings(fullRescan = false, deepRescan = false)
                 } else {
-                    loadRemoteLibrarySource(source, forceRefresh = false)
+                    loadRemoteLibrarySource(activeSource, forceRefresh = false)
                 }
+                _libraryCacheLoaded.value = true
             }
         }
     }

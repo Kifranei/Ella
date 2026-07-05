@@ -55,6 +55,9 @@ fun SettingsDetailScreen(
     initialHomeDisplay: Boolean = false,
     highlightKey: String? = null,
     onNavigateToScanFolders: (() -> Unit)? = null,
+    onNavigateToNavidromeConfig: (() -> Unit)? = null,
+    onNavigateToEmbyConfig: (() -> Unit)? = null,
+    onNavigateToWebDavConfig: (() -> Unit)? = null,
     onNavigateToLyricPluginSources: () -> Unit = {},
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
 ) {
@@ -221,6 +224,9 @@ fun SettingsDetailScreen(
                     SettingsLibrarySourceSection(
                         highlightKey = highlightKey,
                         onOpenScanFolders = onNavigateToScanFolders,
+                        onOpenNavidromeConfig = onNavigateToNavidromeConfig,
+                        onOpenEmbyConfig = onNavigateToEmbyConfig,
+                        onOpenWebDavConfig = onNavigateToWebDavConfig,
                         mainViewModel = mainViewModel
                     )
                     SettingsScanSection(highlightKey = highlightKey)

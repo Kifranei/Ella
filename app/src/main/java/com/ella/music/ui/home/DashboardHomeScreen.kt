@@ -57,8 +57,6 @@ fun HomeScreen(
     onNavigateToFolderPlaylists: () -> Unit,
     onNavigateToPlaylists: () -> Unit,
     onNavigateToLxOnline: () -> Unit,
-    onNavigateToNavidrome: () -> Unit,
-    onNavigateToEmby: () -> Unit,
     onNavigateToWebDav: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToAiChat: () -> Unit = {},
@@ -290,8 +288,6 @@ fun HomeScreen(
             val onlineTiles = remember(context, onlineTileOrder, hiddenOnlineTiles, homeTileColorsRaw) {
                 val all = mapOf(
                     "lx" to HomeTileSpec("lx", "LX Music", context.getString(R.string.home_import_api_source), tileColor("lx", Color(0xFF00A896)), Screen.LxOnline.route, onNavigateToLxOnline),
-                    "navidrome" to HomeTileSpec("navidrome", "Navidrome", context.getString(R.string.remote_source_navidrome_summary), tileColor("navidrome", Color(0xFF5E60CE)), Screen.NavidromeOnline.route, onNavigateToNavidrome),
-                    "emby" to HomeTileSpec("emby", "Emby", context.getString(R.string.remote_source_emby_summary), tileColor("emby", Color(0xFF118AB2)), Screen.EmbyOnline.route, onNavigateToEmby),
                     "webdav" to HomeTileSpec("webdav", "WebDAV", context.getString(R.string.home_connect_cloud_music), tileColor("webdav", Color(0xFF5E60CE)), Screen.WebDav.route, onNavigateToWebDav)
                 )
                 onlineTileOrder.mapNotNull { all[it] }.filterNot { it.id in hiddenOnlineTiles }

@@ -66,11 +66,15 @@ internal fun SettingsHomeCustomizeSection(
 internal fun SettingsLibrarySourceSection(
     highlightKey: String? = null,
     onOpenScanFolders: (() -> Unit)?,
+    onOpenNavidromeConfig: (() -> Unit)? = null,
+    onOpenEmbyConfig: (() -> Unit)? = null,
+    onOpenWebDavConfig: (() -> Unit)? = null,
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val librarySource by settingsManager.librarySource.collectAsState(initial = SettingsManager.LIBRARY_SOURCE_LOCAL)
+    val librarySource by settingsManager.librarySource.collectAsState(initial = "")
     val librarySourceOptions = listOf(
         SettingsManager.LIBRARY_SOURCE_LOCAL to stringResource(R.string.settings_library_source_local),
         SettingsManager.LIBRARY_SOURCE_NAVIDROME to stringResource(R.string.remote_source_navidrome),
@@ -85,21 +89,42 @@ internal fun SettingsLibrarySourceSection(
 
     SettingsCardGroup(highlight = highlightKey == "library_source") {
         Column {
-            WindowSpinnerPreference(
-                title = stringResource(R.string.settings_library_source),
-                summary = stringResource(R.string.settings_library_source_summary),
-                items = librarySourceEntries,
-                selectedIndex = selectedLibrarySourceIndex,
-                onSelectedIndexChange = { index ->
-                    librarySourceOptions.getOrNull(index)?.first?.let { source ->
-                        mainViewModel?.setLibrarySource(source)
+            if (librarySource.isNotBlank()) {
+                WindowSpinnerPreference(
+                    title = stringResource(R.string.settings_library_source),
+                    summary = stringResource(R.string.settings_library_source_summary),
+                    items = librarySourceEntries,
+                    selectedIndex = selectedLibrarySourceIndex,
+                    onSelectedIndexChange = { index ->
+                        librarySourceOptions.getOrNull(index)?.first?.let { source ->
+                            if (mainViewModel != null) {
+                                mainViewModel.setLibrarySource(source)
+                            } else {
+                                scope.launch { settingsManager.setLibrarySource(source) }
+                            }
+                        }
                     }
-                }
-            )
+                )
+            }
             ArrowPreference(
                 title = stringResource(R.string.settings_scan_folders),
                 summary = stringResource(R.string.settings_scan_folders_summary),
                 onClick = { onOpenScanFolders?.invoke() }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_navidrome)),
+                summary = stringResource(R.string.remote_server_manage_summary),
+                onClick = { onOpenNavidromeConfig?.invoke() }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_emby)),
+                summary = stringResource(R.string.remote_server_manage_summary),
+                onClick = { onOpenEmbyConfig?.invoke() }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.webdav_settings),
+                summary = stringResource(R.string.home_connect_cloud_music),
+                onClick = { onOpenWebDavConfig?.invoke() }
             )
         }
     }

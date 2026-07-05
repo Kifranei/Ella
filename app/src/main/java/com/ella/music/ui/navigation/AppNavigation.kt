@@ -38,7 +38,7 @@ import com.ella.music.ui.home.HomeScreen
 import com.ella.music.ui.home.LibraryScreen
 import com.ella.music.ui.online.LxOnlineScreen
 import com.ella.music.ui.online.LxSourceSettingsScreen
-import com.ella.music.ui.online.RemoteDirectoryScreen
+import com.ella.music.ui.online.RemoteServerSettingsScreen
 import com.ella.music.ui.playlist.PlaylistDetailScreen
 import com.ella.music.ui.playlist.PlaylistScreen
 import com.ella.music.ui.search.LibrarySearchScreen
@@ -156,9 +156,9 @@ sealed class Screen(val route: String) {
     data object LyricFont : Screen("lyric_font")
     data object Logs : Screen("logs")
     data object LxOnline : Screen("lx_online")
-    data object NavidromeOnline : Screen("navidrome_online")
-    data object EmbyOnline : Screen("emby_online")
     data object LxSourceSettings : Screen("lx_source_settings")
+    data object NavidromeServerSettings : Screen("navidrome_server_settings")
+    data object EmbyServerSettings : Screen("emby_server_settings")
     data object Analytics : Screen("analytics")
     data object AiChat : Screen("ai_chat")
     data object PlaybackHistory : Screen("playback_history")
@@ -218,8 +218,6 @@ fun AppNavigation(
                 onNavigateToFolderPlaylists = { navigateRestorableTopLevel(Screen.FolderPlaylists.route) },
                 onNavigateToPlaylists = { navigateRestorableTopLevel(Screen.Playlists.createRoute()) },
                 onNavigateToLxOnline = { navController.navigate(Screen.LxOnline.route) },
-                onNavigateToNavidrome = { navController.navigate(Screen.NavidromeOnline.route) },
-                onNavigateToEmby = { navController.navigate(Screen.EmbyOnline.route) },
                 onNavigateToWebDav = { navController.navigate(Screen.WebDav.route) },
                 onNavigateToAnalytics = { navController.navigate(Screen.Analytics.route) },
                 onNavigateToAiChat = { navController.navigate(Screen.AiChat.route) },
@@ -662,7 +660,24 @@ fun AppNavigation(
                 mode = SettingsDetailMode.LibraryScanning,
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty(),
                 onNavigateToScanFolders = { navController.navigate(Screen.ScanSettings.createRoute()) },
+                onNavigateToNavidromeConfig = { navController.navigate(Screen.NavidromeServerSettings.route) },
+                onNavigateToEmbyConfig = { navController.navigate(Screen.EmbyServerSettings.route) },
+                onNavigateToWebDavConfig = { navController.navigate(Screen.WebDav.route) },
                 mainViewModel = mainViewModel
+            )
+        }
+
+        composable(Screen.NavidromeServerSettings.route) {
+            RemoteServerSettingsScreen(
+                provider = RemoteMusicProvider.Navidrome,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.EmbyServerSettings.route) {
+            RemoteServerSettingsScreen(
+                provider = RemoteMusicProvider.Emby,
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -734,26 +749,6 @@ fun AppNavigation(
                 onNavigateToSourceSettings = { navController.navigate(Screen.LxSourceSettings.route) },
                 onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
                 onNavigateToArtist = { artistName -> navController.navigate(Screen.ArtistDetail.createRoute(artistName)) }
-            )
-        }
-
-        composable(Screen.NavidromeOnline.route) {
-            RemoteDirectoryScreen(
-                provider = RemoteMusicProvider.Navidrome,
-                title = "Navidrome",
-                playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() },
-                onNavigateToPlayer = onNavigateToPlayer
-            )
-        }
-
-        composable(Screen.EmbyOnline.route) {
-            RemoteDirectoryScreen(
-                provider = RemoteMusicProvider.Emby,
-                title = "Emby",
-                playerViewModel = playerViewModel,
-                onBack = { navController.popBackStack() },
-                onNavigateToPlayer = onNavigateToPlayer
             )
         }
 

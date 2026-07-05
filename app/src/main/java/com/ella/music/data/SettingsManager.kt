@@ -18,6 +18,9 @@ import com.ella.music.player.AudioEffectSettings
 import com.ella.music.plugin.source.LyricoPluginManager
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
+import com.ella.music.data.remote.SavedRemoteServer
+import com.ella.music.data.remote.toRemoteServersJson
+import com.ella.music.data.remote.toSavedRemoteServers
 import com.ella.music.data.model.FolderPlaylist
 import com.ella.music.data.model.toFolderPlaylistJson
 import com.ella.music.data.model.toFolderPlaylists
@@ -213,6 +216,12 @@ class SettingsManager(private val context: Context) {
         val KEY_EMBY_TOKEN = stringPreferencesKey("emby_token")
         val KEY_EMBY_USER_ID = stringPreferencesKey("emby_user_id")
         val KEY_EMBY_SERVER_NAME = stringPreferencesKey("emby_server_name")
+        val KEY_NAVIDROME_SERVERS = stringPreferencesKey("navidrome_servers")
+        val KEY_NAVIDROME_ACTIVE_ID = stringPreferencesKey("navidrome_active_id")
+        val KEY_EMBY_SERVERS = stringPreferencesKey("emby_servers")
+        val KEY_EMBY_ACTIVE_ID = stringPreferencesKey("emby_active_id")
+        const val LEGACY_NAVIDROME_SERVER_ID = "navidrome-legacy"
+        const val LEGACY_EMBY_SERVER_ID = "emby-legacy"
         val KEY_OPENAI_API_KEY = stringPreferencesKey("openai_api_key")
         val KEY_OPENAI_BASE_URL = stringPreferencesKey("openai_base_url")
         val KEY_OPENAI_MODEL = stringPreferencesKey("openai_model")
@@ -351,6 +360,12 @@ class SettingsManager(private val context: Context) {
         const val LIBRARY_SOURCE_NAVIDROME = "navidrome"
         const val LIBRARY_SOURCE_EMBY = "emby"
 
+        fun normalizeLibrarySource(source: String): String = when (source) {
+            LIBRARY_SOURCE_NAVIDROME -> LIBRARY_SOURCE_NAVIDROME
+            LIBRARY_SOURCE_EMBY -> LIBRARY_SOURCE_EMBY
+            else -> LIBRARY_SOURCE_LOCAL
+        }
+
         const val APP_LANGUAGE_ZH_CN = "zh-CN"
         const val APP_LANGUAGE_ZH_TW = "zh-TW"
         const val APP_LANGUAGE_EN = "en"
@@ -421,7 +436,7 @@ class SettingsManager(private val context: Context) {
             context.getString(DEFAULT_SHORTCUT_FOLDER_LABEL_RES)
         const val DEFAULT_HOME_SECTION_ORDER = "library,online,recent"
         const val DEFAULT_HOME_LIBRARY_TILE_ORDER = "artist,album,folder,folder_tree,folder_playlist,playlist,analytics,genre,year,composer,lyricist"
-        const val DEFAULT_HOME_ONLINE_TILE_ORDER = "lx,navidrome,emby,webdav"
+        const val DEFAULT_HOME_ONLINE_TILE_ORDER = "lx,webdav"
 
         val LYRIC_SOURCE_PRIORITY_IDS = listOf(
             LYRIC_SOURCE_EMBEDDED_TTML,
@@ -865,23 +880,68 @@ class SettingsManager(private val context: Context) {
     val lxSourceScript: Flow<String> = selectedLxSource.map { it?.script.orEmpty() }
     val selectedOnlineProvider: Flow<RemoteMusicProvider> =
         context.dataStore.data.map { RemoteMusicProvider.fromId(it[KEY_ONLINE_SELECTED_PROVIDER].orEmpty()) }
-    val navidromeConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map {
-        RemoteMusicSourceConfig(
-            provider = RemoteMusicProvider.Navidrome,
-            baseUrl = it[KEY_NAVIDROME_URL].orEmpty(),
-            username = it[KEY_NAVIDROME_USERNAME].orEmpty(),
-            password = it[KEY_NAVIDROME_PASSWORD].orEmpty()
+    // ---- Multi-address remote sources ----
+    // The stored server list is the source of truth. A legacy single config (old KEY_*_URL keys) is
+    // synthesized read-only into a one-entry list so existing setups keep working until the user
+    // edits them (the first write persists the migrated list).
+    private fun readNavidromeServers(prefs: Preferences): List<SavedRemoteServer> {
+        val stored = prefs[KEY_NAVIDROME_SERVERS].orEmpty().toSavedRemoteServers(RemoteMusicProvider.Navidrome)
+        if (stored.isNotEmpty()) return stored
+        val legacyUrl = prefs[KEY_NAVIDROME_URL].orEmpty()
+        if (legacyUrl.isBlank()) return emptyList()
+        return listOf(
+            SavedRemoteServer(
+                id = LEGACY_NAVIDROME_SERVER_ID,
+                name = legacyUrl.remoteServerDisplayName(),
+                config = RemoteMusicSourceConfig(
+                    provider = RemoteMusicProvider.Navidrome,
+                    baseUrl = legacyUrl,
+                    username = prefs[KEY_NAVIDROME_USERNAME].orEmpty(),
+                    password = prefs[KEY_NAVIDROME_PASSWORD].orEmpty()
+                )
+            )
         )
     }
-    val embyConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map {
-        RemoteMusicSourceConfig(
-            provider = RemoteMusicProvider.Emby,
-            baseUrl = it[KEY_EMBY_URL].orEmpty(),
-            username = it[KEY_EMBY_USERNAME].orEmpty(),
-            token = it[KEY_EMBY_TOKEN].orEmpty(),
-            userId = it[KEY_EMBY_USER_ID].orEmpty(),
-            serverName = it[KEY_EMBY_SERVER_NAME].orEmpty()
+
+    private fun readEmbyServers(prefs: Preferences): List<SavedRemoteServer> {
+        val stored = prefs[KEY_EMBY_SERVERS].orEmpty().toSavedRemoteServers(RemoteMusicProvider.Emby)
+        if (stored.isNotEmpty()) return stored
+        val legacyUrl = prefs[KEY_EMBY_URL].orEmpty()
+        if (legacyUrl.isBlank()) return emptyList()
+        return listOf(
+            SavedRemoteServer(
+                id = LEGACY_EMBY_SERVER_ID,
+                name = prefs[KEY_EMBY_SERVER_NAME].orEmpty().ifBlank { legacyUrl.remoteServerDisplayName() },
+                config = RemoteMusicSourceConfig(
+                    provider = RemoteMusicProvider.Emby,
+                    baseUrl = legacyUrl,
+                    username = prefs[KEY_EMBY_USERNAME].orEmpty(),
+                    token = prefs[KEY_EMBY_TOKEN].orEmpty(),
+                    userId = prefs[KEY_EMBY_USER_ID].orEmpty(),
+                    serverName = prefs[KEY_EMBY_SERVER_NAME].orEmpty()
+                )
+            )
         )
+    }
+
+    private fun activeServer(servers: List<SavedRemoteServer>, activeId: String?): SavedRemoteServer? =
+        servers.firstOrNull { it.id == activeId } ?: servers.firstOrNull()
+
+    val navidromeServers: Flow<List<SavedRemoteServer>> = context.dataStore.data.map { readNavidromeServers(it) }
+    val embyServers: Flow<List<SavedRemoteServer>> = context.dataStore.data.map { readEmbyServers(it) }
+    val navidromeActiveServerId: Flow<String> = context.dataStore.data.map { prefs ->
+        activeServer(readNavidromeServers(prefs), prefs[KEY_NAVIDROME_ACTIVE_ID])?.id.orEmpty()
+    }
+    val embyActiveServerId: Flow<String> = context.dataStore.data.map { prefs ->
+        activeServer(readEmbyServers(prefs), prefs[KEY_EMBY_ACTIVE_ID])?.id.orEmpty()
+    }
+    val navidromeConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map { prefs ->
+        activeServer(readNavidromeServers(prefs), prefs[KEY_NAVIDROME_ACTIVE_ID])?.config
+            ?: RemoteMusicSourceConfig(provider = RemoteMusicProvider.Navidrome, baseUrl = "")
+    }
+    val embyConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map { prefs ->
+        activeServer(readEmbyServers(prefs), prefs[KEY_EMBY_ACTIVE_ID])?.config
+            ?: RemoteMusicSourceConfig(provider = RemoteMusicProvider.Emby, baseUrl = "")
     }
     val librarySource: Flow<String> = context.dataStore.data.map {
         it[KEY_LIBRARY_SOURCE] ?: LIBRARY_SOURCE_LOCAL
@@ -1569,11 +1629,7 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setLibrarySource(source: String) {
-        val normalized = when (source) {
-            LIBRARY_SOURCE_NAVIDROME -> LIBRARY_SOURCE_NAVIDROME
-            LIBRARY_SOURCE_EMBY -> LIBRARY_SOURCE_EMBY
-            else -> LIBRARY_SOURCE_LOCAL
-        }
+        val normalized = normalizeLibrarySource(source)
         context.dataStore.edit { it[KEY_LIBRARY_SOURCE] = normalized }
     }
 
@@ -1723,40 +1779,65 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_ONLINE_SELECTED_PROVIDER] = provider.id }
     }
 
-    suspend fun setNavidromeConfig(baseUrl: String, username: String, password: String) {
-        context.dataStore.edit {
-            it[KEY_NAVIDROME_URL] = baseUrl.trim().trimEnd('/')
-            it[KEY_NAVIDROME_USERNAME] = username.trim()
-            it[KEY_NAVIDROME_PASSWORD] = password
+    private fun String.remoteServerDisplayName(): String =
+        substringAfter("://").substringBefore('/').trim().ifBlank { trim() }
+
+    fun newRemoteServerId(): String = "server-${System.currentTimeMillis()}-${(0..9999).random()}"
+
+    suspend fun upsertNavidromeServer(server: SavedRemoteServer) {
+        context.dataStore.edit { prefs ->
+            val current = readNavidromeServers(prefs)
+            val next = if (current.any { it.id == server.id }) {
+                current.map { if (it.id == server.id) server else it }
+            } else {
+                current + server
+            }
+            prefs[KEY_NAVIDROME_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_NAVIDROME_ACTIVE_ID].isNullOrBlank()) prefs[KEY_NAVIDROME_ACTIVE_ID] = server.id
         }
     }
 
-    suspend fun clearNavidromeConfig() {
-        context.dataStore.edit {
-            it.remove(KEY_NAVIDROME_URL)
-            it.remove(KEY_NAVIDROME_USERNAME)
-            it.remove(KEY_NAVIDROME_PASSWORD)
+    suspend fun deleteNavidromeServer(id: String) {
+        context.dataStore.edit { prefs ->
+            val next = readNavidromeServers(prefs).filterNot { it.id == id }
+            prefs[KEY_NAVIDROME_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_NAVIDROME_ACTIVE_ID] == id) {
+                val fallback = next.firstOrNull()?.id
+                if (fallback == null) prefs.remove(KEY_NAVIDROME_ACTIVE_ID) else prefs[KEY_NAVIDROME_ACTIVE_ID] = fallback
+            }
         }
     }
 
-    suspend fun setEmbyConfig(baseUrl: String, username: String, token: String, userId: String, serverName: String) {
-        context.dataStore.edit {
-            it[KEY_EMBY_URL] = baseUrl.trim().trimEnd('/')
-            it[KEY_EMBY_USERNAME] = username.trim()
-            it[KEY_EMBY_TOKEN] = token
-            it[KEY_EMBY_USER_ID] = userId
-            if (serverName.isBlank()) it.remove(KEY_EMBY_SERVER_NAME) else it[KEY_EMBY_SERVER_NAME] = serverName
+    suspend fun setActiveNavidromeServer(id: String) {
+        context.dataStore.edit { it[KEY_NAVIDROME_ACTIVE_ID] = id }
+    }
+
+    suspend fun upsertEmbyServer(server: SavedRemoteServer) {
+        context.dataStore.edit { prefs ->
+            val current = readEmbyServers(prefs)
+            val next = if (current.any { it.id == server.id }) {
+                current.map { if (it.id == server.id) server else it }
+            } else {
+                current + server
+            }
+            prefs[KEY_EMBY_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_EMBY_ACTIVE_ID].isNullOrBlank()) prefs[KEY_EMBY_ACTIVE_ID] = server.id
         }
     }
 
-    suspend fun clearEmbyConfig() {
-        context.dataStore.edit {
-            it.remove(KEY_EMBY_URL)
-            it.remove(KEY_EMBY_USERNAME)
-            it.remove(KEY_EMBY_TOKEN)
-            it.remove(KEY_EMBY_USER_ID)
-            it.remove(KEY_EMBY_SERVER_NAME)
+    suspend fun deleteEmbyServer(id: String) {
+        context.dataStore.edit { prefs ->
+            val next = readEmbyServers(prefs).filterNot { it.id == id }
+            prefs[KEY_EMBY_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_EMBY_ACTIVE_ID] == id) {
+                val fallback = next.firstOrNull()?.id
+                if (fallback == null) prefs.remove(KEY_EMBY_ACTIVE_ID) else prefs[KEY_EMBY_ACTIVE_ID] = fallback
+            }
         }
+    }
+
+    suspend fun setActiveEmbyServer(id: String) {
+        context.dataStore.edit { it[KEY_EMBY_ACTIVE_ID] = id }
     }
 
     suspend fun setOpenAiApiKey(apiKey: String) {
