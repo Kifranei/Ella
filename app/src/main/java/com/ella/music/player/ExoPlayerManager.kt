@@ -1319,7 +1319,7 @@ class ExoPlayerManager(private val context: Context) {
             .setTitle(titleOverride ?: title)
             .setArtist(artistOverride ?: artist)
             .setAlbumTitle(album)
-            .setAlbumArtist(artist)
+            .setAlbumArtist(albumArtist.ifBlank { artist })
             .setDisplayTitle(titleOverride ?: title)
             .setSubtitle(artistOverride ?: artist)
             .setDescription(album)

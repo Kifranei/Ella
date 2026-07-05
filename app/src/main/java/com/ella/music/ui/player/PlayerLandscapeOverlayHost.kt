@@ -85,27 +85,29 @@ internal fun PlayerLandscapeOverlayHost(
 
     ForceLandscapePlayerBars(onDismiss = onDismiss)
 
+    val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
     // Resolve off the main thread (file scan + media probe) so opening the landscape player
-    // doesn't jank, even for songs without a dynamic cover.
+    // doesn't jank, even for songs without a dynamic cover. Clear the previous source first so
+    // switching songs cannot keep the old video attached while the next source is resolving.
     val landscapeDynamicCoverSource by produceState<DynamicCoverSource?>(
         initialValue = null,
         dynamicCoverEnabled,
         dynamicCoverCustomFolders,
-        song?.id,
+        dynamicCoverSongKey,
         dynamicCoverFailedPath
     ) {
         val current = song
-        value = if (current != null) {
-            withContext(Dispatchers.IO) {
+        if (current == null) {
+            value = null
+        } else {
+            value = null
+            value = withContext(Dispatchers.IO) {
                 current.dynamicCoverSource(
                     context,
                     includeExternalFiles = dynamicCoverEnabled,
                     customRootPaths = dynamicCoverCustomFolders
-                )
-                    ?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
             }
-        } else {
-            null
         }
     }
     if (coverMode) {

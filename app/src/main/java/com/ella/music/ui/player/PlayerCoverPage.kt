@@ -192,28 +192,30 @@ internal fun CoverPlayerPage(
     modifier: Modifier = Modifier
 ) {
     val bluetoothDeviceName = rememberBluetoothOutputName()
+    val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
     // Resolving a dynamic cover scans many candidate files and probes media tracks; doing that in
     // composition janked every song change (even when no cover exists). Resolve it off the main
-    // thread, only while the player page is shown.
+    // thread, only while the player page is shown. Clear the previous source first so a song
+    // switch never keeps rendering the old video's PlayerView while the next source is resolving.
     val dynamicCoverSource by produceState<DynamicCoverSource?>(
         initialValue = null,
         dynamicCoverEnabled,
         dynamicCoverCustomFolders,
-        song?.id,
+        dynamicCoverSongKey,
         dynamicCoverFailedPath
     ) {
         val current = song
-        value = if (current != null) {
-            withContext(Dispatchers.IO) {
+        if (current == null) {
+            value = null
+        } else {
+            value = null
+            value = withContext(Dispatchers.IO) {
                 current.dynamicCoverSource(
                     context,
                     includeExternalFiles = dynamicCoverEnabled,
                     customRootPaths = dynamicCoverCustomFolders
-                )
-                    ?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
             }
-        } else {
-            null
         }
     }
     // Stable local so the null-checked usages below can smart-cast (delegated props can't).
@@ -335,7 +337,7 @@ internal fun CoverPlayerPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (immersiveAlbumCover) {
-                    val immersiveCoverCornerRadius = if (portraitDynamicCover) 0.dp else 14.dp
+                    val immersiveCoverCornerRadius = 0.dp
                     val immersiveCoverShape = RoundedCornerShape(immersiveCoverCornerRadius)
                     Box(
                         modifier = Modifier
@@ -361,7 +363,7 @@ internal fun CoverPlayerPage(
                                 isPlaying = isPlaying,
                                 onPlaybackError = { onDynamicCoverFailed(resolvedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
-                                cornerRadiusDp = if (portraitDynamicCover) 0f else 14f,
+                                cornerRadiusDp = 0f,
                                 resizeMode = if (portraitDynamicCover) {
                                     androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                                 } else {

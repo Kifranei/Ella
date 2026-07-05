@@ -329,6 +329,7 @@ fun PlayerScreen(
     val paletteBitmap = songPresentation.paletteBitmap
     val palette = songPresentation.palette
     val lyricPalette = songPresentation.lyricPalette
+    val playerSurfacePalette = if (immersiveAlbumCover && showLyrics) lyricPalette else palette
     val audioInfo = songPresentation.audioInfo
     val tagInfo = songPresentation.tagInfo
     val songAnnotation = songPresentation.annotation
@@ -463,7 +464,7 @@ fun PlayerScreen(
     ) { dismissingPlayer ->
         Box(modifier = Modifier.fillMaxSize()) {
           CompositionLocalProvider(
-              LocalPlayerContentColor provides palette.onBackground,
+              LocalPlayerContentColor provides playerSurfacePalette.onBackground,
               LocalPlayerSurfaceActive provides playerVisible
           ) {
             Box(
@@ -472,9 +473,9 @@ fun PlayerScreen(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                palette.top,
-                                palette.middle,
-                                palette.bottom
+                                playerSurfacePalette.top,
+                                playerSurfacePalette.middle,
+                                playerSurfacePalette.bottom
                             )
                         )
                     )
@@ -483,7 +484,7 @@ fun PlayerScreen(
             // light gradient stays light.
             if (!playerLight) {
                 ImmersiveCoverBackground(
-                    palette = palette,
+                    palette = playerSurfacePalette,
                     flowEffectMode = SettingsManager.PLAYER_FLOW_EFFECT_DARK,
                     modifier = Modifier.fillMaxSize()
                 )

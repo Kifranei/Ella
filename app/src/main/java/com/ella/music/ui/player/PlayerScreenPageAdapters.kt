@@ -638,7 +638,7 @@ internal fun LyricsPageContent(
         },
         enableSwipeDismiss = enableSwipeDismiss,
         backEnabled = backEnabled,
-        useBlurBackground = immersiveAlbumCover,
+        useBlurBackground = false,
         drawBackground = drawBackground,
         modifier = modifier
     )

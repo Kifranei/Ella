@@ -24,6 +24,7 @@ import androidx.media3.common.Player as Media3Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.ella.music.data.model.Song
+import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.SafeCoverImage
 import java.io.File
 
@@ -38,6 +39,17 @@ internal data class DynamicCoverSource(
     val kind: DynamicCoverKind = DynamicCoverKind.Video,
     val aspectRatio: Float? = null
 )
+
+internal fun Song.dynamicCoverResolutionKey(): String =
+    listOf(
+        playlistIdentityKey(),
+        path,
+        title,
+        artist,
+        album,
+        dateModified,
+        fileSize
+    ).joinToString("|")
 
 @Composable
 internal fun DynamicCoverVideo(
@@ -144,7 +156,7 @@ internal fun Song.dynamicCoverSource(
             val uri = Uri.fromFile(file)
             return DynamicCoverSource(
                 uri = uri,
-                failureKey = file.absolutePath,
+                failureKey = "file:${file.absolutePath}:${file.lastModified()}:${file.length()}",
                 aspectRatio = context.readDynamicCoverAspectRatio(uri)
             )
         }

@@ -26,8 +26,12 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +57,7 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.SmoothLyricView
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -132,6 +137,18 @@ internal fun LandscapeCoverPlayerPage(
     val configuration = LocalConfiguration.current
     val bluetoothDeviceName = rememberBluetoothOutputName()
     val hasLyrics = lyrics.isNotEmpty()
+    val songLayoutKey = song?.playlistIdentityKey() ?: song?.id?.toString().orEmpty()
+    var lyricDecisionPending by remember(songLayoutKey) { mutableStateOf(songLayoutKey.isNotBlank()) }
+    LaunchedEffect(songLayoutKey, lyricsLoading, hasLyrics) {
+        when {
+            songLayoutKey.isBlank() || hasLyrics -> lyricDecisionPending = false
+            !lyricsLoading -> {
+                delay(120)
+                lyricDecisionPending = false
+            }
+        }
+    }
+    val showLyricsPane = hasLyrics || lyricsLoading || lyricDecisionPending
     val ultraWideLandscape = isUltraWideLandscapePlayerLayout(
         screenWidthDp = configuration.screenWidthDp,
         screenHeightDp = configuration.screenHeightDp
@@ -141,28 +158,28 @@ internal fun LandscapeCoverPlayerPage(
     val swipeThresholdPx = with(LocalDensity.current) { 84.dp.toPx() }
     val swipeScope = rememberCoroutineScope()
     val dragOffset = remember { androidx.compose.animation.core.Animatable(0f) }
-    val leftPaneWeight = if (hasLyrics && ultraWideLandscape) 0.34f else 0.38f
+    val leftPaneWeight = if (showLyricsPane && ultraWideLandscape) 0.34f else 0.38f
     val rightPaneWeight = if (ultraWideLandscape) 0.66f else 0.62f
-    val headerTitleFontSize = if (hasLyrics) {
+    val headerTitleFontSize = if (showLyricsPane) {
         if (ultraWideLandscape) 18.sp else 20.sp
     } else {
         if (ultraWideLandscape) 20.sp else 24.sp
     }
-    val headerArtistFontSize = if (hasLyrics) {
+    val headerArtistFontSize = if (showLyricsPane) {
         if (ultraWideLandscape) 11.sp else 12.sp
     } else {
         if (ultraWideLandscape) 13.sp else 16.sp
     }
     val coverWidthFraction = when {
-        ultraWideLandscape && hasLyrics -> 0.72f
+        ultraWideLandscape && showLyricsPane -> 0.72f
         ultraWideLandscape -> 0.70f
-        hasLyrics -> 0.88f
+        showLyricsPane -> 0.88f
         else -> 0.78f
     }
     val coverMaxSize = when {
-        ultraWideLandscape && hasLyrics -> 300.dp
+        ultraWideLandscape && showLyricsPane -> 300.dp
         ultraWideLandscape -> 340.dp
-        hasLyrics -> 520.dp
+        showLyricsPane -> 520.dp
         else -> 620.dp
     }
     val lyricPrimaryTextSize = primaryTextSizeSp
@@ -274,18 +291,18 @@ internal fun LandscapeCoverPlayerPage(
                     vertical = if (ultraWideLandscape) 14.dp else 22.dp
                 ),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = if (hasLyrics) Arrangement.Start else Arrangement.Center
+            horizontalArrangement = if (showLyricsPane) Arrangement.Start else Arrangement.Center
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
                     .then(
-                        if (hasLyrics) Modifier.weight(leftPaneWeight)
+                        if (showLyricsPane) Modifier.weight(leftPaneWeight)
                         else Modifier.fillMaxWidth(if (ultraWideLandscape) 0.42f else 0.46f)
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (hasLyrics) {
+                if (showLyricsPane) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -439,7 +456,7 @@ internal fun LandscapeCoverPlayerPage(
                     onClearQueue = onClearQueue
                 )
             }
-            if (hasLyrics) {
+            if (showLyricsPane) {
                 Spacer(modifier = Modifier.width(if (ultraWideLandscape) 28.dp else 48.dp))
                 Box(
                     modifier = Modifier
@@ -453,35 +470,37 @@ internal fun LandscapeCoverPlayerPage(
                             lyricTextAlign = lyricTextAlign
                         )
                 ) {
-                    SmoothLyricView(
-                        songId = song?.id ?: 0L,
-                        songTitle = song?.title.orEmpty(),
-                        songArtist = song?.artist.orEmpty(),
-                        lyrics = lyrics,
-                        currentIndex = currentLyricIndex,
-                        currentPositionMs = currentPosition,
-                        isPlaying = isPlaying,
-                        showTranslation = showTranslation,
-                        showPronunciation = showPronunciation,
-                        fontScale = fontScale,
-                        secondaryFontScale = secondaryFontScale,
-                        fontPath = fontPath,
-                        fontWeight = fontWeight,
-                        lyricTextAlign = lyricTextAlign,
-                        primaryTextSizeSp = lyricPrimaryTextSize,
-                        secondaryTextSizeSp = lyricSecondaryTextSize,
-                        anchorOffsetRatio = lyricAnchorOffset,
-                        topContentPadding = lyricTopPadding,
-                        contentColor = palette.onBackground,
-                        // A custom wallpaper is a busy background; blurring far lines makes them
-                        // unreadable, so keep all lines sharp when one is set.
-                        nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
-                        onLineClick = onLyricLineClick,
-                        onLineLongClick = onLyricLineLongClick,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight()
-                    )
+                    if (hasLyrics) {
+                        SmoothLyricView(
+                            songId = song?.id ?: 0L,
+                            songTitle = song?.title.orEmpty(),
+                            songArtist = song?.artist.orEmpty(),
+                            lyrics = lyrics,
+                            currentIndex = currentLyricIndex,
+                            currentPositionMs = currentPosition,
+                            isPlaying = isPlaying,
+                            showTranslation = showTranslation,
+                            showPronunciation = showPronunciation,
+                            fontScale = fontScale,
+                            secondaryFontScale = secondaryFontScale,
+                            fontPath = fontPath,
+                            fontWeight = fontWeight,
+                            lyricTextAlign = lyricTextAlign,
+                            primaryTextSizeSp = lyricPrimaryTextSize,
+                            secondaryTextSizeSp = lyricSecondaryTextSize,
+                            anchorOffsetRatio = lyricAnchorOffset,
+                            topContentPadding = lyricTopPadding,
+                            contentColor = palette.onBackground,
+                            // A custom wallpaper is a busy background; blurring far lines makes them
+                            // unreadable, so keep all lines sharp when one is set.
+                            nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
+                            onLineClick = onLyricLineClick,
+                            onLineLongClick = onLyricLineLongClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        )
+                    }
                 }
             }
         }
