@@ -245,8 +245,9 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 - **Beautiful Lyrics** — 为动态背景、全屏歌词与歌词视觉体验提供参考。
 - **Lyrico** — 为外部标签编辑器适配、歌曲标签读取和日志页面交互提供参考。
 - **LX Music Mobile** — 提供 LX Music API 兼容实现与测试参考。
+- **RaWs Music** — 提供 10 段均衡器、BiQuad 参数均衡与 DSP 核心参考。
 - **光锥音乐** — 界面设计与功能实现参考。
-- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、accompanist-lyrics-ui、Beautiful Lyrics 以及其它开源项目。
+- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、accompanist-lyrics-ui、Beautiful Lyrics、RaWs Music 以及其它开源项目。
 
 * 以及感谢各位群友积极的测试反馈。Halcyon 的开发与测试过程，也离不开各位群友的支持与鼓励。
 

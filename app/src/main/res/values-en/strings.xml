@@ -1439,6 +1439,7 @@
     <string name="about_summary_quickjs">LX Music API JavaScript runtime (Apache-2.0)</string>
     <string name="about_summary_lxmusic">Online music source and API adaptation reference (Apache-2.0)</string>
     <string name="about_summary_accompanist_lyrics_core">Lyric parsing and TTML/LRC structure reference (Apache-2.0)</string>
+    <string name="about_summary_raws_music">10-band equalizer, BiQuad parametric EQ, and DSP core reference (Apache-2.0)</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">Import failed: HTTP %1$d</string>

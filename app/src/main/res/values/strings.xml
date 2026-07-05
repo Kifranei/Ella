@@ -1585,6 +1585,7 @@
     <string name="about_summary_quickjs">LX Music API JavaScript 运行时（Apache-2.0）</string>
     <string name="about_summary_lxmusic">在线音乐源与 API 适配参考（Apache-2.0）</string>
     <string name="about_summary_accompanist_lyrics_core">歌词解析与 TTML/LRC 结构参考（Apache-2.0）</string>
+    <string name="about_summary_raws_music">10 段均衡器、BiQuad 参数均衡与 DSP 核心参考（Apache-2.0）</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">导入失败: HTTP %1$d</string>

@@ -1334,6 +1334,7 @@
     <string name="about_summary_quickjs">LX Music API JavaScript 執行環境（Apache-2.0）</string>
     <string name="about_summary_lxmusic">線上音樂來源與 API 適配參考（Apache-2.0）</string>
     <string name="about_summary_accompanist_lyrics_core">歌詞解析與 TTML/LRC 結構參考（Apache-2.0）</string>
+    <string name="about_summary_raws_music">10 段等化器、BiQuad 參數等化與 DSP 核心參考（Apache-2.0）</string>
 
     <!-- i18n: LX online service errors -->
     <string name="lx_service_import_failed_http">匯入失敗: HTTP %1$d</string>
