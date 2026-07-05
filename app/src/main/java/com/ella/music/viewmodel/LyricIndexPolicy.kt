@@ -29,6 +29,21 @@ internal fun currentLyricIndexAt(
         }
     }
 
+    // No line's [start, end) window contains the position — an instrumental gap, an empty /
+    // placeholder-only line (which we skip), or past the end of a short or single-line lyric.
+    // Stay on the most recently started visible line instead of snapping back to the top (-1),
+    // which otherwise makes the mini lyric flash to the first line and then jump back.
+    if (index == -1) {
+        for (i in lyrics.indices.reversed()) {
+            val line = lyrics[i]
+            if (!line.hasVisibleLyricText()) continue
+            if (positionMs >= line.timeMs) {
+                index = i
+                break
+            }
+        }
+    }
+
     val shouldSuppressLeadingZero = suppressLeadingZero &&
         lyrics.getOrNull(index)?.timeMs == 0L &&
         positionMs in 0L until LEADING_ZERO_LYRIC_SUPPRESSION_MS
