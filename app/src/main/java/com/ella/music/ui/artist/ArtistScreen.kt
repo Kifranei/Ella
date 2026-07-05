@@ -76,6 +76,7 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.DoubleTapScrollOverlay
+import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
@@ -110,7 +111,6 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -459,7 +459,7 @@ fun ArtistScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                EllaLoadingIndicator()
             }
         } else {
         LazyColumn(
