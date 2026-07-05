@@ -45,6 +45,7 @@ import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.DoubleTapScrollOverlay
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
@@ -79,6 +80,7 @@ fun PlaylistDetailScreen(
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
@@ -424,7 +426,11 @@ fun PlaylistDetailScreen(
                     )
                 }
 
-            if (displayedSongs.isEmpty()) {
+            if (displayedSongs.isEmpty() && librarySongs.isEmpty() && !libraryCacheLoaded) {
+                item {
+                    EllaCenteredLoadingIndicator(modifier = Modifier.fillParentMaxSize())
+                }
+            } else if (displayedSongs.isEmpty()) {
                 item {
                     PlaylistDetailEmptyState(
                         searchQuery = searchQuery,

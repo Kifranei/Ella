@@ -57,6 +57,7 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.EllaMiuixMenuItem
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
@@ -104,6 +105,7 @@ fun AlbumScreen(
     val albums by mainViewModel.albums.collectAsState()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
     var sortExpanded by remember { mutableStateOf(false) }
@@ -423,7 +425,9 @@ fun AlbumScreen(
             )
         }
 
-        if (albums.isEmpty()) {
+        if (albums.isEmpty() && !libraryCacheLoaded) {
+            EllaCenteredLoadingIndicator()
+        } else if (albums.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

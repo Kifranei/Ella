@@ -47,6 +47,7 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.FastIndexBar
@@ -78,6 +79,7 @@ fun PlaylistScreen(
     val context = LocalContext.current
     val playlists by mainViewModel.playlists.collectAsState()
     val librarySongs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -566,7 +568,11 @@ fun PlaylistScreen(
                 )
             }
 
-            if (displayedCustomPlaylists.isEmpty()) {
+            if (displayedCustomPlaylists.isEmpty() && librarySongs.isEmpty() && !libraryCacheLoaded) {
+                item {
+                    EllaCenteredLoadingIndicator(modifier = Modifier.fillParentMaxSize())
+                }
+            } else if (displayedCustomPlaylists.isEmpty()) {
                 item {
                     PlaylistEmptyMessage(searchQuery = searchQuery)
                 }

@@ -87,6 +87,7 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixTextField
@@ -149,6 +150,7 @@ fun MetadataCategoryDetailScreen(
 ) {
     val context = LocalContext.current
     val librarySongs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val libraryAlbums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
@@ -634,6 +636,9 @@ fun MetadataCategoryDetailScreen(
 
         Box(modifier = Modifier.fillMaxSize()) {
             val showSongSideIndex = selectedTab == MetadataDetailTab.Songs && sortedSongs.size > 30
+            if (librarySongs.isEmpty() && !libraryCacheLoaded) {
+                EllaCenteredLoadingIndicator()
+            } else {
             LazyColumn(
                 state = listState,
                 contentPadding = PaddingValues(
@@ -771,6 +776,7 @@ fun MetadataCategoryDetailScreen(
                     }
                 }
                 item { Spacer(modifier = Modifier.height(24.dp)) }
+            }
             }
 
             if (showSongSideIndex) {

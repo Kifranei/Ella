@@ -46,6 +46,7 @@ import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.matchesFullTagSearch
 import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.AddToPlaylistSheet
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaMiuixBottomSheet
@@ -101,6 +102,7 @@ fun LibrarySearchScreen(
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
@@ -664,10 +666,13 @@ fun LibrarySearchScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 128.dp)
-        ) {
+        if (songs.isEmpty() && !libraryCacheLoaded) {
+            EllaCenteredLoadingIndicator()
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 128.dp)
+            ) {
             if (trimmedQuery.isBlank() && !duplicatesOnlyActive) {
                 if (history.isNotEmpty()) {
                     item {
@@ -838,6 +843,7 @@ fun LibrarySearchScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

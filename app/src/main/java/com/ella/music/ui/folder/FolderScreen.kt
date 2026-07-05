@@ -51,6 +51,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.DirectionalSortField
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
@@ -91,6 +92,7 @@ fun FolderScreen(
     val context = LocalContext.current
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val songs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
@@ -284,7 +286,9 @@ fun FolderScreen(
             )
         }
 
-        if (songs.isEmpty()) {
+        if (songs.isEmpty() && !libraryCacheLoaded) {
+            EllaCenteredLoadingIndicator()
+        } else if (songs.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

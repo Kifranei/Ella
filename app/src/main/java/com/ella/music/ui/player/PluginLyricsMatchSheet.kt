@@ -22,6 +22,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -40,6 +41,7 @@ import com.ella.music.plugin.source.PluginLyricsRenderOptions
 import com.ella.music.plugin.source.PluginSearchHit
 import com.ella.music.plugin.source.defaultRenderFormat
 import com.ella.music.plugin.source.toEmbeddedLyricsText
+import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixTextField
 import com.ella.music.viewmodel.MainViewModel
@@ -165,7 +167,11 @@ internal fun PluginLyricsMatchSheet(
         }
         if (loading) {
             Spacer(modifier = Modifier.height(10.dp))
-            Text(text = stringResource(R.string.lyric_match_searching), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EllaLoadingIndicator()
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = stringResource(R.string.lyric_match_searching), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -203,7 +209,11 @@ internal fun PluginLyricsMatchSheet(
         }
 
         if (fetchingLyrics) {
-            Text(text = stringResource(R.string.lyric_match_fetching), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EllaLoadingIndicator()
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = stringResource(R.string.lyric_match_fetching), color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            }
         }
     }
 

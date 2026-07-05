@@ -90,6 +90,7 @@ import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixTextField
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.ArtistPickerSheet
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSmallTopAppBar
@@ -148,6 +149,7 @@ fun LibraryScreen(
     val currentSong by playerViewModel.currentSong.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
     val ratingRevision by mainViewModel.ratingRevision.collectAsState()
@@ -644,7 +646,9 @@ fun LibraryScreen(
             )
         }
 
-        if (songs.isEmpty() && !isScanning) {
+        if (songs.isEmpty() && !libraryCacheLoaded && !isScanning) {
+            EllaCenteredLoadingIndicator()
+        } else if (songs.isEmpty() && !isScanning) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

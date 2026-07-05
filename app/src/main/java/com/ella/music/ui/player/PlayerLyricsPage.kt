@@ -104,12 +104,6 @@ internal fun LyricsPlayerPage(
     val activeAgentLabel = remember(lyrics, currentPosition) {
         lyrics.activeTtmlAgentLabel(currentPosition)
     }
-    val headerAnnotation = remember(activeAgentLabel, annotation) {
-        listOfNotNull(
-            activeAgentLabel?.takeIf { it.isNotBlank() },
-            annotation.takeIf { it.isNotBlank() }
-        ).distinct().joinToString(" · ")
-    }
 
     val swipeDismissModifier = if (enableSwipeDismiss) {
         Modifier.pointerInput(onDismissLyrics) {
@@ -165,7 +159,8 @@ internal fun LyricsPlayerPage(
             LyricsPlayerHeader(
                 song = song,
                 embeddedCover = embeddedCover,
-                annotation = headerAnnotation,
+                annotation = annotation,
+                activeSinger = activeAgentLabel,
                 isFavorite = isFavorite,
                 onDismissLyrics = onDismissLyrics,
                 onArtist = onArtist,
@@ -297,5 +292,5 @@ private fun List<LyricLine>.activeTtmlAgentLabel(positionMs: Long): String? {
         .take(3)
         .toList()
     if (names.isEmpty()) return null
-    return "\uD83C\uDFA4 ${names.joinToString("/")}"
+    return names.joinToString("/")
 }

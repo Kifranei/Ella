@@ -86,6 +86,7 @@ import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.DirectionalSortField
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixTextField
@@ -144,6 +145,7 @@ fun MetadataCategoryScreen(
     val context = LocalContext.current
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val songs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val items by produceState(emptyList<MetadataCategoryItem>(), type, songs) {
         value = withContext(Dispatchers.Default) { mainViewModel.getMetadataCategoryItems(type) }
     }
@@ -498,7 +500,9 @@ fun MetadataCategoryScreen(
             }
         }
 
-        if (displayedItems.isEmpty()) {
+        if (songs.isEmpty() && !libraryCacheLoaded) {
+            EllaCenteredLoadingIndicator()
+        } else if (displayedItems.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     text = if (searchQuery.isBlank()) stringResource(R.string.category_empty_hint, type.categoryTitle()) else stringResource(R.string.category_no_match, type.categoryTitle()),

@@ -76,7 +76,7 @@ import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.DoubleTapScrollOverlay
-import com.ella.music.ui.components.EllaLoadingIndicator
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
@@ -455,12 +455,7 @@ fun ArtistScreen(
         // momentarily empty; show a spinner instead of flashing the empty/"not found" content.
         val showLibraryLoading = artistSongs.isEmpty() && !libraryCacheLoaded
         if (showLibraryLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                EllaLoadingIndicator()
-            }
+            EllaCenteredLoadingIndicator()
         } else {
         LazyColumn(
             state = listState,

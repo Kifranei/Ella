@@ -1,10 +1,15 @@
 package com.ella.music.ui.player
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -14,11 +19,15 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -34,7 +43,6 @@ import com.ella.music.R
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.isActive
 import top.yukonga.miuix.kmp.basic.Text
-import androidx.compose.ui.graphics.Color
 
 @Composable
 internal fun LandscapeSongTitle(
@@ -66,6 +74,8 @@ internal fun PlayerSongMetaText(
     modifier: Modifier = Modifier,
     fallbackTitle: String? = null,
     showArtistWithAnnotation: Boolean = false,
+    artistOverride: String? = null,
+    artistIconRes: Int? = null,
     contentColor: Color = Color.White,
     textAlign: TextAlign = TextAlign.Start,
     fontFamily: FontFamily? = null,
@@ -73,6 +83,8 @@ internal fun PlayerSongMetaText(
     onAlbumClick: (() -> Unit)? = null
 ) {
     val artist = song?.artist.orEmpty()
+    val displayArtist = artistOverride?.takeIf { it.isNotBlank() } ?: artist
+    val artistClickEnabled = artistOverride.isNullOrBlank() && artist.isNotBlank()
     fun clickableMetaModifier(enabled: Boolean, onClick: (() -> Unit)?): Modifier {
         return if (enabled && onClick != null) {
             Modifier
@@ -105,18 +117,43 @@ internal fun PlayerSongMetaText(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        if (annotation.isBlank() || showArtistWithAnnotation) {
-            PlayerMarqueeText(
-                text = artist,
-                fontSize = artistFontSize,
-                fontWeight = FontWeight.Bold,
-                color = contentColor.copy(alpha = artistAlpha),
-                textAlign = textAlign,
-                fontFamily = fontFamily,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(clickableMetaModifier(artist.isNotBlank(), onArtistClick))
-            )
+        if (displayArtist.isNotBlank() && (annotation.isBlank() || showArtistWithAnnotation)) {
+            val artistModifier = Modifier
+                .fillMaxWidth()
+                .then(clickableMetaModifier(artistClickEnabled, onArtistClick))
+            if (artistIconRes != null) {
+                Row(
+                    modifier = artistModifier,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Image(
+                        painter = painterResource(artistIconRes),
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(contentColor.copy(alpha = artistAlpha)),
+                        modifier = Modifier.size(artistFontSize.value.dp)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    PlayerMarqueeText(
+                        text = displayArtist,
+                        fontSize = artistFontSize,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor.copy(alpha = artistAlpha),
+                        textAlign = textAlign,
+                        fontFamily = fontFamily,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+                PlayerMarqueeText(
+                    text = displayArtist,
+                    fontSize = artistFontSize,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor.copy(alpha = artistAlpha),
+                    textAlign = textAlign,
+                    fontFamily = fontFamily,
+                    modifier = artistModifier
+                )
+            }
         }
     }
 }

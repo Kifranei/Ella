@@ -41,6 +41,7 @@ import com.ella.music.data.SongPlaybackStats
 import com.ella.music.data.model.Song
 import com.ella.music.ui.components.CoverLoadLimiter
 import com.ella.music.ui.components.DefaultAlbumCover
+import com.ella.music.ui.components.EllaLoadingIndicator
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -99,10 +100,14 @@ internal fun DonutChartCard(
             )
             Spacer(modifier = Modifier.height(12.dp))
             when {
-                buckets == null -> Text(
-                    text = loadingText,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
+                buckets == null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    EllaLoadingIndicator()
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = loadingText,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
                 total == 0 -> Text(
                     text = stringResource(R.string.analytics_no_songs),
                     color = MiuixTheme.colorScheme.onSurfaceVariantSummary

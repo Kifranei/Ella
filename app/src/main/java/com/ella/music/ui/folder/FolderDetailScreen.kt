@@ -69,6 +69,7 @@ import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.AddToPlaylistSheet
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.EllaSearchBar
+import com.ella.music.ui.components.EllaCenteredLoadingIndicator
 import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.EllaMiuixSheetActions
 import com.ella.music.ui.components.EllaMiuixTextField
@@ -122,6 +123,7 @@ fun FolderDetailScreen(
 ) {
     val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val playlists by mainViewModel.playlists.collectAsState()
     val currentSong by playerViewModel.currentSong.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
@@ -522,7 +524,9 @@ fun FolderDetailScreen(
             )
         }
 
-        if (childFolders.isEmpty() && sortedSongs.isEmpty()) {
+        if (songs.isEmpty() && !libraryCacheLoaded) {
+            EllaCenteredLoadingIndicator()
+        } else if (childFolders.isEmpty() && sortedSongs.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center

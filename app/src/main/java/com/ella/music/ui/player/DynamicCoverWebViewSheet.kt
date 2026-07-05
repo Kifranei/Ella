@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ella.music.R
 import com.ella.music.data.model.Song
+import com.ella.music.ui.components.EllaLoadingIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -202,10 +201,8 @@ private fun DynamicCoverWebViewContent(
             )
 
             if (isLoading) {
-                BasicText(
-                    text = "…",
+                EllaLoadingIndicator(
                     modifier = Modifier
-                        .wrapContentSize()
                         .align(Alignment.Center)
                 )
             }
