@@ -196,7 +196,7 @@
     <string name="settings_appearance_home_summary">主题、语言、液态玻璃、自定义图片和首页布局</string>
     <string name="settings_library_scan">音乐库与扫描</string>
     <string name="settings_library_scan_summary">扫描来源、文件夹、分隔符、标签刮削和桌面快捷方式</string>
-    <string name="settings_library_source_summary">歌曲、歌手、专辑、流派、年份等库内容来自本地，还是 Navidrome / Emby 服务器（可缓存到本地，用刷新按钮更新缓存）</string>
+    <string name="settings_library_source_summary">歌曲、歌手、专辑、流派、年份等库内容来自本地，还是 Navidrome / Emby / WebDAV（可缓存到本地，用刷新按钮更新缓存）</string>
     <string name="settings_library_source_local">本地</string>
     <string name="settings_integrations">AI 与集成</string>
     <string name="settings_integrations_summary">Ella 助手、OpenAI 兼容接口和 MCP 服务器</string>

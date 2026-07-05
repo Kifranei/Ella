@@ -175,7 +175,7 @@
     <string name="settings_appearance_home_summary">主題、語言、液態玻璃、自訂圖片和首頁版面</string>
     <string name="settings_library_scan">音樂庫與掃描</string>
     <string name="settings_library_scan_summary">掃描來源、資料夾、分隔符號、標籤擷取與桌面捷徑</string>
-    <string name="settings_library_source_summary">歌曲、歌手、專輯、曲風、年份等媒體庫內容來自本機，還是 Navidrome / Emby 伺服器（可快取到本機，並以重新整理按鈕更新快取）</string>
+    <string name="settings_library_source_summary">歌曲、歌手、專輯、曲風、年份等媒體庫內容來自本機，還是 Navidrome / Emby / WebDAV（可快取到本機，並以重新整理按鈕更新快取）</string>
     <string name="settings_library_source_local">本機</string>
     <string name="settings_integrations">AI 與整合服務</string>
     <string name="settings_integrations_summary">Ella 助理、OpenAI 相容端點與 MCP 伺服器</string>

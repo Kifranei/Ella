@@ -196,7 +196,7 @@
     <string name="settings_appearance_home_summary">Theme, language, liquid glass, custom images, and home layout</string>
     <string name="settings_library_scan">Library and scanning</string>
     <string name="settings_library_scan_summary">Scan sources, folders, separators, tag scraping, and desktop shortcuts</string>
-    <string name="settings_library_source_summary">Whether library content such as songs, artists, albums, genres, and years comes from local storage or a Navidrome / Emby server (cached locally, refresh with the refresh button)</string>
+    <string name="settings_library_source_summary">Whether library content such as songs, artists, albums, genres, and years comes from local storage or Navidrome / Emby / WebDAV (cached locally, refresh with the refresh button)</string>
     <string name="settings_library_source_local">Local</string>
     <string name="settings_integrations">AI and integrations</string>
     <string name="settings_integrations_summary">Ella assistant, OpenAI-compatible endpoints, and MCP server</string>

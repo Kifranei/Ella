@@ -355,14 +355,16 @@ class SettingsManager(private val context: Context) {
         const val PLAYER_FLOW_EFFECT_DARK = 0
         const val APP_LANGUAGE_SYSTEM = "system"
         // Music-library source: the whole library (songs/artists/albums/genres/years) is served from
-        // local storage, or streamed from a configured Navidrome / Emby server.
+        // local storage, or streamed from a configured Navidrome / Emby / WebDAV server.
         const val LIBRARY_SOURCE_LOCAL = "local"
         const val LIBRARY_SOURCE_NAVIDROME = "navidrome"
         const val LIBRARY_SOURCE_EMBY = "emby"
+        const val LIBRARY_SOURCE_WEBDAV = "webdav"
 
         fun normalizeLibrarySource(source: String): String = when (source) {
             LIBRARY_SOURCE_NAVIDROME -> LIBRARY_SOURCE_NAVIDROME
             LIBRARY_SOURCE_EMBY -> LIBRARY_SOURCE_EMBY
+            LIBRARY_SOURCE_WEBDAV -> LIBRARY_SOURCE_WEBDAV
             else -> LIBRARY_SOURCE_LOCAL
         }
 

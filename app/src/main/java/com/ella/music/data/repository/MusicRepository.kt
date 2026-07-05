@@ -522,8 +522,9 @@ class MusicRepository(private val context: Context) {
         File(context.filesDir, "remote_library_$source.json")
 
     /**
-     * Load the whole library from a remote source (Navidrome / Emby) into [_songs] / [_albums] so all
-     * the local library views (artist / album / genre / year …) work against streamed songs.
+     * Load the whole library from a remote source (Navidrome / Emby / WebDAV) into [_songs] /
+     * [_albums] so all the local library views (artist / album / genre / year …) work against
+     * streamed songs.
      *
      * With [forceRefresh] = false a cached snapshot is loaded instantly (and only fetched over the
      * network when there is no cache); the library refresh button passes true to re-fetch. The
@@ -545,24 +546,30 @@ class MusicRepository(private val context: Context) {
             return@withContext MusicScanSummary(total = _songs.value.size)
         }
 
-        val config = when (source) {
-            SettingsManager.LIBRARY_SOURCE_NAVIDROME -> settingsManager.navidromeConfig.first()
-            SettingsManager.LIBRARY_SOURCE_EMBY -> settingsManager.embyConfig.first()
-            else -> return@withContext MusicScanSummary(total = _songs.value.size)
-        }
-        if (!config.isConfigured) {
-            // Not configured yet — fall back to any cache, otherwise leave the library empty.
-            if (!applyCache()) clearInMemoryLibrary()
-            return@withContext MusicScanSummary(total = _songs.value.size)
-        }
-
         val remoteSongs = runCatching {
             when (source) {
-                SettingsManager.LIBRARY_SOURCE_NAVIDROME -> NavidromeService(context).listSongs(config)
-                else -> EmbyService(context).listSongs(config)
-            }.map { it.song }
+                SettingsManager.LIBRARY_SOURCE_NAVIDROME -> {
+                    val config = settingsManager.navidromeConfig.first()
+                    if (!config.isConfigured) return@runCatching null
+                    NavidromeService(context).listSongs(config).map { it.song }
+                }
+                SettingsManager.LIBRARY_SOURCE_EMBY -> {
+                    val config = settingsManager.embyConfig.first()
+                    if (!config.isConfigured) return@runCatching null
+                    EmbyService(context).listSongs(config).map { it.song }
+                }
+                SettingsManager.LIBRARY_SOURCE_WEBDAV -> {
+                    val config = loadWebDavConfig(settingsManager) ?: return@runCatching null
+                    listWebDavLibrarySongs(config, forceRefresh = forceRefresh)
+                }
+                else -> return@withContext MusicScanSummary(total = _songs.value.size)
+            }
         }.getOrElse { error ->
             Log.w("MusicRepo", "Failed to load remote library ($source)", error)
+            if (!applyCache()) clearInMemoryLibrary()
+            return@withContext MusicScanSummary(total = _songs.value.size)
+        } ?: run {
+            // Not configured yet — fall back to any cache, otherwise leave the library empty.
             if (!applyCache()) clearInMemoryLibrary()
             return@withContext MusicScanSummary(total = _songs.value.size)
         }
@@ -571,6 +578,61 @@ class MusicRepository(private val context: Context) {
         _albums.value = remoteSongs.toAlbums()
         saveLibraryCacheTo(cacheFile, remoteSongs, _albums.value)
         MusicScanSummary(total = remoteSongs.size, added = remoteSongs.size)
+    }
+
+    private fun listWebDavLibrarySongs(config: WebDavConfig, forceRefresh: Boolean): List<Song> {
+        if (forceRefresh) WebDavClient.clearListCache()
+        val root = config.url.trim()
+        val pending = ArrayDeque<String>().apply { add(root) }
+        val visited = LinkedHashSet<String>()
+        val songs = ArrayList<Song>()
+
+        while (pending.isNotEmpty()) {
+            val currentUrl = pending.removeFirst()
+            val visitKey = WebDavClient.normalizeFileUrl(currentUrl).trimEnd('/')
+            if (!visited.add(visitKey)) continue
+            val items = WebDavClient.list(config, currentUrl, forceRefresh = forceRefresh)
+            items.forEach { item ->
+                if (item.isDirectory) {
+                    pending.add(item.url)
+                } else if (WebDavClient.isAudioFile(item.name)) {
+                    songs += item.toWebDavLibrarySong().withRepositoryTags(allowFullDownload = false)
+                }
+            }
+        }
+        return songs
+    }
+
+    private fun com.ella.music.data.webdav.WebDavItem.toWebDavLibrarySong(): Song {
+        val playbackUrl = WebDavClient.normalizeFileUrl(url)
+        val fileName = name.ifBlank { playbackUrl.substringBefore('?').substringBefore('#').substringAfterLast('/') }
+        val title = fileName.substringBeforeLast('.', fileName).ifBlank { fileName }
+        val parentAlbum = runCatching {
+            java.net.URI(playbackUrl).path
+                .trimEnd('/')
+                .substringBeforeLast('/', "")
+                .substringAfterLast('/')
+                .ifBlank { "WebDAV" }
+        }.getOrDefault("WebDAV")
+        return Song(
+            id = stableRemoteSongId("webdav:$playbackUrl"),
+            title = title,
+            artist = "",
+            album = parentAlbum,
+            albumId = 0L,
+            duration = 0L,
+            path = playbackUrl,
+            fileName = fileName,
+            fileSize = size,
+            mimeType = mimeType.substringBefore(';').trim().lowercase(),
+            dateAdded = System.currentTimeMillis(),
+            dateModified = 0L
+        )
+    }
+
+    private fun stableRemoteSongId(key: String): Long {
+        val value = key.hashCode().toLong()
+        return if (value == Long.MIN_VALUE) 1L else kotlin.math.abs(value).takeIf { it != 0L } ?: 1L
     }
 
     private fun saveLibraryCacheTo(file: File, songs: List<Song>, albums: List<Album>) {

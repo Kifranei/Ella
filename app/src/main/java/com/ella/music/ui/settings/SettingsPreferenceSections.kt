@@ -78,7 +78,8 @@ internal fun SettingsLibrarySourceSection(
     val librarySourceOptions = listOf(
         SettingsManager.LIBRARY_SOURCE_LOCAL to stringResource(R.string.settings_library_source_local),
         SettingsManager.LIBRARY_SOURCE_NAVIDROME to stringResource(R.string.remote_source_navidrome),
-        SettingsManager.LIBRARY_SOURCE_EMBY to stringResource(R.string.remote_source_emby)
+        SettingsManager.LIBRARY_SOURCE_EMBY to stringResource(R.string.remote_source_emby),
+        SettingsManager.LIBRARY_SOURCE_WEBDAV to stringResource(R.string.webdav_library_title)
     )
     val librarySourceEntries = librarySourceOptions.map { DropdownItem(title = it.second) }
     val selectedLibrarySourceIndex = librarySourceOptions
