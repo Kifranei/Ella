@@ -254,6 +254,10 @@ internal fun SettingsAppearanceSection(
         onImagePersisted = settingsManager::setHiResLogoUri
     )
     val dynamicCoverPermissionLauncher = rememberDynamicCoverPermissionLauncher(settingsManager)
+    val dynamicCoverFolderPicker = rememberDynamicCoverFolderPicker(
+        currentFolders = dynamicCoverCustomFolders,
+        settingsManager = settingsManager
+    )
 
     SmallTitle(text = stringResource(R.string.settings_appearance))
 
@@ -560,14 +564,27 @@ internal fun SettingsAppearanceSection(
                     setDynamicCoverEnabled(context, scope, settingsManager, dynamicCoverPermissionLauncher, it)
                 }
             )
-            SplitSettingTextField(
-                label = stringResource(R.string.settings_dynamic_cover_custom_folders),
-                value = dynamicCoverCustomFolders,
-                summary = stringResource(R.string.settings_dynamic_cover_custom_folders_summary),
-                onValueChange = { value ->
-                    scope.launch { settingsManager.setDynamicCoverCustomFolders(value) }
-                }
+            ArrowPreference(
+                title = stringResource(R.string.settings_dynamic_cover_custom_folders),
+                summary = if (dynamicCoverCustomFolders.isBlank()) {
+                    stringResource(R.string.settings_dynamic_cover_custom_folders_summary)
+                } else {
+                    stringResource(
+                        R.string.settings_dynamic_cover_custom_folders_selected,
+                        dynamicCoverCustomFolders.lineSequence().filter { it.isNotBlank() }.count()
+                    )
+                },
+                onClick = { dynamicCoverFolderPicker.launch(null) }
             )
+            if (dynamicCoverCustomFolders.isNotBlank()) {
+                ArrowPreference(
+                    title = stringResource(R.string.settings_dynamic_cover_custom_folders_remove),
+                    summary = stringResource(R.string.settings_dynamic_cover_custom_folders_remove_summary),
+                    onClick = {
+                        scope.launch { settingsManager.setDynamicCoverCustomFolders("") }
+                    }
+                )
+            }
             SwitchPreference(
                 title = stringResource(R.string.settings_hi_res_logo),
                 summary = stringResource(R.string.settings_hi_res_logo_summary),

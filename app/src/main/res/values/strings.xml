@@ -944,7 +944,11 @@
     <string name="settings_dynamic_cover_permission_grant">请在系统设置中授予视频权限后再开启动态封面</string>
     <string name="settings_dynamic_cover_permission_denied">未授予视频权限，动态封面已关闭</string>
     <string name="settings_dynamic_cover_custom_folders">自定义动态封面文件夹</string>
-    <string name="settings_dynamic_cover_custom_folders_summary">每行一个根目录；兼容 Song/、Album/ 或根目录平铺的 mp4 封面结构</string>
+    <string name="settings_dynamic_cover_custom_folders_summary">选择一个或多个文件夹；兼容 Song/、Album/ 或根目录平铺的 mp4 封面结构</string>
+    <string name="settings_dynamic_cover_custom_folders_selected">已选择 %1$d 个动态封面文件夹</string>
+    <string name="settings_dynamic_cover_custom_folders_remove">清除动态封面文件夹</string>
+    <string name="settings_dynamic_cover_custom_folders_remove_summary">移除已选择的自定义动态封面文件夹</string>
+    <string name="settings_dynamic_cover_folder_saved">已添加动态封面文件夹</string>
     <string name="settings_startup_poster">开屏海报</string>
     <string name="settings_startup_poster_summary">开启并选择图片后，每次打开 Halcyon 时显示约 3 秒</string>
     <string name="settings_startup_poster_image">选择开屏海报图片</string>

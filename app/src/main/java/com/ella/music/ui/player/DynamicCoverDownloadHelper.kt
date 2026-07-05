@@ -1,14 +1,17 @@
 package com.ella.music.ui.player
 
 import android.content.Context
+import android.net.Uri
 import android.os.Environment
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
 import kotlinx.coroutines.flow.first
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.InputStream
 
 /**
  * Downloads a dynamic cover video to the appropriate directory.
@@ -27,9 +30,7 @@ internal class DynamicCoverDownloadHelper(
 
     suspend fun downloadVideo(videoUrl: String) {
         val fileName = determineFileName()
-        val targetFile = determineTargetFile(fileName)
-
-        targetFile.parentFile?.mkdirs()
+        val target = determineTarget(fileName)
 
         val request = Request.Builder()
             .url(videoUrl)
@@ -41,13 +42,10 @@ internal class DynamicCoverDownloadHelper(
         }
 
         response.body?.byteStream()?.use { input ->
-            targetFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
+            target.write(input)
         } ?: throw Exception("Empty response body")
 
-        // Scan the file into MediaStore so it's discoverable
-        scanFileIntoMediaStore(targetFile)
+        target.scan()
     }
 
     private fun determineFileName(): String {
@@ -55,7 +53,7 @@ internal class DynamicCoverDownloadHelper(
         return "${albumName.toSafeFileName()}.mp4"
     }
 
-    private suspend fun determineTargetFile(fileName: String): File {
+    private suspend fun determineTarget(fileName: String): DynamicCoverDownloadTarget {
         // Try song's parent folder first
         val songFile = song.path
             .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
@@ -70,15 +68,20 @@ internal class DynamicCoverDownloadHelper(
                     candidate.createNewFile()
                     candidate.delete()
                 }
-                return File(songFolder, fileName)
+                return DynamicCoverDownloadTarget.FileTarget(context, File(songFolder, fileName))
             }
         }
 
         settingsManager.dynamicCoverCustomFolders.first()
             .asSequence()
-            .map(::File)
+            .map(String::trim)
+            .filter(String::isNotBlank)
             .mapNotNull { root ->
-                resolveCustomRootTargetFile(root, fileName)
+                if (root.startsWith("content://", ignoreCase = true)) {
+                    resolveCustomRootTargetDocument(root, fileName)
+                } else {
+                    resolveCustomRootTargetFile(File(root), fileName)
+                }
             }
             .firstOrNull()
             ?.let { return it }
@@ -88,10 +91,10 @@ internal class DynamicCoverDownloadHelper(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
             "Halcyon/DynamicCovers/Album"
         )
-        return File(publicDir, fileName)
+        return DynamicCoverDownloadTarget.FileTarget(context, File(publicDir, fileName))
     }
 
-    private fun resolveCustomRootTargetFile(root: File, fileName: String): File? {
+    private fun resolveCustomRootTargetFile(root: File, fileName: String): DynamicCoverDownloadTarget? {
         val baseRoot = runCatching {
             if (root.exists()) {
                 root.takeIf { it.isDirectory }
@@ -112,25 +115,77 @@ internal class DynamicCoverDownloadHelper(
             if (!albumFolder.exists()) {
                 albumFolder.mkdirs()
             }
-            File(albumFolder, fileName)
+            DynamicCoverDownloadTarget.FileTarget(context, File(albumFolder, fileName))
         }.getOrNull()
     }
 
-    private fun scanFileIntoMediaStore(file: File) {
-        try {
-            android.media.MediaScannerConnection.scanFile(
-                context,
-                arrayOf(file.absolutePath),
-                arrayOf("video/mp4"),
-                null
-            )
-        } catch (e: Exception) {
-            Log.d("DynamicCoverDownload", "MediaStore scan failed", e)
+    private fun resolveCustomRootTargetDocument(rootUri: String, fileName: String): DynamicCoverDownloadTarget? {
+        val root = runCatching {
+            DocumentFile.fromTreeUri(context, Uri.parse(rootUri))
+        }.getOrNull() ?: return null
+        if (!root.canWrite()) return null
+
+        val albumFolder = when {
+            root.name.equals("album", ignoreCase = true) -> root
+            else -> root.findChildDirectoryIgnoreCase("Album")
+                ?: root.findChildDirectoryIgnoreCase("album")
+                ?: root.createDirectory("Album")
+                ?: root
         }
+        if (!albumFolder.canWrite()) return null
+
+        val target = albumFolder.findFile(fileName)
+            ?: albumFolder.createFile("video/mp4", fileName)
+            ?: return null
+        return DynamicCoverDownloadTarget.DocumentTarget(context, target)
     }
 
     private fun String.toSafeFileName(): String = trim()
         .replace(Regex("""[:*?"<>|]"""), "_")
         .replace(Regex("""\s+"""), " ")
         .ifBlank { "Unknown" }
+
+    private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
+        listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
+
+    private sealed interface DynamicCoverDownloadTarget {
+        fun write(input: InputStream)
+        fun scan()
+
+        class FileTarget(
+            private val context: Context,
+            private val file: File
+        ) : DynamicCoverDownloadTarget {
+            override fun write(input: InputStream) {
+                file.parentFile?.mkdirs()
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+
+            override fun scan() {
+                try {
+                    android.media.MediaScannerConnection.scanFile(
+                        context,
+                        arrayOf(file.absolutePath),
+                        arrayOf("video/mp4"),
+                        null
+                    )
+                } catch (e: Exception) {
+                    Log.d("DynamicCoverDownload", "MediaStore scan failed", e)
+                }
+            }
+        }
+
+        class DocumentTarget(
+            private val context: Context,
+            private val file: DocumentFile
+        ) : DynamicCoverDownloadTarget {
+            override fun write(input: InputStream) {
+                context.contentResolver.openOutputStream(file.uri, "wt")?.use { output ->
+                    input.copyTo(output)
+                } ?: throw IllegalStateException("Cannot open dynamic cover output stream: ${file.uri}")
+            }
+
+            override fun scan() = Unit
+        }
+    }
 }

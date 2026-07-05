@@ -10,6 +10,7 @@ import android.os.Environment
 import android.util.Log
 import android.view.View
 import android.view.ViewOutlineProvider
+import androidx.documentfile.provider.DocumentFile
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -137,6 +138,10 @@ internal fun Song.dynamicCoverSource(
         )?.let { file ->
             return DynamicCoverSource(uri = Uri.fromFile(file), failureKey = file.absolutePath)
         }
+        dynamicCoverDocumentSource(
+            context = context,
+            customRootPaths = customRootPaths
+        )?.let { return it }
     }
     legacyEmbeddedAnimatedImageSource(context)?.let { return it }
     return embeddedDynamicVideoSource(context)
@@ -372,6 +377,7 @@ internal fun dynamicCoverRootDirectories(
     val customRoots = customRootPaths
         .map { it.trim() }
         .filter { it.isNotBlank() }
+        .filterNot { it.startsWith("content://", ignoreCase = true) }
         .map(::File)
 
     val publicMovieDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
@@ -394,6 +400,93 @@ internal fun dynamicCoverRootDirectories(
         .map { it.absoluteFile }
         .distinctBy { it.path.lowercase() }
 }
+
+private fun Song.dynamicCoverDocumentSource(
+    context: Context,
+    customRootPaths: List<String>
+): DynamicCoverSource? {
+    val albumName = album.ifBlank { "Unknown" }
+    val artistAlbumKey = listOf(artist, albumName)
+        .filter { it.isNotBlank() }
+        .joinToString(" - ")
+        .toSafeDynamicCoverName()
+    val artistSongName = listOf(artist, title)
+        .filter { it.isNotBlank() }
+        .joinToString(" - ")
+    val artistSongCompactName = listOf(artist, title)
+        .filter { it.isNotBlank() }
+        .joinToString("-")
+    val songNameCandidates = listOf(
+        File(path).nameWithoutExtension,
+        title,
+        artistSongCompactName,
+        artistSongName
+    )
+        .filter { it.isNotBlank() }
+        .distinct()
+    val safeSongNameCandidates = songNameCandidates
+        .map { it.toSafeDynamicCoverName() }
+        .filter { it.isNotBlank() }
+        .distinct()
+    val albumNameCandidates = listOf(
+        albumName,
+        albumName.toSafeDynamicCoverName(),
+        listOf(artist, albumName).filter { it.isNotBlank() }.joinToString(" - "),
+        artistAlbumKey
+    )
+        .filter { it.isNotBlank() }
+        .distinct()
+    val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
+    val fuzzySongTokens = songCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+    val fuzzyAlbumTokens = albumNameCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+
+    return customRootPaths
+        .asSequence()
+        .map(String::trim)
+        .filter { it.startsWith("content://", ignoreCase = true) }
+        .mapNotNull { rawUri ->
+            val root = runCatching {
+                DocumentFile.fromTreeUri(context, Uri.parse(rawUri))
+            }.getOrNull() ?: return@mapNotNull null
+
+            val searchRoots = listOfNotNull(
+                root,
+                root.findChildDirectoryIgnoreCase("Song"),
+                root.findChildDirectoryIgnoreCase("Album")
+            )
+
+            searchRoots.firstNotNullOfOrNull { directory ->
+                val exactNames = buildList {
+                    add("cover.mp4")
+                    addAll(songCandidates.map { "$it.mp4" })
+                    addAll(albumNameCandidates.map { "$it.mp4" })
+                }
+                exactNames.firstNotNullOfOrNull { name ->
+                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(rawUri)
+                } ?: directory.listFiles().firstOrNull { file ->
+                    file.isFile &&
+                        file.length() > 0L &&
+                        file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
+                        file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
+                            token in fuzzySongTokens || token in fuzzyAlbumTokens
+                        }
+                }?.toDynamicCoverSource(rawUri)
+            }
+        }
+        .firstOrNull()
+}
+
+private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =
+    listFiles().firstOrNull { it.isDirectory && it.name.equals(name, ignoreCase = true) }
+
+private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
+    listFiles().firstOrNull { it.isFile && it.length() > 0L && it.name.equals(name, ignoreCase = true) }
+
+private fun DocumentFile.toDynamicCoverSource(rootUri: String): DynamicCoverSource =
+    DynamicCoverSource(
+        uri = uri,
+        failureKey = "tree:$rootUri:${uri}:${length()}"
+    )
 
 private fun String.toSafeDynamicCoverName(): String {
     return trim()

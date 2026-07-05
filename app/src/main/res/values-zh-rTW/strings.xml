@@ -1635,7 +1635,11 @@
     <string name="common_export">匯出</string>
     <string name="common_import">匯入</string>
     <string name="settings_dynamic_cover_custom_folders">自訂動態封面資料夾</string>
-    <string name="settings_dynamic_cover_custom_folders_summary">每行一個根目錄；相容 Song/、Album/ 或根目錄平鋪的 mp4 封面結構</string>
+    <string name="settings_dynamic_cover_custom_folders_summary">選擇一個或多個資料夾；相容 Song/、Album/ 或根目錄平鋪的 mp4 封面結構</string>
+    <string name="settings_dynamic_cover_custom_folders_selected">已選擇 %1$d 個動態封面資料夾</string>
+    <string name="settings_dynamic_cover_custom_folders_remove">清除動態封面資料夾</string>
+    <string name="settings_dynamic_cover_custom_folders_remove_summary">移除已選擇的自訂動態封面資料夾</string>
+    <string name="settings_dynamic_cover_folder_saved">已新增動態封面資料夾</string>
     <string name="settings_beautiful_lyrics_background_static">Apple Music 動態背景</string>
     <string name="settings_beautiful_lyrics_background_dynamic">Beautiful Lyrics 動態背景</string>
     <string name="settings_player_title_position">非沉浸播放頁標題位置</string>
