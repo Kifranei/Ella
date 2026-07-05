@@ -603,6 +603,7 @@
     <string name="settings_startup_play">啟動後自動播放</string>
     <string name="settings_bluetooth_auto_play">藍牙連線後自動播放</string>
     <string name="settings_bluetooth_auto_play_summary">藍牙音訊裝置連線後自動開始播放</string>
+    <string name="settings_bluetooth_auto_play_permission_denied">尚未授予附近裝置權限，藍牙自動播放已關閉</string>
     <string name="settings_mini_player_right_button">迷你播放列右側按鈕</string>
     <string name="settings_mini_player_right_next">下一首</string>
     <string name="settings_mini_player_right_queue">播放佇列</string>

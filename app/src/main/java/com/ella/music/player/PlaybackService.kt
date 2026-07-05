@@ -3,6 +3,7 @@ package com.ella.music.player
 import android.app.PendingIntent
 import android.app.NotificationManager
 import android.os.Build
+import android.os.SystemClock
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -133,6 +134,8 @@ class PlaybackService : MediaLibraryService() {
     private lateinit var musicRepository: MusicRepository
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var bluetoothReceiver: BluetoothAutoPlayReceiver? = null
+    private var bluetoothReceiverRegistered = false
+    private var lastBluetoothAutoPlayAttemptMs = 0L
     private var openedAudioEffectSessionId = -1
     private val audioEffectController = AudioEffectController()
     private lateinit var equalizerAudioProcessor: EqualizerAudioProcessor
@@ -177,6 +180,9 @@ class PlaybackService : MediaLibraryService() {
         oplusLyricHandler.colorOsLockScreenLyricMode = runBlocking(Dispatchers.IO) {
             settingsManager.colorOsLockScreenLyricMode.first()
         }
+        bluetoothAutoPlayEnabled = runBlocking(Dispatchers.IO) {
+            settingsManager.bluetoothAutoPlay.first()
+        }
         val httpDataSourceFactory = OkHttpDataSource.Factory(
             WebDavClient.newAuthenticatedOkHttpClient { webDavConfig }
         )
@@ -189,8 +195,18 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         serviceScope.launch {
+            var initialized = false
             settingsManager.bluetoothAutoPlay.collect { enabled ->
+                val wasEnabled = bluetoothAutoPlayEnabled
                 bluetoothAutoPlayEnabled = enabled
+                if (!initialized) {
+                    initialized = true
+                    return@collect
+                }
+                if (enabled && !wasEnabled) {
+                    ensureBluetoothAutoPlayReceiverRegistered()
+                    scheduleBluetoothAutoPlayIfConnected("setting enabled")
+                }
             }
         }
         serviceScope.launch {
@@ -393,17 +409,10 @@ class PlaybackService : MediaLibraryService() {
         bluetoothReceiver = BluetoothAutoPlayReceiver(
             isAutoPlayEnabled = { bluetoothAutoPlayEnabled }
         ) {
-            val player = mediaSession?.player ?: return@BluetoothAutoPlayReceiver
-            if (player.mediaItemCount > 0 && !player.isPlaying && player.playWhenReady) {
-                player.play()
-            } else if (player.mediaItemCount > 0 && !player.isPlaying) {
-                player.play()
-            }
-            bluetoothConnectEvent.tryEmit(Unit)
+            scheduleBluetoothAutoPlayIfConnected("bluetooth broadcast")
         }
-        if (BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(this)) {
-            registerReceiver(bluetoothReceiver, BluetoothAutoPlayReceiver.createIntentFilter())
-        }
+        ensureBluetoothAutoPlayReceiverRegistered()
+        scheduleBluetoothAutoPlayIfConnected("service started")
 
         Log.i(TAG, "PlaybackService created")
         AppLogStore.info(this, TAG, "PlaybackService created")
@@ -424,6 +433,7 @@ class PlaybackService : MediaLibraryService() {
         bluetoothReceiver?.let {
             runCatching { unregisterReceiver(it) }
             bluetoothReceiver = null
+            bluetoothReceiverRegistered = false
         }
         audioEffectController.release()
         AudioEffectState.publish(null)
@@ -441,6 +451,57 @@ class PlaybackService : MediaLibraryService() {
 
     fun launchServiceJob(block: suspend () -> Unit) {
         serviceScope.launch { block() }
+    }
+
+    private fun ensureBluetoothAutoPlayReceiverRegistered() {
+        if (bluetoothReceiverRegistered) return
+        val receiver = bluetoothReceiver ?: return
+        if (!BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(this)) {
+            Log.w(TAG, "Bluetooth auto-play receiver not registered: missing BLUETOOTH_CONNECT")
+            AppLogStore.warn(this, "BtAutoPlay", "Missing BLUETOOTH_CONNECT; Bluetooth auto-play cannot listen for connections")
+            return
+        }
+        runCatching {
+            registerReceiver(receiver, BluetoothAutoPlayReceiver.createIntentFilter())
+            bluetoothReceiverRegistered = true
+            AppLogStore.info(this, "BtAutoPlay", "Bluetooth auto-play receiver registered")
+        }.onFailure { error ->
+            Log.w(TAG, "Bluetooth auto-play receiver registration failed", error)
+            AppLogStore.warn(this, "BtAutoPlay", "Bluetooth auto-play receiver registration failed: ${error.message.orEmpty()}")
+        }
+    }
+
+    private fun scheduleBluetoothAutoPlayIfConnected(reason: String) {
+        if (!bluetoothAutoPlayEnabled) return
+        serviceScope.launch {
+            if (!BluetoothAutoPlayReceiver.isBluetoothAudioConnected(this@PlaybackService)) {
+                delay(700)
+            }
+            triggerBluetoothAutoPlayIfConnected(reason)
+        }
+    }
+
+    private fun triggerBluetoothAutoPlayIfConnected(reason: String) {
+        if (!bluetoothAutoPlayEnabled) return
+        if (!BluetoothAutoPlayReceiver.isBluetoothAudioConnected(this)) {
+            AppLogStore.info(this, "BtAutoPlay", "Ignored $reason: no active Bluetooth output route")
+            return
+        }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBluetoothAutoPlayAttemptMs < 1_500L) {
+            AppLogStore.info(this, "BtAutoPlay", "Ignored duplicate Bluetooth auto-play event from $reason")
+            return
+        }
+        lastBluetoothAutoPlayAttemptMs = now
+
+        val player = mediaSession?.player
+        if (player != null && player.mediaItemCount > 0 && !player.isPlaying) {
+            player.play()
+            AppLogStore.info(this, "BtAutoPlay", "Started playback from $reason")
+        } else {
+            AppLogStore.info(this, "BtAutoPlay", "Emitting queue restore event from $reason")
+        }
+        bluetoothConnectEvent.tryEmit(Unit)
     }
 
     private fun openAudioEffectSession(audioSessionId: Int) {

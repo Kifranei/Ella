@@ -1,5 +1,10 @@
 package com.ella.music.ui.settings
 
+import android.Manifest
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.player.BluetoothAutoPlayReceiver
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
@@ -50,6 +56,18 @@ fun AudioSettingsScreen(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val bluetoothAutoPlayPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        scope.launch { settingsManager.setBluetoothAutoPlay(granted) }
+        if (!granted) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_bluetooth_auto_play_permission_denied),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     val gaplessPlayback by settingsManager.gaplessPlayback.collectAsState(initial = true)
     val replayGainMode by settingsManager.replayGainMode.collectAsState(initial = SettingsManager.REPLAY_GAIN_OFF)
@@ -387,7 +405,16 @@ fun AudioSettingsScreen(
                         summary = stringResource(R.string.settings_bluetooth_auto_play_summary),
                         checked = bluetoothAutoPlay,
                         onCheckedChange = {
-                            scope.launch { settingsManager.setBluetoothAutoPlay(it) }
+                            if (!it) {
+                                scope.launch { settingsManager.setBluetoothAutoPlay(false) }
+                            } else if (
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                                !BluetoothAutoPlayReceiver.hasBluetoothConnectPermission(context)
+                            ) {
+                                bluetoothAutoPlayPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                            } else {
+                                scope.launch { settingsManager.setBluetoothAutoPlay(true) }
+                            }
                         }
                     )
                     WindowSpinnerPreference(

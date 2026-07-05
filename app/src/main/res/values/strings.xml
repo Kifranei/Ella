@@ -723,6 +723,7 @@
     <string name="settings_startup_play">启动后自动播放</string>
     <string name="settings_bluetooth_auto_play">蓝牙连接自动播放</string>
     <string name="settings_bluetooth_auto_play_summary">蓝牙音频设备连接后自动开始播放</string>
+    <string name="settings_bluetooth_auto_play_permission_denied">未授予附近设备权限，蓝牙自动播放已关闭</string>
     <string name="settings_mini_player_right_button">迷你播放条右侧按钮</string>
     <string name="settings_mini_player_right_next">下一曲</string>
     <string name="settings_mini_player_right_queue">播放列表</string>

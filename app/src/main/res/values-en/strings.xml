@@ -658,6 +658,7 @@
     <string name="settings_startup_play">Autoplay on launch</string>
     <string name="settings_bluetooth_auto_play">Bluetooth auto-play</string>
     <string name="settings_bluetooth_auto_play_summary">Automatically start playback when a Bluetooth audio device connects</string>
+    <string name="settings_bluetooth_auto_play_permission_denied">Nearby devices permission was not granted, Bluetooth auto-play was disabled</string>
     <string name="settings_mini_player_right_button">Mini player right button</string>
     <string name="settings_mini_player_right_next">Next track</string>
     <string name="settings_mini_player_right_queue">Playlist</string>
