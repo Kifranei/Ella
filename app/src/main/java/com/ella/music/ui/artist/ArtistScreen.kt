@@ -110,6 +110,7 @@ import com.ella.music.viewmodel.PlayerViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -150,6 +151,7 @@ fun ArtistScreen(
     val showAlbumArtists by mainViewModel.settingsManager.showAlbumArtists.collectAsState(initial = true)
     val artistCoverFolderUri by mainViewModel.settingsManager.artistCoverFolderUri.collectAsState(initial = "")
     val dynamicCoverEnabled by mainViewModel.settingsManager.dynamicCoverEnabled.collectAsState(initial = false)
+    val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     var sortExpanded by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -448,6 +450,17 @@ fun ArtistScreen(
         if (overlayColor.alpha > 0f) {
             Box(modifier = Modifier.fillMaxSize().background(overlayColor))
         }
+        // While the library is still loading (remote source / cold start) the songs list can be
+        // momentarily empty; show a spinner instead of flashing the empty/"not found" content.
+        val showLibraryLoading = artistSongs.isEmpty() && !libraryCacheLoaded
+        if (showLibraryLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
@@ -640,6 +653,7 @@ fun ArtistScreen(
             item {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
         }
 
         if (showSongSideIndex && songFastIndexData.isNotEmpty()) {
