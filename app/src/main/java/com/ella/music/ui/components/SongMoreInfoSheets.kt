@@ -123,6 +123,9 @@ fun SongInfoSheet(
                 SongMenuItem(stringResource(R.string.player_netease_album_page), onClick = { openUrl(context, neteaseAlbumUrl(id)) })
             }
             SongInfoRow(stringResource(R.string.song_more_raw_netease_key), neteaseInfo.raw)
+            neteaseInfo.decodedJson.takeIf { it.isNotBlank() }?.let {
+                SongInfoRow(stringResource(R.string.library_decoded_json), it)
+            }
             SongMenuItem(stringResource(R.string.common_back), onClick = { showNeteaseKeyInfo = false })
         }
         return
