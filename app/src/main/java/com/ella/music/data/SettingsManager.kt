@@ -158,6 +158,7 @@ class SettingsManager(private val context: Context) {
         val KEY_DYNAMIC_COVER_ENABLED = booleanPreferencesKey("dynamic_cover_enabled")
         val KEY_DYNAMIC_COVER_CUSTOM_FOLDERS = stringPreferencesKey("dynamic_cover_custom_folders")
         val KEY_ARTIST_COVER_FOLDER_URI = stringPreferencesKey("artist_cover_folder_uri")
+        val KEY_ARTIST_COVER_CAROUSEL = booleanPreferencesKey("artist_cover_carousel")
         val KEY_STARTUP_POSTER_ENABLED = booleanPreferencesKey("startup_poster_enabled")
         val KEY_STARTUP_POSTER_URI = stringPreferencesKey("startup_poster_uri")
         val KEY_APP_WALLPAPER_ENABLED = booleanPreferencesKey("app_wallpaper_enabled")
@@ -836,6 +837,9 @@ class SettingsManager(private val context: Context) {
         dynamicCoverCustomFoldersRaw.map(::parseDynamicCoverCustomFolders)
     val artistCoverFolderUri: Flow<String> =
         context.dataStore.data.map { it[KEY_ARTIST_COVER_FOLDER_URI].orEmpty() }
+    // 当某位艺术家有多张封面图时：true=多图轮播，false=随机取一张。
+    val artistCoverCarousel: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_ARTIST_COVER_CAROUSEL] ?: true }
     val mcpServerEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MCP_SERVER_ENABLED] ?: false }
     val startupPosterEnabled: Flow<Boolean> =
@@ -1515,6 +1519,10 @@ class SettingsManager(private val context: Context) {
                 prefs[KEY_DYNAMIC_COVER_CUSTOM_FOLDERS] = normalized
             }
         }
+    }
+
+    suspend fun setArtistCoverCarousel(carousel: Boolean) {
+        context.dataStore.edit { it[KEY_ARTIST_COVER_CAROUSEL] = carousel }
     }
 
     suspend fun setArtistCoverFolderUri(uri: String) {
@@ -2344,6 +2352,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)
+            setBoolean(KEY_ARTIST_COVER_CAROUSEL)
             setBoolean(KEY_STARTUP_POSTER_ENABLED)
             setBoolean(KEY_APP_WALLPAPER_ENABLED)
             setBoolean(KEY_PLAYER_BACKGROUND_ENABLED)

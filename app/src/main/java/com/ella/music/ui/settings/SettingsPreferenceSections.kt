@@ -355,6 +355,7 @@ internal fun SettingsScanSection(
     val tagIgnoreCase by settingsManager.tagIgnoreCase.collectAsState(initial = false)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
     val artistCoverFolderUri by settingsManager.artistCoverFolderUri.collectAsState(initial = "")
+    val artistCoverCarousel by settingsManager.artistCoverCarousel.collectAsState(initial = true)
 
     val artistCoverFolderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -456,6 +457,14 @@ internal fun SettingsScanSection(
                 onClick = { artistCoverFolderPicker.launch(null) }
             )
             if (artistCoverFolderUri.isNotBlank()) {
+                SwitchPreference(
+                    title = stringResource(R.string.settings_artist_cover_carousel),
+                    summary = stringResource(R.string.settings_artist_cover_carousel_summary),
+                    checked = artistCoverCarousel,
+                    onCheckedChange = {
+                        scope.launch { settingsManager.setArtistCoverCarousel(it) }
+                    }
+                )
                 ArrowPreference(
                     title = stringResource(R.string.settings_artist_cover_folder_remove),
                     summary = stringResource(R.string.settings_artist_cover_folder_remove_summary),

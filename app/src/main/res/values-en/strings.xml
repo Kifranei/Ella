@@ -1625,8 +1625,10 @@
     <string name="settings_beautiful_lyrics_brightness_summary">Adjust the overall brightness of the dynamic background</string>
 
     <string name="settings_artist_cover_folder">Artist cover folder</string>
-    <string name="settings_artist_cover_folder_summary">After selecting a folder, its image files are searched recursively and matched to artists by file names like \"Artist name.jpg/png/webp\"</string>
+    <string name="settings_artist_cover_folder_summary">After selecting a folder, its image files are searched recursively and matched to artists by file names like \"Artist name.jpg/png/webp\". MP4 dynamic video covers and multiple covers named \"Artist name_01/_02\" are also supported</string>
     <string name="settings_artist_cover_folder_selected">Artist cover folder selected</string>
+    <string name="settings_artist_cover_carousel">Cycle multiple covers</string>
+    <string name="settings_artist_cover_carousel_summary">When an artist has several covers, cycle through them on a timer; turn off to show a random one each time</string>
     <string name="settings_artist_cover_folder_remove">Remove artist cover folder</string>
     <string name="settings_artist_cover_folder_remove_summary">Clear the current artist cover folder; the artist page will fall back to existing album covers</string>
     <string name="settings_artist_cover_folder_saved">Artist cover folder saved</string>

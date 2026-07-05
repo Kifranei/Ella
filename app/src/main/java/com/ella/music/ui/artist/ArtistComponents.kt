@@ -5,6 +5,8 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
@@ -19,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -143,9 +146,10 @@ internal fun ArtistTabRow(
 @Composable
 internal fun ArtistHeader(
     artistName: String,
-    coverModel: Any?,
-    customCoverAsset: ArtistCoverAsset?,
+    fallbackCoverModel: Any?,
+    customCoverAssets: List<ArtistCoverAsset>,
     dynamicCoverEnabled: Boolean,
+    carousel: Boolean,
     songCount: Int,
     albumCount: Int,
     onPlayAll: () -> Unit
@@ -153,12 +157,12 @@ internal fun ArtistHeader(
     val headerTextColor = Color.White
     val headerSubTextColor = Color.White.copy(alpha = 0.78f)
     val pageBackground = ellaPageBackground()
-    val dynamicCoverSource = remember(customCoverAsset, dynamicCoverEnabled) {
+    val dynamicCoverSource = remember(customCoverAssets, dynamicCoverEnabled) {
         if (!dynamicCoverEnabled) {
             null
         } else {
-            customCoverAsset
-                ?.takeIf { it.kind == ArtistCoverKind.Video }
+            customCoverAssets
+                .firstOrNull { it.kind == ArtistCoverKind.Video }
                 ?.let { asset ->
                     DynamicCoverSource(
                         uri = asset.uri,
@@ -166,6 +170,9 @@ internal fun ArtistHeader(
                     )
                 }
         }
+    }
+    val imageUris = remember(customCoverAssets) {
+        customCoverAssets.filter { it.kind == ArtistCoverKind.Image }.map { it.uri }
     }
     var videoFailed by remember(dynamicCoverSource?.failureKey) { mutableStateOf(false) }
     Box(
@@ -182,9 +189,15 @@ internal fun ArtistHeader(
                 cornerRadiusDp = 0f,
                 resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             )
-        } else if (coverModel != null) {
+        } else if (imageUris.isNotEmpty()) {
+            ArtistHeaderImageCover(
+                imageUris = imageUris,
+                carousel = carousel,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (fallbackCoverModel != null) {
             SafeCoverImage(
-                model = coverModel,
+                model = fallbackCoverModel,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -249,6 +262,64 @@ internal fun ArtistHeader(
         }
     }
 }
+
+/**
+ * 艺术家头部封面：单图直接显示；多图时按设置在「轮播」（定时淡入淡出切换）与
+ * 「随机」（每次进入随机取一张）之间选择。
+ */
+@Composable
+private fun ArtistHeaderImageCover(
+    imageUris: List<Uri>,
+    carousel: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (imageUris.size <= 1) {
+        SafeCoverImage(
+            model = imageUris.firstOrNull(),
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+            sizePx = 3000
+        )
+        return
+    }
+
+    if (!carousel) {
+        val randomUri = remember(imageUris) { imageUris.random() }
+        SafeCoverImage(
+            model = randomUri,
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+            sizePx = 3000
+        )
+        return
+    }
+
+    var index by remember(imageUris) { mutableStateOf(0) }
+    LaunchedEffect(imageUris) {
+        while (true) {
+            kotlinx.coroutines.delay(ARTIST_COVER_CAROUSEL_INTERVAL_MS)
+            index = (index + 1) % imageUris.size
+        }
+    }
+    Crossfade(
+        targetState = index,
+        animationSpec = tween(durationMillis = 900),
+        modifier = modifier,
+        label = "artist-cover-carousel"
+    ) { current ->
+        SafeCoverImage(
+            model = imageUris[current.coerceIn(imageUris.indices)],
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            sizePx = 3000
+        )
+    }
+}
+
+private const val ARTIST_COVER_CAROUSEL_INTERVAL_MS = 5000L
 
 @Composable
 internal fun SectionTitle(text: String) {

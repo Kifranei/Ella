@@ -43,6 +43,19 @@ class ArtistCoverRepositoryTest {
     }
 
     @Test
+    fun numberedSuffixesMapToTheSameArtistWithOrder() {
+        val plain = artistCoverMatch("Taylor Swift.jpg")
+        val first = artistCoverMatch("Taylor Swift_01.JPG")
+        val second = artistCoverMatch("Taylor Swift_02.png")
+        assertEquals("taylor swift", plain?.key)
+        assertEquals("taylor swift", first?.key)
+        assertEquals("taylor swift", second?.key)
+        assertEquals(0, plain?.order)
+        assertEquals(1, first?.order)
+        assertEquals(2, second?.order)
+    }
+
+    @Test
     fun normalizeArtistCoverKeyCleansWhitespace() {
         assertEquals(
             "lana del rey",

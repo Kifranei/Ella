@@ -413,6 +413,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return artistCoverRepository.getArtistCoverAsset(artistName, folderLocation)
     }
 
+    fun getArtistCoverAssets(artistName: String, folderLocation: String): List<ArtistCoverAsset> {
+        return artistCoverRepository.getArtistCoverAssets(artistName, folderLocation)
+    }
+
     suspend fun getFiveStarSongs(): List<Song> = withContext(Dispatchers.IO) {
         songs.value.filter { repository.getSongRating(it) >= 5 }
     }

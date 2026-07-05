@@ -1574,8 +1574,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">Ordner für Interpreten-Cover</string>
-    <string name="settings_artist_cover_folder_summary">Nach Auswahl eines Ordners werden dessen Bilddateien rekursiv durchsucht und anhand von Dateinamen wie „Interpretenname.jpg/png/webp“ den Interpreten-Covern zugeordnet</string>
+    <string name="settings_artist_cover_folder_summary">Nach Auswahl eines Ordners werden dessen Bilddateien rekursiv durchsucht und anhand von Dateinamen wie „Interpretenname.jpg/png/webp“ den Interpreten-Covern zugeordnet. Auch dynamische MP4-Videocover und mehrere Cover mit Namen wie „Interpretenname_01/_02“ werden unterstützt</string>
     <string name="settings_artist_cover_folder_selected">Ordner für Interpreten-Cover ausgewählt</string>
+    <string name="settings_artist_cover_carousel">Mehrere Cover durchblättern</string>
+    <string name="settings_artist_cover_carousel_summary">Wenn ein Interpret mehrere Cover hat, werden sie zeitgesteuert durchgeblättert; ausgeschaltet wird jedes Mal ein zufälliges angezeigt</string>
     <string name="settings_artist_cover_folder_remove">Ordner für Interpreten-Cover entfernen</string>
     <string name="settings_artist_cover_folder_remove_summary">Löscht den aktuellen Ordner für Interpreten-Cover; die Interpretenseite verwendet wieder die vorhandenen Album-Cover</string>
     <string name="settings_artist_cover_folder_saved">Ordner für Interpreten-Cover gespeichert</string>

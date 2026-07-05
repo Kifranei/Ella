@@ -12,15 +12,15 @@ class ArtistCoverRepository private constructor(
     @Volatile
     private var cachedFolderLocation: String? = null
     @Volatile
-    private var cachedIndex: Map<String, ArtistCoverAsset> = emptyMap()
+    private var cachedIndex: Map<String, List<ArtistCoverAsset>> = emptyMap()
     private val indexLock = Any()
 
     fun getArtistCoverUri(
         artistName: String,
         folderLocation: String
     ): Uri? {
-        return getArtistCoverAsset(artistName, folderLocation)
-            ?.takeIf { it.kind == ArtistCoverKind.Image }
+        return getArtistCoverAssets(artistName, folderLocation)
+            .firstOrNull { it.kind == ArtistCoverKind.Image }
             ?.uri
     }
 
@@ -28,13 +28,24 @@ class ArtistCoverRepository private constructor(
         artistName: String,
         folderLocation: String
     ): ArtistCoverAsset? {
-        val artistKey = normalizeArtistCoverKey(artistName)
-        val safeFolderLocation = folderLocation.trim()
-        if (artistKey.isBlank() || safeFolderLocation.isBlank()) return null
-        return ensureIndex(safeFolderLocation)[artistKey]
+        return getArtistCoverAssets(artistName, folderLocation).preferredCover()
     }
 
-    private fun ensureIndex(folderLocation: String): Map<String, ArtistCoverAsset> {
+    /**
+     * 返回某位艺术家的全部封面（有序）：既包含单张 "<Artist>.<ext>"，也包含
+     * 编号形式 "<Artist>_01/_02/…" 的多张图，以及 mp4 等动态封面。
+     */
+    fun getArtistCoverAssets(
+        artistName: String,
+        folderLocation: String
+    ): List<ArtistCoverAsset> {
+        val artistKey = normalizeArtistCoverKey(artistName)
+        val safeFolderLocation = folderLocation.trim()
+        if (artistKey.isBlank() || safeFolderLocation.isBlank()) return emptyList()
+        return ensureIndex(safeFolderLocation)[artistKey].orEmpty()
+    }
+
+    private fun ensureIndex(folderLocation: String): Map<String, List<ArtistCoverAsset>> {
         cachedFolderLocation
             ?.takeIf { it == folderLocation }
             ?.let { return cachedIndex }
@@ -51,7 +62,7 @@ class ArtistCoverRepository private constructor(
         }
     }
 
-    private fun buildIndex(folderLocation: String): Map<String, ArtistCoverAsset> {
+    private fun buildIndex(folderLocation: String): Map<String, List<ArtistCoverAsset>> {
         return when {
             folderLocation.startsWith("content://", ignoreCase = true) -> {
                 val root = DocumentFile.fromTreeUri(context, Uri.parse(folderLocation)) ?: return emptyMap()
@@ -62,8 +73,8 @@ class ArtistCoverRepository private constructor(
         }
     }
 
-    private fun buildTreeIndex(root: DocumentFile): Map<String, ArtistCoverAsset> {
-        val index = linkedMapOf<String, ArtistCoverAsset>()
+    private fun buildTreeIndex(root: DocumentFile): Map<String, List<ArtistCoverAsset>> {
+        val accumulator = ArtistCoverAccumulator()
 
         fun visit(node: DocumentFile) {
             val children = runCatching { node.listFiles() }.getOrElse { emptyArray() }
@@ -72,27 +83,27 @@ class ArtistCoverRepository private constructor(
                     child.isDirectory -> visit(child)
                     child.isFile -> {
                         val match = artistCoverMatch(child.name.orEmpty(), child.type) ?: return@forEach
-                        index.putPreferredArtistCover(match.key, ArtistCoverAsset(child.uri, match.kind))
+                        accumulator.add(match, child.uri)
                     }
                 }
             }
         }
 
         visit(root)
-        return index
+        return accumulator.build()
     }
 
-    private fun buildLocalFolderIndex(root: File): Map<String, ArtistCoverAsset> {
+    private fun buildLocalFolderIndex(root: File): Map<String, List<ArtistCoverAsset>> {
         if (!root.exists() || !root.isDirectory) return emptyMap()
-        val index = linkedMapOf<String, ArtistCoverAsset>()
+        val accumulator = ArtistCoverAccumulator()
         runCatching {
             root.walkTopDown().forEach { file ->
                 if (!file.isFile) return@forEach
                 val match = artistCoverMatch(file.name) ?: return@forEach
-                index.putPreferredArtistCover(match.key, ArtistCoverAsset(Uri.fromFile(file), match.kind))
+                accumulator.add(match, Uri.fromFile(file))
             }
         }
-        return index
+        return accumulator.build()
     }
 
     companion object {
@@ -119,7 +130,9 @@ enum class ArtistCoverKind {
 
 internal data class ArtistCoverMatch(
     val key: String,
-    val kind: ArtistCoverKind
+    val kind: ArtistCoverKind,
+    // 编号后缀（"_01" → 1）；无编号为 0，用于排序，让不带编号的封面排在最前。
+    val order: Int = 0
 )
 
 private val supportedArtistCoverExtensions = setOf(
@@ -142,15 +155,31 @@ private val supportedArtistCoverVideoExtensions = setOf(
     "mkv"
 )
 
-private fun MutableMap<String, ArtistCoverAsset>.putPreferredArtistCover(
-    key: String,
-    candidate: ArtistCoverAsset
-) {
-    val existing = this[key]
-    if (existing == null || (existing.kind == ArtistCoverKind.Image && candidate.kind == ArtistCoverKind.Video)) {
-        this[key] = candidate
+// 匹配 "<Artist>_01"、"<Artist>_02" 之类的编号后缀。
+private val numberedArtistCoverSuffix = Regex("""_(\d{1,3})$""")
+
+/**
+ * 每个艺术家 key 累积一组有序封面。带编号后缀的图按编号排序，未编号者（order=0）排在最前。
+ */
+private class ArtistCoverAccumulator {
+    private val entries = linkedMapOf<String, MutableList<OrderedAsset>>()
+
+    fun add(match: ArtistCoverMatch, uri: Uri) {
+        entries.getOrPut(match.key) { mutableListOf() }
+            .add(OrderedAsset(match.order, ArtistCoverAsset(uri, match.kind)))
     }
+
+    fun build(): Map<String, List<ArtistCoverAsset>> =
+        entries.mapValues { (_, list) ->
+            // sortedBy 稳定：同一 order（如重复编号）保持发现顺序。
+            list.sortedBy { it.order }.map { it.asset }
+        }
+
+    private data class OrderedAsset(val order: Int, val asset: ArtistCoverAsset)
 }
+
+private fun List<ArtistCoverAsset>.preferredCover(): ArtistCoverAsset? =
+    firstOrNull { it.kind == ArtistCoverKind.Video } ?: firstOrNull()
 
 internal fun artistCoverMatchKey(
     fileName: String,
@@ -174,8 +203,15 @@ internal fun artistCoverMatch(
         else -> return null
     }
     val baseName = trimmedName.substringBeforeLast('.', trimmedName)
-    val key = normalizeArtistCoverKey(baseName).takeIf { it.isNotBlank() } ?: return null
-    return ArtistCoverMatch(key = key, kind = kind)
+    val numberedMatch = numberedArtistCoverSuffix.find(baseName)
+    val order = numberedMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+    val coreName = if (numberedMatch != null) {
+        baseName.substring(0, numberedMatch.range.first)
+    } else {
+        baseName
+    }
+    val key = normalizeArtistCoverKey(coreName).takeIf { it.isNotBlank() } ?: return null
+    return ArtistCoverMatch(key = key, kind = kind, order = order)
 }
 
 internal fun normalizeArtistCoverKey(value: String): String {

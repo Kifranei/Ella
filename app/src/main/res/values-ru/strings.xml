@@ -1561,8 +1561,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">Папка обложек исполнителей</string>
-    <string name="settings_artist_cover_folder_summary">После выбора папки в ней рекурсивно ищутся изображения и сопоставляются с исполнителями по именам файлов вида «Имя исполнителя.jpg/png/webp»</string>
+    <string name="settings_artist_cover_folder_summary">После выбора папки в ней рекурсивно ищутся изображения и сопоставляются с исполнителями по именам файлов вида «Имя исполнителя.jpg/png/webp». Также поддерживаются динамические видеообложки mp4 и несколько обложек с именами вида «Имя исполнителя_01/_02»</string>
     <string name="settings_artist_cover_folder_selected">Папка обложек исполнителей выбрана</string>
+    <string name="settings_artist_cover_carousel">Перелистывать несколько обложек</string>
+    <string name="settings_artist_cover_carousel_summary">Когда у исполнителя несколько обложек, при включении они перелистываются по таймеру; при выключении каждый раз показывается случайная</string>
     <string name="settings_artist_cover_folder_remove">Удалить папку обложек исполнителей</string>
     <string name="settings_artist_cover_folder_remove_summary">Очищает текущую папку обложек исполнителей; страница исполнителя вернётся к существующим обложкам альбомов</string>
     <string name="settings_artist_cover_folder_saved">Папка обложек исполнителей сохранена</string>

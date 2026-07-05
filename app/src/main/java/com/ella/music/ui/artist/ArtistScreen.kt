@@ -307,11 +307,12 @@ fun ArtistScreen(
         usage = ArtworkUsage.ArtistImage,
         showDefaultWhenMissing = false
     )
-    val customArtistCoverAsset = rememberArtistCoverAsset(
+    val customArtistCoverAssets = rememberArtistCoverAssets(
         artistName = artistName,
         folderLocation = artistCoverFolderUri,
         mainViewModel = mainViewModel
     )
+    val artistCoverCarousel by mainViewModel.settingsManager.artistCoverCarousel.collectAsState(initial = true)
     val librarySongsByAlbumId = remember(songs) {
         songs.groupBy { it.albumIdentityId() }
     }
@@ -469,9 +470,10 @@ fun ArtistScreen(
             item {
                 ArtistHeader(
                     artistName = artistName,
-                    coverModel = customArtistCoverAsset?.takeIf { it.kind == com.ella.music.data.ArtistCoverKind.Image }?.uri ?: artistCoverState.model,
-                    customCoverAsset = customArtistCoverAsset,
+                    fallbackCoverModel = artistCoverState.model,
+                    customCoverAssets = customArtistCoverAssets,
                     dynamicCoverEnabled = dynamicCoverEnabled,
+                    carousel = artistCoverCarousel,
                     songCount = sortedArtistSongs.size,
                     albumCount = (participatedAlbums + releaseAlbums).distinctBy { it.id }.size,
                     onPlayAll = {

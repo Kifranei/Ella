@@ -291,8 +291,10 @@
     <string name="settings_show_album_artists">显示专辑艺术家</string>
     <string name="settings_show_album_artists_summary">开启后将专辑艺术家并入艺术家列表，并在艺术家页显示发行专辑标签页</string>
     <string name="settings_artist_cover_folder">艺术家封面目录</string>
-    <string name="settings_artist_cover_folder_summary">选择一个文件夹后，将递归检索其中的图片文件，并用“艺术家名称.jpg/png/webp”等文件名匹配对应艺术家封面</string>
+    <string name="settings_artist_cover_folder_summary">选择一个文件夹后，将递归检索其中的图片文件，并用“艺术家名称.jpg/png/webp”等文件名匹配对应艺术家封面；同时支持 mp4 等动态视频封面，以及“艺术家名_01、_02”形式的多张封面</string>
     <string name="settings_artist_cover_folder_selected">已选择艺术家封面目录</string>
+    <string name="settings_artist_cover_carousel">多张封面轮播</string>
+    <string name="settings_artist_cover_carousel_summary">当某位艺术家有多张封面时，开启后定时轮播切换，关闭则每次随机显示一张</string>
     <string name="settings_artist_cover_folder_remove">移除艺术家封面目录</string>
     <string name="settings_artist_cover_folder_remove_summary">清除当前艺术家封面目录设置，艺术家页将回退到现有专辑封面</string>
     <string name="settings_artist_cover_folder_saved">艺术家封面目录已保存</string>

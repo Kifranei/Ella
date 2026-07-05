@@ -1574,8 +1574,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">Dossier des pochettes d\'artiste</string>
-    <string name="settings_artist_cover_folder_summary">Après avoir sélectionné un dossier, ses fichiers image sont recherchés de façon récursive et associés aux artistes selon des noms de fichier tels que « Nom de l\'artiste.jpg/png/webp »</string>
+    <string name="settings_artist_cover_folder_summary">Après avoir sélectionné un dossier, ses fichiers image sont recherchés de façon récursive et associés aux artistes selon des noms de fichier tels que « Nom de l\'artiste.jpg/png/webp ». Les pochettes vidéo dynamiques MP4 et plusieurs pochettes nommées « Nom de l\'artiste_01/_02 » sont aussi prises en charge</string>
     <string name="settings_artist_cover_folder_selected">Dossier des pochettes d\'artiste sélectionné</string>
+    <string name="settings_artist_cover_carousel">Faire défiler plusieurs pochettes</string>
+    <string name="settings_artist_cover_carousel_summary">Lorsqu\'un artiste possède plusieurs pochettes, elles défilent selon une minuterie ; désactivé, une pochette aléatoire s\'affiche à chaque fois</string>
     <string name="settings_artist_cover_folder_remove">Supprimer le dossier des pochettes d\'artiste</string>
     <string name="settings_artist_cover_folder_remove_summary">Efface le dossier actuel des pochettes d\'artiste ; la page de l\'artiste reviendra aux pochettes d\'album existantes</string>
     <string name="settings_artist_cover_folder_saved">Dossier des pochettes d\'artiste enregistré</string>

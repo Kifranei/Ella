@@ -1574,8 +1574,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">아티스트 커버 폴더</string>
-    <string name="settings_artist_cover_folder_summary">폴더를 선택하면 그 안의 이미지 파일을 재귀적으로 검색하여 「아티스트 이름.jpg/png/webp」 같은 파일 이름으로 아티스트 커버를 매칭합니다</string>
+    <string name="settings_artist_cover_folder_summary">폴더를 선택하면 그 안의 이미지 파일을 재귀적으로 검색하여 「아티스트 이름.jpg/png/webp」 같은 파일 이름으로 아티스트 커버를 매칭합니다. mp4 등 동적 동영상 커버와 「아티스트 이름_01/_02」 형식의 여러 커버도 지원합니다</string>
     <string name="settings_artist_cover_folder_selected">아티스트 커버 폴더를 선택했습니다</string>
+    <string name="settings_artist_cover_carousel">여러 커버 순환 표시</string>
+    <string name="settings_artist_cover_carousel_summary">아티스트에 여러 커버가 있을 때 켜면 일정 간격으로 순환하며 전환하고, 끄면 매번 무작위로 한 장을 표시합니다</string>
     <string name="settings_artist_cover_folder_remove">아티스트 커버 폴더 삭제</string>
     <string name="settings_artist_cover_folder_remove_summary">현재 아티스트 커버 폴더 설정을 지웁니다. 아티스트 페이지는 기존 앨범 커버로 되돌아갑니다</string>
     <string name="settings_artist_cover_folder_saved">아티스트 커버 폴더를 저장했습니다</string>

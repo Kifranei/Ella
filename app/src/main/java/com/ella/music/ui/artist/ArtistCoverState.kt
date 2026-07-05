@@ -52,3 +52,25 @@ internal fun rememberArtistCoverAsset(
     }
     return state
 }
+
+@Composable
+internal fun rememberArtistCoverAssets(
+    artistName: String,
+    folderLocation: String,
+    mainViewModel: MainViewModel
+): List<ArtistCoverAsset> {
+    val state by produceState<List<ArtistCoverAsset>>(
+        initialValue = emptyList(),
+        artistName,
+        folderLocation
+    ) {
+        value = if (artistName.isBlank() || folderLocation.isBlank()) {
+            emptyList()
+        } else {
+            withContext(Dispatchers.IO) {
+                mainViewModel.getArtistCoverAssets(artistName, folderLocation)
+            }
+        }
+    }
+    return state
+}

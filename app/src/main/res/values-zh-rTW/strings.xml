@@ -1597,8 +1597,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">藝人封面目錄</string>
-    <string name="settings_artist_cover_folder_summary">選擇資料夾後，將遞迴搜尋其中的圖片檔案，並以「藝人名稱.jpg/png/webp」等檔名比對對應的藝人封面</string>
+    <string name="settings_artist_cover_folder_summary">選擇資料夾後，將遞迴搜尋其中的圖片檔案，並以「藝人名稱.jpg/png/webp」等檔名比對對應的藝人封面；同時支援 mp4 等動態影片封面，以及「藝人名_01、_02」形式的多張封面</string>
     <string name="settings_artist_cover_folder_selected">已選擇藝人封面目錄</string>
+    <string name="settings_artist_cover_carousel">多張封面輪播</string>
+    <string name="settings_artist_cover_carousel_summary">當某位藝人有多張封面時，開啟後定時輪播切換，關閉則每次隨機顯示一張</string>
     <string name="settings_artist_cover_folder_remove">移除藝人封面目錄</string>
     <string name="settings_artist_cover_folder_remove_summary">清除目前的藝人封面目錄設定，藝人頁將回復為現有的專輯封面</string>
     <string name="settings_artist_cover_folder_saved">藝人封面目錄已儲存</string>

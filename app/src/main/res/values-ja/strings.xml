@@ -1574,8 +1574,10 @@
     <string name="song_more_metadata_section_lyrics">歌词</string>
     <string name="song_more_metadata_ttml_lyrics">TTML 歌词</string>
     <string name="settings_artist_cover_folder">アーティストカバーのフォルダ</string>
-    <string name="settings_artist_cover_folder_summary">フォルダを選択すると、その中の画像ファイルを再帰的に検索し、「アーティスト名.jpg/png/webp」などのファイル名でアーティストカバーを照合します</string>
+    <string name="settings_artist_cover_folder_summary">フォルダを選択すると、その中の画像ファイルを再帰的に検索し、「アーティスト名.jpg/png/webp」などのファイル名でアーティストカバーを照合します。mp4 などの動的動画カバーや、「アーティスト名_01/_02」形式の複数カバーにも対応しています</string>
     <string name="settings_artist_cover_folder_selected">アーティストカバーのフォルダを選択しました</string>
+    <string name="settings_artist_cover_carousel">複数カバーを切り替え表示</string>
+    <string name="settings_artist_cover_carousel_summary">アーティストに複数のカバーがある場合、オンにすると一定間隔で切り替えて表示し、オフにすると毎回ランダムに1枚表示します</string>
     <string name="settings_artist_cover_folder_remove">アーティストカバーのフォルダを削除</string>
     <string name="settings_artist_cover_folder_remove_summary">現在のアーティストカバーのフォルダ設定をクリアします。アーティストページは既存のアルバムカバーに戻ります</string>
     <string name="settings_artist_cover_folder_saved">アーティストカバーのフォルダを保存しました</string>
