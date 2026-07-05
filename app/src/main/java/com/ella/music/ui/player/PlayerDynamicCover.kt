@@ -35,7 +35,8 @@ internal enum class DynamicCoverKind {
 internal data class DynamicCoverSource(
     val uri: Uri,
     val failureKey: String,
-    val kind: DynamicCoverKind = DynamicCoverKind.Video
+    val kind: DynamicCoverKind = DynamicCoverKind.Video,
+    val aspectRatio: Float? = null
 )
 
 @Composable
@@ -52,7 +53,11 @@ internal fun DynamicCoverVideo(
             model = source.uri,
             contentDescription = null,
             modifier = modifier,
-            contentScale = ContentScale.Fit,
+            contentScale = if (resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
+                ContentScale.Crop
+            } else {
+                ContentScale.Fit
+            },
             sizePx = 1200,
             showDefaultPlaceholder = false
         )
@@ -136,7 +141,12 @@ internal fun Song.dynamicCoverSource(
             customRootPaths = customRootPaths,
             includeExternalFiles = includeExternalFiles
         )?.let { file ->
-            return DynamicCoverSource(uri = Uri.fromFile(file), failureKey = file.absolutePath)
+            val uri = Uri.fromFile(file)
+            return DynamicCoverSource(
+                uri = uri,
+                failureKey = file.absolutePath,
+                aspectRatio = context.readDynamicCoverAspectRatio(uri)
+            )
         }
         dynamicCoverDocumentSource(
             context = context,
@@ -152,7 +162,8 @@ private fun Song.embeddedDynamicVideoSource(context: Context): DynamicCoverSourc
     if (!hasPlayableEmbeddedVideoTrack(context, mediaUri)) return null
     return DynamicCoverSource(
         uri = mediaUri,
-        failureKey = "embedded-video:$path:${dateModified}:${fileSize}"
+        failureKey = "embedded-video:$path:${dateModified}:${fileSize}",
+        aspectRatio = context.readDynamicCoverAspectRatio(mediaUri)
     )
 }
 
@@ -462,7 +473,7 @@ private fun Song.dynamicCoverDocumentSource(
                     addAll(albumNameCandidates.map { "$it.mp4" })
                 }
                 exactNames.firstNotNullOfOrNull { name ->
-                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(rawUri)
+                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(context, rawUri)
                 } ?: directory.listFiles().firstOrNull { file ->
                     file.isFile &&
                         file.length() > 0L &&
@@ -470,7 +481,7 @@ private fun Song.dynamicCoverDocumentSource(
                         file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
                             token in fuzzySongTokens || token in fuzzyAlbumTokens
                         }
-                }?.toDynamicCoverSource(rawUri)
+                }?.toDynamicCoverSource(context, rawUri)
             }
         }
         .firstOrNull()
@@ -482,11 +493,37 @@ private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFil
 private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
     listFiles().firstOrNull { it.isFile && it.length() > 0L && it.name.equals(name, ignoreCase = true) }
 
-private fun DocumentFile.toDynamicCoverSource(rootUri: String): DynamicCoverSource =
+private fun DocumentFile.toDynamicCoverSource(context: Context, rootUri: String): DynamicCoverSource =
     DynamicCoverSource(
         uri = uri,
-        failureKey = "tree:$rootUri:${uri}:${length()}"
+        failureKey = "tree:$rootUri:${uri}:${length()}",
+        aspectRatio = context.readDynamicCoverAspectRatio(uri)
     )
+
+private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
+    runCatching {
+        MediaMetadataRetriever().useCompat { retriever ->
+            if (uri.scheme.equals("content", ignoreCase = true)) {
+                retriever.setDataSource(this, uri)
+            } else {
+                retriever.setDataSource(uri.path.orEmpty())
+            }
+            val width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                ?.toIntOrNull()
+                ?: return@useCompat null
+            val height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                ?.toIntOrNull()
+                ?: return@useCompat null
+            if (width <= 0 || height <= 0) return@useCompat null
+            val rotation = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                ?.toIntOrNull()
+                ?: 0
+            val rotated = rotation == 90 || rotation == 270
+            val displayWidth = if (rotated) height else width
+            val displayHeight = if (rotated) width else height
+            displayWidth.toFloat() / displayHeight.toFloat()
+        }
+    }.getOrNull()
 
 private fun String.toSafeDynamicCoverName(): String {
     return trim()

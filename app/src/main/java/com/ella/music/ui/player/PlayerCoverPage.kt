@@ -218,6 +218,7 @@ internal fun CoverPlayerPage(
     }
     // Stable local so the null-checked usages below can smart-cast (delegated props can't).
     val resolvedDynamicCover = dynamicCoverSource
+    val portraitDynamicCover = resolvedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
     val coverSwipeModifier = if (coverSwipeEnabled) {
         rememberCoverSwipeModifier(
             onSwipePrevious = onSwipePrevious,
@@ -334,11 +335,18 @@ internal fun CoverPlayerPage(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (immersiveAlbumCover) {
-                    val immersiveCoverShape = RoundedCornerShape(14.dp)
+                    val immersiveCoverCornerRadius = if (portraitDynamicCover) 0.dp else 14.dp
+                    val immersiveCoverShape = RoundedCornerShape(immersiveCoverCornerRadius)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(1f)
+                            .then(
+                                if (portraitDynamicCover) {
+                                    Modifier.weight(1f)
+                                } else {
+                                    Modifier.aspectRatio(1f)
+                                }
+                            )
                             .graphicsLayer {
                                 shape = immersiveCoverShape
                                 clip = true
@@ -353,13 +361,18 @@ internal fun CoverPlayerPage(
                                 isPlaying = isPlaying,
                                 onPlaybackError = { onDynamicCoverFailed(resolvedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
-                                cornerRadiusDp = 14f
+                                cornerRadiusDp = if (portraitDynamicCover) 0f else 14f,
+                                resizeMode = if (portraitDynamicCover) {
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                } else {
+                                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
                             )
                         } else {
                             FullBleedCover(
                                 song = song,
                                 embeddedCover = embeddedCover,
-                                cornerRadius = 14.dp,
+                                cornerRadius = immersiveCoverCornerRadius,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -396,7 +409,13 @@ internal fun CoverPlayerPage(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
+                            .then(
+                                if (portraitDynamicCover) {
+                                    Modifier
+                                } else {
+                                    Modifier.weight(1f)
+                                }
+                            )
                             .background(playerContentSurfaceBrush(pagePalette, flowEffectMode))
                             .padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -472,7 +491,11 @@ internal fun CoverPlayerPage(
                             )
                         }
 
-                        Spacer(modifier = Modifier.weight(1f))
+                        if (portraitDynamicCover) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                        } else {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                         PlayerProgressBlock(
                             currentPosition = currentPosition,
                             duration = duration,
