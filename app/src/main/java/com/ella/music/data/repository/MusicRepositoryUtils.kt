@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
 import java.security.MessageDigest
 
@@ -80,16 +81,25 @@ internal suspend fun Song.effectiveLocalPathForMetadata(
     allowFullDownload: Boolean = false
 ): String = withContext(Dispatchers.IO) {
     if (path.isContentAudioSource()) return@withContext path
-    if (!isWebDavRemoteSong()) return@withContext path
+    if (!path.isHttpAudioSource()) return@withContext path
     val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
     if (fullCache.exists() && fullCache.length() > 0L) return@withContext fullCache.absolutePath
     val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
     if (headerCache.exists() && headerCache.length() > 0L) return@withContext headerCache.absolutePath
-    val config = loadWebDavConfig(settingsManager) ?: return@withContext path
-    downloadWebDavMetadataHeader(this@effectiveLocalPathForMetadata, config, remoteMetadataHeaderCacheDir)?.let { return@withContext it.absolutePath }
+    if (isWebDavRemoteSong()) {
+        val config = loadWebDavConfig(settingsManager) ?: return@withContext path
+        downloadWebDavMetadataHeader(this@effectiveLocalPathForMetadata, config, remoteMetadataHeaderCacheDir)?.let { return@withContext it.absolutePath }
+    } else {
+        downloadHttpMetadataHeader(this@effectiveLocalPathForMetadata, httpClient, remoteMetadataHeaderCacheDir)?.let { return@withContext it.absolutePath }
+    }
     if (!allowFullDownload) return@withContext path
     return@withContext runCatching {
-        WebDavClient.downloadToFile(path, config, fullCache).absolutePath
+        if (isWebDavRemoteSong()) {
+            val config = loadWebDavConfig(settingsManager) ?: return@withContext path
+            WebDavClient.downloadToFile(path, config, fullCache).absolutePath
+        } else {
+            downloadHttpToFile(path, httpClient, fullCache)?.absolutePath ?: path
+        }
     }.getOrElse {
         android.util.Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
         path
@@ -104,16 +114,25 @@ internal fun Song.effectiveLocalPathForMetadataBlocking(
     allowFullDownload: Boolean = false
 ): String {
     if (path.isContentAudioSource()) return path
-    if (!isWebDavRemoteSong()) return path
+    if (!path.isHttpAudioSource()) return path
     val fullCache = webDavFullCacheFile(remoteAudioCacheDir)
     if (fullCache.exists() && fullCache.length() > 0L) return fullCache.absolutePath
     val headerCache = webDavHeaderCacheFile(remoteMetadataHeaderCacheDir)
     if (headerCache.exists() && headerCache.length() > 0L) return headerCache.absolutePath
-    val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
-    downloadWebDavMetadataHeader(this, config, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
+    if (isWebDavRemoteSong()) {
+        val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
+        downloadWebDavMetadataHeader(this, config, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
+    } else {
+        downloadHttpMetadataHeader(this, httpClient, remoteMetadataHeaderCacheDir)?.let { return it.absolutePath }
+    }
     if (!allowFullDownload) return path
     return runCatching {
-        WebDavClient.downloadToFile(path, config, fullCache).absolutePath
+        if (isWebDavRemoteSong()) {
+            val config = runBlocking(Dispatchers.IO) { loadWebDavConfig(settingsManager) } ?: return path
+            WebDavClient.downloadToFile(path, config, fullCache).absolutePath
+        } else {
+            downloadHttpToFile(path, httpClient, fullCache)?.absolutePath ?: path
+        }
     }.getOrElse {
         android.util.Log.w("MusicRepo", "Failed to cache remote metadata file for $path", it)
         path
@@ -134,6 +153,53 @@ internal fun downloadWebDavMetadataHeader(song: Song, config: WebDavConfig, cach
     val target = song.webDavHeaderCacheFile(cacheDir)
     if (target.exists() && target.length() > 0L) return target
     return WebDavClient.downloadHeaderToFile(song.path, config, target)
+}
+
+internal fun downloadHttpMetadataHeader(song: Song, httpClient: OkHttpClient, cacheDir: File): File? {
+    val target = song.webDavHeaderCacheFile(cacheDir)
+    if (target.exists() && target.length() > 0L) return target
+    return downloadHttpToFile(song.path, httpClient, target, maxBytes = 512 * 1024L)
+}
+
+private fun downloadHttpToFile(
+    url: String,
+    httpClient: OkHttpClient,
+    target: File,
+    maxBytes: Long? = null
+): File? {
+    return runCatching {
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .apply {
+                maxBytes?.let { header("Range", "bytes=0-${it.coerceAtLeast(16 * 1024L) - 1}") }
+            }
+            .build()
+        httpClient.newCall(request).execute().use { response ->
+            if (response.code !in 200..399) return@use null
+            val body = response.body ?: return@use null
+            target.parentFile?.mkdirs()
+            target.outputStream().use { output ->
+                body.byteStream().use { input ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var remaining = maxBytes
+                    while (true) {
+                        val limit = remaining?.coerceAtMost(buffer.size.toLong())?.toInt() ?: buffer.size
+                        if (limit <= 0) break
+                        val read = input.read(buffer, 0, limit)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        remaining = remaining?.minus(read)
+                    }
+                }
+            }
+            if (target.length() > 0L) target else null
+        }
+    }.getOrElse {
+        android.util.Log.w("MusicRepo", "Failed to cache HTTP metadata header for ${url.take(96)}", it)
+        target.delete()
+        null
+    }
 }
 
 internal fun AudioTagInfo.embeddedLyricsContent(preferTtml: Boolean): String? {
