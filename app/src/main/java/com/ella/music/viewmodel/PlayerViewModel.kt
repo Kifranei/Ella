@@ -1257,9 +1257,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun ensurePlayerConnected() {
         playerManager.ensureConnected()
         startPositionUpdates()
+        viewModelScope.launch {
+            repairAutoDecoderChainIfNeeded()
+        }
     }
 
     fun livePositionMs(): Long = playerManager.livePositionMs()
+
+    private suspend fun repairAutoDecoderChainIfNeeded() {
+        if (settingsManager.decoderMode.first() != DECODER_MODE_AUTO) return
+        val song = currentSong.value ?: return
+        if (!song.isM4aOrAppleLosslessOrAAC()) return
+        if (PlaybackService.decoderModeOverride.value == DECODER_MODE_FFMPEG_PREFER) return
+
+        PlaybackService.decoderModeOverride.value = DECODER_MODE_FFMPEG_PREFER
+        appliedDecoderModeOverride = DECODER_MODE_FFMPEG_PREFER
+        AppLogStore.info(
+            getApplication(),
+            "PlayerDecoder",
+            "Re-establish FFmpeg chain on reconnect for ${song.title}"
+        )
+        playerManager.recreatePlaybackService(resumePlayback = isPlaying.value)
+    }
 
     fun playQueueIndex(index: Int) {
         if (!lazyOnlineQueueController.playIndex(index)) playerManager.playQueueIndex(index)
