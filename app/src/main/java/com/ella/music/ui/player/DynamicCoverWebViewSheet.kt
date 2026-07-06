@@ -198,6 +198,23 @@ private fun DynamicCoverWebViewContent(
                         loadUrl(searchUrl)
                     }
                 },
+                update = { webView ->
+                    if (webView.url != searchUrl) {
+                        isLoading = true
+                        webView.loadUrl(searchUrl)
+                    }
+                },
+                onRelease = { webView ->
+                    webView.apply {
+                        stopLoading()
+                        setDownloadListener(null)
+                        removeJavascriptInterface("AndroidBridge")
+                        clearHistory()
+                        clearCache(false)
+                        loadUrl("about:blank")
+                        destroy()
+                    }
+                },
                 modifier = Modifier.fillMaxSize()
             )
 

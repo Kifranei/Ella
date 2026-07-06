@@ -50,6 +50,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -217,7 +218,7 @@ fun EqualizerScreen(
                 SettingsCardGroup {
                     EqControlSlider(
                         title = stringResource(R.string.equalizer_eq_q),
-                        valueText = String.format("%.1f", eqQ / 100f),
+                        valueText = String.format(Locale.ROOT, "%.1f", eqQ / 100f),
                         value = eqQ,
                         range = AudioEffectSettings.EQ_Q_MIN..AudioEffectSettings.EQ_Q_MAX,
                         onChange = { scope.launch { settingsManager.setEqQ(it) } }

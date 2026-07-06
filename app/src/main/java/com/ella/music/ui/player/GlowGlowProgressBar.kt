@@ -13,6 +13,7 @@ import android.os.Build
 import android.util.AttributeSet
 import android.util.Base64
 import android.view.View
+import androidx.annotation.RequiresApi
 import android.view.animation.DecelerateInterpolator
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -140,19 +141,12 @@ class GlowGlowProgressBar @JvmOverloads constructor(
         val canvasSize = floatArrayOf(widthPx, heightPx)
         val headSize = floatArrayOf(headWidth, headHeight)
 
-        shader.setFloatUniform("uResolution", canvasSize)
-        shader.setFloatUniform("uTrackCanvasSize", canvasSize)
-        shader.setFloatUniform("uTrackPosition", trackPosition)
-        shader.setFloatUniform("uTrackSize", trackSize)
-        shader.setFloatUniform("uHeadSize", headSize)
-        shader.setFloatUniform("uTrackProgress", progressFraction)
-        shader.setFloatUniform("uHeadGlowAlpha", headGlowAlpha)
-        shader.setIntUniform("uIsRtl", if (layoutDirection == LAYOUT_DIRECTION_RTL) 1 else 0)
-        shader.setFloatUniform(
-            "uContentColor",
-            Color.red(glowColor) / 255f,
-            Color.green(glowColor) / 255f,
-            Color.blue(glowColor) / 255f
+        updateRuntimeShaderUniforms(
+            shader = shader,
+            canvasSize = canvasSize,
+            trackPosition = trackPosition,
+            trackSize = trackSize,
+            headSize = headSize
         )
 
         canvas.drawRect(0f, 0f, widthPx, heightPx, shaderPaint)
@@ -188,6 +182,30 @@ class GlowGlowProgressBar @JvmOverloads constructor(
         headWidth = bitmap.width.toFloat()
         headHeight = bitmap.height.toFloat()
         return BitmapShader(bitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun updateRuntimeShaderUniforms(
+        shader: RuntimeShader,
+        canvasSize: FloatArray,
+        trackPosition: FloatArray,
+        trackSize: FloatArray,
+        headSize: FloatArray
+    ) {
+        shader.setFloatUniform("uResolution", canvasSize)
+        shader.setFloatUniform("uTrackCanvasSize", canvasSize)
+        shader.setFloatUniform("uTrackPosition", trackPosition)
+        shader.setFloatUniform("uTrackSize", trackSize)
+        shader.setFloatUniform("uHeadSize", headSize)
+        shader.setFloatUniform("uTrackProgress", progressFraction)
+        shader.setFloatUniform("uHeadGlowAlpha", headGlowAlpha)
+        shader.setIntUniform("uIsRtl", if (layoutDirection == LAYOUT_DIRECTION_RTL) 1 else 0)
+        shader.setFloatUniform(
+            "uContentColor",
+            Color.red(glowColor) / 255f,
+            Color.green(glowColor) / 255f,
+            Color.blue(glowColor) / 255f
+        )
     }
 
     private fun drawFallbackProgress(canvas: Canvas, widthPx: Float, heightPx: Float) {

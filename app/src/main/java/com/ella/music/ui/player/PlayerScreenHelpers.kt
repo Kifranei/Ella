@@ -276,13 +276,7 @@ private fun Context.currentOutputDisplayName(): String? {
     val devices = runCatching {
         audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
     }.getOrDefault(emptyArray())
-    val bluetooth = devices.firstOrNull { device ->
-        device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-            device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-            device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER ||
-            device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST
-    }
+    val bluetooth = devices.firstOrNull(::isBluetoothOutputDevice)
     val headphones = devices.firstOrNull { device ->
         device.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
             device.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
@@ -299,6 +293,20 @@ private fun Context.currentOutputDisplayName(): String? {
         speaker != null -> getString(R.string.player_output_speaker)
         else -> null
     }
+}
+
+private fun isBluetoothOutputDevice(device: AudioDeviceInfo): Boolean {
+    val type = device.type
+    if (type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO) {
+        return true
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+    ) {
+        return true
+    }
+    return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        type == AudioDeviceInfo.TYPE_BLE_BROADCAST
 }
 
 private fun AudioDeviceInfo.outputDisplayName(context: Context, fallbackRes: Int): String =

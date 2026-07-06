@@ -44,15 +44,22 @@ fun LibraryAnalysisScreen(
     val context = LocalContext.current
     val songs by mainViewModel.songs.collectAsState()
     val playbackStats by mainViewModel.playbackStats.collectAsState()
-    val cachedAnalysis = readCachedLibraryAnalysis(context, songs)
-    val analysis by produceState<LibraryAnalysis?>(initialValue = cachedAnalysis, songs) {
+    val analysis by produceState<LibraryAnalysis?>(
+        initialValue = if (songs.isEmpty()) LibraryAnalysis(emptyList(), emptyList(), 0, 0L) else null,
+        songs
+    ) {
         if (songs.isEmpty()) {
             value = LibraryAnalysis(emptyList(), emptyList(), 0, 0L)
             return@produceState
         }
-        if (cachedAnalysis != null) value = cachedAnalysis
+        val cachedAnalysis = withContext(Dispatchers.IO) { readCachedLibraryAnalysis(context, songs) }
+        if (cachedAnalysis != null) {
+            value = cachedAnalysis
+        }
         val fresh = withContext(Dispatchers.IO) { buildLibraryAnalysis(songs, mainViewModel) }
-        writeCachedLibraryAnalysis(context, songs, fresh)
+        withContext(Dispatchers.IO) {
+            writeCachedLibraryAnalysis(context, songs, fresh)
+        }
         value = fresh
     }
 
