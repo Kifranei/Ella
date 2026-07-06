@@ -168,7 +168,7 @@ internal fun SettingsAppearanceSection(
         SettingsManager.BOTTOM_DOCK_ITEM_ARTIST to stringResource(R.string.category_artist),
         SettingsManager.BOTTOM_DOCK_ITEM_ALBUM to stringResource(R.string.category_album),
         SettingsManager.BOTTOM_DOCK_ITEM_SCAN_SETTINGS to stringResource(R.string.folder_scan_settings),
-        SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS to stringResource(R.string.settings_other),
+        SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS to stringResource(R.string.tab_settings),
         SettingsManager.BOTTOM_DOCK_ITEM_YEAR to stringResource(R.string.category_year),
         SettingsManager.BOTTOM_DOCK_ITEM_GENRE to stringResource(R.string.category_genre),
         SettingsManager.BOTTOM_DOCK_ITEM_COMPOSER to stringResource(R.string.category_composer),

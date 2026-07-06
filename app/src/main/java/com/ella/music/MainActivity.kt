@@ -775,7 +775,7 @@ fun EllaApp(
         ),
         SettingsManager.BOTTOM_DOCK_ITEM_SETTINGS to BottomDockTab(
             route = Screen.Settings.createRoute(fromDock = true),
-            label = stringResource(R.string.settings_other),
+            label = stringResource(R.string.tab_settings),
             icon = MiuixIcons.Regular.Settings
         ),
         SettingsManager.BOTTOM_DOCK_ITEM_YEAR to BottomDockTab(

@@ -32,6 +32,7 @@ import com.ella.music.ui.components.EllaLoadingIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
 import java.net.URLEncoder
 
@@ -54,7 +55,7 @@ fun DynamicCoverWebViewSheet(
     ) {
         DynamicCoverWebViewContent(
             song = song,
-            onDownloadComplete = { path ->
+            onDownloadComplete = {
                 scope.launch {
                     Toast.makeText(
                         context,
@@ -88,12 +89,13 @@ private fun DynamicCoverWebViewContent(
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(true) }
 
-    val searchUrl = remember(song.artist, song.album) {
-        val query = listOf(song.artist, song.album)
+    val searchUrl = remember(song.title, song.artist, song.album) {
+        val query = listOf(song.title, song.artist, song.album)
             .filter { it.isNotBlank() }
             .joinToString(" ")
         "https://covers.musichoarders.xyz/?q=${URLEncoder.encode(query, "UTF-8")}"
     }
+    val autofillScript = remember(song) { buildDynamicCoverAutofillScript(song) }
 
     val downloadHelper = remember(song) {
         DynamicCoverDownloadHelper(context, song)
@@ -141,8 +143,7 @@ private fun DynamicCoverWebViewContent(
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 isLoading = false
-                                // Inject JS to intercept video clicks and extract URLs
-                                view?.evaluateJavascript(VIDEO_INTERCEPT_JS, null)
+                                injectScripts(view, autofillScript)
                             }
 
                             override fun shouldOverrideUrlLoading(
@@ -208,4 +209,151 @@ private fun DynamicCoverWebViewContent(
             }
         }
     }
+}
+
+private fun injectScripts(view: WebView?, autofillScript: String) {
+    if (view == null) return
+    view.evaluateJavascript(VIDEO_INTERCEPT_JS, null)
+    view.evaluateJavascript(autofillScript, null)
+    view.postDelayed({ view.evaluateJavascript(autofillScript, null) }, 500)
+    view.postDelayed({ view.evaluateJavascript(autofillScript, null) }, 1500)
+}
+
+private fun buildDynamicCoverAutofillScript(song: Song): String {
+    val title = JSONObject.quote(song.title)
+    val artist = JSONObject.quote(song.artist)
+    val album = JSONObject.quote(song.album)
+    val query = JSONObject.quote(
+        listOf(song.title, song.artist, song.album)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+    )
+    return """
+(function() {
+    if (window.__ellaDynamicCoverAutofillDone) return;
+    window.__ellaDynamicCoverAutofillDone = true;
+
+    var payload = {
+        title: $title,
+        artist: $artist,
+        album: $album,
+        query: $query
+    };
+
+    function emitInput(el, value) {
+        if (!el || typeof value !== 'string' || value.length === 0) return false;
+        var nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        if (nativeSetter && nativeSetter.set) nativeSetter.set.call(el, value);
+        else el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+    }
+
+    function byText(patterns) {
+        var nodes = document.querySelectorAll('button, a, span, div');
+        for (var i = 0; i < nodes.length; i++) {
+            var text = (nodes[i].innerText || nodes[i].textContent || '').trim().toLowerCase();
+            if (!text) continue;
+            for (var j = 0; j < patterns.length; j++) {
+                if (text === patterns[j] || text.indexOf(patterns[j]) >= 0) return nodes[i];
+            }
+        }
+        return null;
+    }
+
+    function dismissTours() {
+        var styleId = 'ella-dynamic-cover-hide-tour';
+        if (!document.getElementById(styleId)) {
+            var style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = '.tg-backdrop,.tg-dialog,.introjs-overlay,.introjs-tooltip,.driver-popover,[class*="tour"],[class*="onboard"]{display:none !important;visibility:hidden !important;pointer-events:none !important;}';
+            document.head.appendChild(style);
+        }
+        var blockers = document.querySelectorAll('.tg-backdrop,.tg-dialog,.introjs-overlay,.introjs-tooltip,[class*="tour"],[class*="onboard"]');
+        for (var i = 0; i < blockers.length; i++) {
+            blockers[i].style.display = 'none';
+            blockers[i].setAttribute('aria-hidden', 'true');
+        }
+        var closeNode = byText(['skip', 'close', 'got it', 'done', 'finish', '开始', '跳过', '关闭', '知道了', '完成']);
+        if (closeNode && typeof closeNode.click === 'function') closeNode.click();
+    }
+
+    function matchField(field, keywords) {
+        var id = ((field.id || '') + ' ' + (field.name || '') + ' ' + (field.placeholder || '') + ' ' + (field.getAttribute('aria-label') || '')).toLowerCase();
+        for (var i = 0; i < keywords.length; i++) {
+            if (id.indexOf(keywords[i]) >= 0) return true;
+        }
+        return false;
+    }
+
+    function fillFields() {
+        var fields = Array.prototype.slice.call(document.querySelectorAll('input[type="text"], input[type="search"], textarea'));
+        if (!fields.length) return false;
+
+        var queryField = null;
+        var titleField = null;
+        var artistField = null;
+        var albumField = null;
+
+        for (var i = 0; i < fields.length; i++) {
+            var field = fields[i];
+            if (!queryField && matchField(field, ['search', 'query', 'keyword', '关键词', '搜索'])) queryField = field;
+            if (!titleField && matchField(field, ['title', 'song', 'track', '歌曲', '标题'])) titleField = field;
+            if (!artistField && matchField(field, ['artist', 'performer', '歌手', '艺术家'])) artistField = field;
+            if (!albumField && matchField(field, ['album', 'release', '专辑'])) albumField = field;
+        }
+
+        var filled = false;
+        filled = emitInput(titleField, payload.title) || filled;
+        filled = emitInput(artistField, payload.artist) || filled;
+        filled = emitInput(albumField, payload.album) || filled;
+
+        if (!filled) {
+            var primary = queryField || fields[0];
+            filled = emitInput(primary, payload.query) || filled;
+        } else if (queryField && !queryField.value) {
+            emitInput(queryField, payload.query);
+        }
+
+        return filled;
+    }
+
+    function submitSearch() {
+        var submit = document.querySelector('button[type="submit"], input[type="submit"]')
+            || byText(['search', 'go', 'find', '搜索', '查找']);
+        if (submit && typeof submit.click === 'function') {
+            submit.click();
+            return true;
+        }
+        var form = document.querySelector('form');
+        if (form && typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+            return true;
+        }
+        var field = document.querySelector('input[type="search"], input[type="text"], textarea');
+        if (field) {
+            field.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' }));
+            field.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: 'Enter', code: 'Enter' }));
+            return true;
+        }
+        return false;
+    }
+
+    function run() {
+        dismissTours();
+        if (!fillFields()) {
+            window.__ellaDynamicCoverAutofillDone = false;
+            return;
+        }
+        submitSearch();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run, { once: true });
+    } else {
+        run();
+    }
+})();
+"""
 }
