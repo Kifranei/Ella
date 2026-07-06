@@ -12,7 +12,6 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.SystemClock
-import android.util.Log
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -150,7 +149,6 @@ internal fun rememberThrottledPlayerPosition(
     val latestLivePositionProvider by rememberUpdatedState(livePositionProvider)
     return produceState(initialValue = positionFlow.value, positionFlow, anchorKey) {
         var lastUiTickMs = 0L
-        var lastLoggedTickMs = 0L
         fun applyPosition(positionMs: Long) {
             val now = SystemClock.elapsedRealtime()
             if (shouldIgnoreMinorPlaybackRegression(value, positionMs, latestPlaying)) return
@@ -158,14 +156,8 @@ internal fun rememberThrottledPlayerPosition(
             val shouldUpdate = reset || !latestPlaying || now - lastUiTickMs >= intervalMs
             if (!shouldUpdate) return
 
-            val previousTickMs = lastUiTickMs
             value = positionMs
             lastUiTickMs = now
-            if (latestPlaying && now - lastLoggedTickMs >= 5_000L) {
-                val interval = if (previousTickMs > 0L) now - previousTickMs else 0L
-                Log.d("PlayerScreenPerf", "PlayerScreen position ui tick interval=${interval}ms")
-                lastLoggedTickMs = now
-            }
         }
         launch {
             positionFlow.collect { positionMs ->

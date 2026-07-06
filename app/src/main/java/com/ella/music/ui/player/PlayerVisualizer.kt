@@ -1,7 +1,6 @@
 package com.ella.music.ui.player
 
 import android.media.audiofx.Visualizer
-import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,7 +52,6 @@ internal fun AudioVisualizer(
             }
         }.onFailure { visualizerFailed = true }.getOrNull() ?: return@LaunchedEffect
 
-        Log.d("PlayerScreenPerf", "visualizer start")
         val buffer = ByteArray(visualizer.captureSize)
         var smoothedLevels = emptyList<Float>()
         try {
@@ -72,7 +70,6 @@ internal fun AudioVisualizer(
                 delay(50L)
             }
         } finally {
-            Log.d("PlayerScreenPerf", "visualizer stop")
             runCatching { visualizer.enabled = false }
             visualizer.release()
         }

@@ -3,7 +3,6 @@ package com.ella.music.ui.player
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import android.net.Uri
-import android.util.Log
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -15,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,9 +41,6 @@ internal fun FluidLyricBackground(
     animate: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(animate) {
-        Log.d("PlayerScreenPerf", "flow background ${if (animate) "animated" else "static"}")
-    }
     // Freeze the drift while the player surface is hidden but still resident.
     val animateActive = animate && LocalPlayerSurfaceActive.current
     val drift = if (animateActive) {
@@ -344,10 +339,6 @@ internal fun PlayerBlurBackground(
     val coverModel = embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
     val movingScale = 2.90f
     val movingOffset = 0f
-    LaunchedEffect(coverModel, isPlaying) {
-        Log.d("PlayerScreenPerf", "blur background static")
-    }
-
     // On a light player theme, wash the blurred cover toward white (dark lyrics on top) instead of
     // darkening it like the dark theme does.
     val isLight = palette.isLight
