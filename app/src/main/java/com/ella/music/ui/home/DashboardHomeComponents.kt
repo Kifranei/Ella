@@ -32,9 +32,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.model.Song
+import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.CloverShape
 import com.ella.music.ui.components.CookieShape
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.rememberSongArtworkState
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.effect.BgEffectBackground
 import com.ella.music.viewmodel.MainViewModel
@@ -211,8 +213,14 @@ internal fun DailyMixCard(
         ) {
             featuredSongs.take(3).forEachIndexed { index, song ->
                 val coverSize = listOf(72, 60, 50).getOrElse(index) { 50 }.dp
+                val coverState = rememberSongArtworkState(
+                    song = song,
+                    albumArtUri = mainViewModel.getAlbumArtUri(song.albumId),
+                    loadCoverArt = mainViewModel::getCoverArtBitmap,
+                    usage = ArtworkUsage.ListThumbnail
+                )
                 SafeCoverImage(
-                    model = mainViewModel.getAlbumArtUri(song.albumId),
+                    model = coverState.model,
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.TopEnd)

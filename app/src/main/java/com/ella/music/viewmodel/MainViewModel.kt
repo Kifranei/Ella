@@ -203,7 +203,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scanJob = viewModelScope.launch {
             val source = settingsManager.librarySource.first()
             if (source != SettingsManager.LIBRARY_SOURCE_LOCAL) {
-                loadRemoteLibrarySource(source, forceRefresh = false)
+                // Remote libraries are already restored during startup via loadCachedLibrary().
+                // Do not route them through the scan flow again, otherwise every cold start /
+                // activity recreation shows a fake "scan finished" toast for cached data.
                 return@launch
             }
             if (!settingsManager.autoScan.first()) return@launch
