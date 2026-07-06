@@ -5,6 +5,7 @@ import android.app.DownloadManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Typeface
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.net.Uri
@@ -14,9 +15,13 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.TextUnit
@@ -263,16 +268,37 @@ internal fun setPlayerSystemBars(activity: Activity?, view: View) {
 @Composable
 internal fun rememberBluetoothOutputName(): String? {
     val context = LocalContext.current
-    return produceState(initialValue = context.currentOutputDisplayName(), context) {
-        while (true) {
-            value = context.currentOutputDisplayName()
-            delay(2_000L)
+    var outputName by remember(context) { mutableStateOf(context.currentOutputDisplayName()) }
+    DisposableEffect(context) {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        if (audioManager == null) {
+            outputName = null
+            return@DisposableEffect onDispose {}
         }
-    }.value
+        outputName = context.currentOutputDisplayName(audioManager)
+        val callback = object : AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) {
+                outputName = context.currentOutputDisplayName(audioManager)
+            }
+
+            override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+                outputName = context.currentOutputDisplayName(audioManager)
+            }
+        }
+        audioManager.registerAudioDeviceCallback(callback, null)
+        onDispose {
+            audioManager.unregisterAudioDeviceCallback(callback)
+        }
+    }
+    return outputName
 }
 
 private fun Context.currentOutputDisplayName(): String? {
     val audioManager = getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    return currentOutputDisplayName(audioManager)
+}
+
+private fun Context.currentOutputDisplayName(audioManager: AudioManager?): String? {
     val devices = runCatching {
         audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS).orEmpty()
     }.getOrDefault(emptyArray())

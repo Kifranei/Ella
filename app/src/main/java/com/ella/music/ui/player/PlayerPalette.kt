@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color as AndroidColor
 import android.net.Uri
+import android.util.LruCache
 import androidx.compose.ui.graphics.Color
 import com.ella.music.data.model.Song
 import java.net.URL
@@ -12,7 +13,9 @@ import kotlin.math.abs
 import kotlin.math.max
 
 internal fun loadPaletteCoverBitmap(context: Context, song: Song): Bitmap? {
-    return runCatching {
+    val cacheKey = song.paletteCoverCacheKey()
+    PaletteCoverBitmapCache.get(cacheKey)?.let { return it }
+    val bitmap = runCatching {
         when {
             song.coverUrl.isNotBlank() -> URL(song.coverUrl).openStream().use { input ->
                 BitmapFactory.decodeStream(input)
@@ -23,6 +26,8 @@ internal fun loadPaletteCoverBitmap(context: Context, song: Song): Bitmap? {
             else -> null
         }?.scaledForPalette()
     }.getOrNull()
+    bitmap?.let { PaletteCoverBitmapCache.put(cacheKey, it) }
+    return bitmap
 }
 
 private fun Bitmap.scaledForPalette(): Bitmap {
@@ -35,6 +40,32 @@ private fun Bitmap.scaledForPalette(): Bitmap {
         (height * scale).toInt().coerceAtLeast(1),
         true
     )
+}
+
+private fun Song.paletteCoverCacheKey(): String =
+    when {
+        coverUrl.isNotBlank() -> "url|$coverUrl"
+        albumId > 0L -> "album|$albumId|$dateModified|$fileSize"
+        else -> listOf(path, dateModified, fileSize, title, artist, album).joinToString("|")
+    }
+
+private object PaletteCoverBitmapCache {
+    private val cache = object : LruCache<String, Bitmap>(6 * 1024) {
+        override fun sizeOf(key: String, value: Bitmap): Int = value.bitmapSizeInKb()
+    }
+
+    fun get(key: String): Bitmap? = synchronized(cache) { cache.get(key) }
+
+    fun put(key: String, bitmap: Bitmap) {
+        synchronized(cache) {
+            cache.put(key, bitmap)
+        }
+    }
+}
+
+private fun Bitmap.bitmapSizeInKb(): Int {
+    val bytes = runCatching { allocationByteCount }.getOrElse { rowBytes * height }
+    return (bytes / 1024).coerceAtLeast(1)
 }
 
 /**
@@ -93,6 +124,28 @@ internal data class PlayerPalette(
 
         /** A single representative, vibrancy-boosted color from the cover, for use as a Monet seed. */
         fun seedColor(bitmap: Bitmap?): Color? = representativeAccent(bitmap)?.toPlayerAccent()
+
+        fun pairFrom(bitmap: Bitmap?, light: Boolean = false): Pair<PlayerPalette, PlayerPalette> {
+            val fallback = if (light) LightDefault else Default
+            val representative = representativeAccent(bitmap) ?: return fallback to fallback
+            val accent = representative.toPlayerAccent()
+            return if (light) {
+                val palette = lightPalette(accent)
+                palette to palette
+            } else {
+                PlayerPalette(
+                    top = accent.darken(0.40f),
+                    middle = accent.darken(0.66f),
+                    bottom = accent.darken(0.86f),
+                    accent = accent
+                ) to PlayerPalette(
+                    top = accent.darken(0.42f),
+                    middle = accent.darken(0.68f),
+                    bottom = accent.darken(0.88f),
+                    accent = accent
+                )
+            }
+        }
 
         fun fromCoverBackground(bitmap: Bitmap?, light: Boolean = false): PlayerPalette {
             val representative = representativeAccent(bitmap) ?: return if (light) LightDefault else Default

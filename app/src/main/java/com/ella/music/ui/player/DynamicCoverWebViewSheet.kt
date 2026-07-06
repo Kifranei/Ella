@@ -210,7 +210,6 @@ private fun DynamicCoverWebViewContent(
                         setDownloadListener(null)
                         removeJavascriptInterface("AndroidBridge")
                         clearHistory()
-                        clearCache(false)
                         loadUrl("about:blank")
                         destroy()
                     }

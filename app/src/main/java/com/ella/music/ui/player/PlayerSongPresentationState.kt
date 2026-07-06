@@ -49,11 +49,12 @@ internal fun rememberPlayerSongPresentationState(
             embeddedCover ?: song?.let { loadPaletteCoverBitmap(context, it) }
         }
     }
-    val palette by produceState(initialValue = paletteDefault, paletteBitmap, playerLight) {
-        value = withContext(Dispatchers.Default) { PlayerPalette.from(paletteBitmap, playerLight) }
-    }
-    val lyricPalette by produceState(initialValue = paletteDefault, paletteBitmap, playerLight) {
-        value = withContext(Dispatchers.Default) { PlayerPalette.fromLyricBackground(paletteBitmap, playerLight) }
+    val palettePair by produceState(
+        initialValue = paletteDefault to paletteDefault,
+        paletteBitmap,
+        playerLight
+    ) {
+        value = withContext(Dispatchers.Default) { PlayerPalette.pairFrom(paletteBitmap, playerLight) }
     }
     val audioInfo by produceState<AudioInfo?>(initialValue = null, songKey) {
         value = withContext(Dispatchers.IO) { song?.let(playerViewModel::getAudioInfo) }
@@ -75,8 +76,8 @@ internal fun rememberPlayerSongPresentationState(
     return PlayerSongPresentationState(
         embeddedCover = embeddedCover,
         paletteBitmap = paletteBitmap,
-        palette = palette,
-        lyricPalette = lyricPalette,
+        palette = palettePair.first,
+        lyricPalette = palettePair.second,
         audioInfo = audioInfo,
         tagInfo = tagInfo,
         annotation = annotation,

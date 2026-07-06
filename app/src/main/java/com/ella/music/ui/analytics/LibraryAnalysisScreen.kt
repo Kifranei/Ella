@@ -55,6 +55,7 @@ fun LibraryAnalysisScreen(
         val cachedAnalysis = withContext(Dispatchers.IO) { readCachedLibraryAnalysis(context, songs) }
         if (cachedAnalysis != null) {
             value = cachedAnalysis
+            return@produceState
         }
         val fresh = withContext(Dispatchers.IO) { buildLibraryAnalysis(songs, mainViewModel) }
         withContext(Dispatchers.IO) {
