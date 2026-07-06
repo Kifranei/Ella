@@ -120,7 +120,6 @@ class TickerBridge(private val context: Context) {
                 postTickerNotification(text, effectiveTranslation)
             }
 
-            Log.d(TAG, "Ticker lyric sent: $text")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send ticker lyric", e)
         }
@@ -214,7 +213,6 @@ class TickerBridge(private val context: Context) {
 
         lastHeadsUpNotificationId = notificationId
         notificationManager.notify(notificationId, notification)
-        Log.d(TAG, "Heads-up lyric notification posted: $text")
     }
 
     private fun cancelHeadsUpLyricNotification() {
@@ -268,11 +266,6 @@ class TickerBridge(private val context: Context) {
 
             notification.flags = notification.flags or flagAlwaysShowTicker
             notification.flags = notification.flags or flagOnlyUpdateTicker
-
-            Log.d(
-                TAG,
-                "Flyme ticker notification posted, text=$text, hidden=$hideNotification, showFlag=$flagAlwaysShowTicker, updateFlag=$flagOnlyUpdateTicker"
-            )
         } else {
             Log.w(TAG, "Flyme ticker flags are using fallback values")
         }

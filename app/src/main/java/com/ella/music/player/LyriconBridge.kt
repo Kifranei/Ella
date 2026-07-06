@@ -100,7 +100,6 @@ class LyriconBridge(private val context: Context) {
         val signature = song.lyriconSignature(lyrics)
         if (!force && signature == lastSentSignature) {
             p.player.setDisplayTranslation(secondaryMode.displayTranslation)
-            Log.d(TAG, "Skipped duplicate Lyricon song: ${song.title} (${lyrics.size} lines)")
             return
         }
 
@@ -150,7 +149,6 @@ class LyriconBridge(private val context: Context) {
             p.player.setSong(lyriconSong)
             p.player.setDisplayTranslation(secondaryMode.displayTranslation)
             lastSentSignature = signature
-            Log.d(TAG, "Sent song to Lyricon: ${song.title} (${richLyrics.size} lines)")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to send song to Lyricon", e)
         }

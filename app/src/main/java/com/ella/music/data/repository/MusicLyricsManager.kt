@@ -38,8 +38,6 @@ internal class MusicLyricsManager(
         val cacheKey = "${song.metadataCacheKey()}:lyrics:$safeMode:$sourcePriority:$ignoreHeaderTags"
         lyricsCache[cacheKey]?.let { return@withContext it }
 
-        Log.d("MusicRepo", "Loading lyrics for: ${song.title} path=${song.path}")
-
         if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO) {
             fetchOnlineLyrics(song)?.let { onlineLyrics ->
                 lyricsCache[cacheKey] = onlineLyrics
@@ -55,7 +53,6 @@ internal class MusicLyricsManager(
             }
         }
 
-        Log.d("MusicRepo", "No lyrics found for ${song.title}")
         lyricsCache[cacheKey] = emptyList()
         emptyList()
     }
@@ -147,7 +144,6 @@ internal class MusicLyricsManager(
         val parsed = LrcParser.parse(content, ignoreHeaderTags)
         val lyrics = parsed.lyrics.takeIf { it.isNotEmpty() } ?: return null
         return lyrics.takeIf { lines -> lines.any { it.isTtml } == preferTtml }
-            .also { Log.d("MusicRepo", "External lyric format ${if (preferTtml) "TTML" else "LRC/ELRC"} parsed: ${lyrics.size} lines for ${song.title}") }
     }
 
     private fun loadEmbeddedLyricsByFormat(
@@ -162,10 +158,8 @@ internal class MusicLyricsManager(
     private fun parseEmbeddedLyrics(song: Song, embedded: String, ignoreHeaderTags: Boolean): List<LyricLine>? {
         val parsed = LrcParser.parse(embedded, ignoreHeaderTags)
         if (parsed.lyrics.isNotEmpty()) {
-            Log.d("MusicRepo", "Embedded lyrics parsed: ${parsed.lyrics.size} lines for ${song.title}")
             return parsed.lyrics
         }
-        Log.d("MusicRepo", "Embedded lyrics not synchronized format, using plain text")
         val result = mutableListOf<LyricLine>()
         var timeOffset = 0L
         embedded.lines().forEach { line ->
