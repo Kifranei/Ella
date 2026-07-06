@@ -824,69 +824,23 @@ fun MetadataCategoryDetailScreen(
                     .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
 
-            SongMoreActionHost(
-                actionSong = actionSong,
+            MetadataCategoryDetailScreenSurfaces(
+                context = context,
                 mainViewModel = mainViewModel,
                 playerViewModel = playerViewModel,
-                onDismissAction = { actionSong = null },
+                actionSong = actionSong,
+                onActionSongChange = { actionSong = it },
                 onNavigateToAlbum = onAlbumClick,
-                onNavigateToArtist = onArtistClick
-            )
-
-            playlistPickerSongs?.let { songsToAdd ->
-                EllaMiuixBottomSheet(
-                    show = true,
-                    enableNestedScroll = false,
-                    title = stringResource(R.string.song_more_add_to_playlist),
-                    onDismissRequest = { playlistPickerSongs = null }
-                ) {
-                    AddToPlaylistSheet(
-                        playlists = playlists
-                            .sortedWith(compareByDescending<com.ella.music.data.model.UserPlaylist> { it.id == FAVORITES_PLAYLIST_ID }.thenByDescending { it.createdAt }),
-                        songCount = songsToAdd.size,
-                        onDismiss = { playlistPickerSongs = null },
-                        onCreatePlaylist = {
-                            createPlaylistSongs = songsToAdd
-                            playlistPickerSongs = null
-                        },
-                        onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
-                            selectedPlaylists.forEach { playlist ->
-                                mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
-                            }
-                            Toast.makeText(context, context.getString(R.string.player_added_to_playlists, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
-                            playlistPickerSongs = null
-                            clearSelection()
-                        }
-                    )
-                }
-            }
-
-            createPlaylistSongs?.let { songsToAdd ->
-                CategoryCreatePlaylistAndAddSelectedSheet(
-                    songCount = songsToAdd.size,
-                    onDismiss = { createPlaylistSongs = null },
-                    onCreate = { playlistName ->
-                        mainViewModel.createPlaylistOrShowDuplicateToast(context, playlistName) { playlist ->
-                            mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
-                            Toast.makeText(context, context.getString(R.string.player_added_to_playlist_named, playlist.name), Toast.LENGTH_SHORT).show()
-                            createPlaylistSongs = null
-                            clearSelection()
-                        }
-                    }
-                )
-            }
-
-            ConfirmDangerDialog(
-                show = pendingDeleteSongs.isNotEmpty(),
-                title = stringResource(R.string.song_more_delete_song_title),
-                message = stringResource(R.string.library_delete_selected_message, pendingDeleteSongs.size),
-                confirmText = stringResource(R.string.song_more_delete_permanently),
-                onDismiss = { pendingDeleteSongs = emptyList() },
-                onConfirm = {
-                    val songsToDelete = pendingDeleteSongs
-                    pendingDeleteSongs = emptyList()
-                    deleteSelectedSongs(songsToDelete)
-                }
+                onNavigateToArtist = onArtistClick,
+                playlists = playlists,
+                playlistPickerSongs = playlistPickerSongs,
+                onPlaylistPickerSongsChange = { playlistPickerSongs = it },
+                createPlaylistSongs = createPlaylistSongs,
+                onCreatePlaylistSongsChange = { createPlaylistSongs = it },
+                pendingDeleteSongs = pendingDeleteSongs,
+                onPendingDeleteSongsChange = { pendingDeleteSongs = it },
+                onDeleteSelectedSongs = ::deleteSelectedSongs,
+                onClearSelection = ::clearSelection
             )
         }
     }

@@ -9,8 +9,12 @@ import com.ella.music.data.model.Artist
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
+import com.ella.music.data.model.UserPlaylist
+import com.ella.music.data.model.matchesFullTagSearch
+import com.ella.music.viewmodel.MetadataCategoryItem
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.LinkedHashMap
 
 internal enum class SearchFilter {
     All,
@@ -89,6 +93,13 @@ internal data class SongSearchGroupEntry(
     val result: SongSearchResult,
     val match: SongSearchMatch?,
     val keySuffix: String
+)
+
+internal data class LibrarySearchFacetResults(
+    val albums: List<Album> = emptyList(),
+    val artists: List<ArtistSearchResult> = emptyList(),
+    val playlists: List<UserPlaylist> = emptyList(),
+    val categoriesByType: Map<String, List<MetadataCategoryItem>> = emptyMap()
 )
 
 internal fun SongSearchResult.toSearchGroupEntries(filter: SearchFilter): List<Pair<Int, SongSearchGroupEntry>> {
@@ -208,6 +219,24 @@ internal fun List<Song>.duplicateTitleAlbumSongs(): List<Song> =
     }
         .sortedWith(compareBy<Song> { it.album.lowercase() }.thenBy { it.title.lowercase() }.thenBy { it.artist.lowercase() })
 
+internal fun buildDirectSongSearchResults(
+    songs: List<Song>,
+    query: String,
+    filter: SearchFilter
+): List<SongSearchResult> =
+    when {
+        !filter.acceptsSongResults || filter == SearchFilter.Lyrics -> emptyList()
+        query.isBlank() -> songs.map { song ->
+            SongSearchResult(song = song, matches = song.directSearchMatches(query))
+        }
+        else -> songs.asSequence()
+            .filter { it.matchesFullTagSearch(query) }
+            .map { song ->
+                SongSearchResult(song = song, matches = song.directSearchMatches(query))
+            }
+            .toList()
+    }
+
 internal fun loadSearchHistory(context: Context): List<String> =
     context.getSharedPreferences(SEARCH_PREFS, Context.MODE_PRIVATE)
         .getString(SEARCH_HISTORY_KEY, "")
@@ -281,6 +310,52 @@ internal fun saveCachedSongSearchResults(
 
 private fun searchResultCacheKey(query: String, filter: SearchFilter): String =
     "results:${filter.name.lowercase()}:${query.trim().lowercase()}"
+
+internal fun librarySearchFacetCacheKey(
+    query: String,
+    filter: SearchFilter,
+    duplicatesOnlyActive: Boolean,
+    showAlbumArtists: Boolean,
+    categoryTypes: List<String>,
+    songs: List<Song>,
+    albums: List<Album>,
+    playlists: List<UserPlaylist>
+): String = buildString {
+    append(query.trim().lowercase())
+    append('|').append(filter.name)
+    append('|').append(duplicatesOnlyActive)
+    append('|').append(showAlbumArtists)
+    append('|').append(categoryTypes.joinToString(","))
+    append('|').append(System.identityHashCode(songs))
+    append('|').append(System.identityHashCode(albums))
+    append('|').append(System.identityHashCode(playlists))
+}
+
+internal fun loadCachedLibrarySearchFacetResults(cacheKey: String): LibrarySearchFacetResults? =
+    SearchFacetResultCache.get(cacheKey)
+
+internal fun saveCachedLibrarySearchFacetResults(
+    cacheKey: String,
+    results: LibrarySearchFacetResults
+) {
+    SearchFacetResultCache.put(cacheKey, results)
+}
+
+private object SearchFacetResultCache {
+    private const val MAX_ENTRIES = 12
+    private val cache = object : LinkedHashMap<String, LibrarySearchFacetResults>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, LibrarySearchFacetResults>?): Boolean =
+            size > MAX_ENTRIES
+    }
+
+    @Synchronized
+    fun get(key: String): LibrarySearchFacetResults? = cache[key]
+
+    @Synchronized
+    fun put(key: String, results: LibrarySearchFacetResults) {
+        cache[key] = results
+    }
+}
 
 private const val SEARCH_PREFS = "library_search"
 private const val SEARCH_HISTORY_KEY = "history"

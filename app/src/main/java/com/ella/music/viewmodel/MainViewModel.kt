@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -92,6 +93,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var scanJob: Job? = null
     private var searchSnapshotPrewarmJob: Job? = null
     private var autoScanRequested = false
+    private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
 
     init {
         viewModelScope.launchNameSplitConfigObservers(settingsManager)
@@ -358,7 +360,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getMetadataCategoryItems(type: String): List<MetadataCategoryItem> {
-        return buildMetadataCategoryItems(songs.value, type)
+        return getMetadataCategoryItems(songs.value, type)
+    }
+
+    fun getMetadataCategoryItems(
+        songs: List<Song>,
+        type: String
+    ): List<MetadataCategoryItem> {
+        val cacheKey = "$type:${System.identityHashCode(songs)}"
+        metadataCategoryItemsCache[cacheKey]?.let { return it.items }
+        val items = buildMetadataCategoryItems(songs, type)
+        metadataCategoryItemsCache.entries.removeIf { (key, _) -> key.startsWith("$type:") && key != cacheKey }
+        metadataCategoryItemsCache[cacheKey] = MetadataCategoryItemsCacheEntry(items)
+        return items
     }
 
     fun getMetadataCategoryCount(type: String): Int {
@@ -600,3 +614,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 }
+
+private data class MetadataCategoryItemsCacheEntry(
+    val items: List<MetadataCategoryItem>
+)

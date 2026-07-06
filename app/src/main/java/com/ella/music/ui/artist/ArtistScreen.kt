@@ -935,157 +935,33 @@ fun ArtistScreen(
                 .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
         )
 
-        SongMoreActionHost(
-            actionSong = actionSong,
+        ArtistScreenSurfaces(
+            context = context,
             mainViewModel = mainViewModel,
+            playlists = playlists,
+            actionSong = actionSong,
+            onActionSongChange = { actionSong = it },
             playerViewModel = playerViewModel,
-            onDismissAction = { actionSong = null },
             onNavigateToAlbum = onAlbumClick,
-            onNavigateToArtist = onArtistClick
+            onNavigateToArtist = onArtistClick,
+            playlistPickerSong = playlistPickerSong,
+            onPlaylistPickerSongChange = { playlistPickerSong = it },
+            createPlaylistSong = createPlaylistSong,
+            onCreatePlaylistSongChange = { createPlaylistSong = it },
+            playlistPickerSongs = playlistPickerSongs,
+            onPlaylistPickerSongsChange = { playlistPickerSongs = it },
+            createPlaylistSongs = createPlaylistSongs,
+            onCreatePlaylistSongsChange = { createPlaylistSongs = it },
+            pendingDeleteSongs = pendingDeleteSongs,
+            onPendingDeleteSongsChange = { pendingDeleteSongs = it },
+            onRequestDeleteSongs = requestDeleteSongs,
+            onFinishSelectionMode = ::finishSelectionMode,
+            tagEditorSong = tagEditorSong,
+            onTagEditorSongChange = { tagEditorSong = it },
+            songInfoSheetSong = songInfoSheetSong,
+            onSongInfoSheetSongChange = { songInfoSheetSong = it },
+            aiInterpretationSong = aiInterpretationSong,
+            onAiInterpretationSongChange = { aiInterpretationSong = it }
         )
-
-        playlistPickerSong?.let { song ->
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.player_add_to_playlist),
-                onDismissRequest = { playlistPickerSong = null }
-            ) {
-                AddToPlaylistSheet(
-                    playlists = playlists
-                        .sortedWith(compareByDescending<com.ella.music.data.model.UserPlaylist> { it.id == FAVORITES_PLAYLIST_ID }.thenByDescending { it.createdAt }),
-                    onDismiss = { playlistPickerSong = null },
-                    onCreatePlaylist = {
-                        createPlaylistSong = song
-                        playlistPickerSong = null
-                    },
-                    onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
-                        selectedPlaylists.forEach { playlist ->
-                            mainViewModel.addSongsToPlaylist(playlist.id, listOf(song), appendToEnd)
-                        }
-                        Toast.makeText(context, context.getString(R.string.player_added_to_playlists, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
-                        playlistPickerSong = null
-                    }
-                )
-            }
-        }
-
-        createPlaylistSong?.let { song ->
-            ArtistCreatePlaylistSheet(
-                onDismiss = { createPlaylistSong = null },
-                onCreate = { name ->
-                    mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
-                        mainViewModel.addSongsToPlaylist(playlist.id, listOf(song))
-                        createPlaylistSong = null
-                    }
-                }
-            )
-        }
-
-        playlistPickerSongs?.let { songsToAdd ->
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.player_add_to_playlist),
-                onDismissRequest = { playlistPickerSongs = null }
-            ) {
-                AddToPlaylistSheet(
-                    playlists = playlists
-                        .sortedWith(compareByDescending<com.ella.music.data.model.UserPlaylist> { it.id == FAVORITES_PLAYLIST_ID }.thenByDescending { it.createdAt }),
-                    songCount = songsToAdd.size,
-                    onDismiss = { playlistPickerSongs = null },
-                    onCreatePlaylist = {
-                        createPlaylistSongs = songsToAdd
-                        playlistPickerSongs = null
-                    },
-                    onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
-                        selectedPlaylists.forEach { playlist ->
-                            mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
-                        }
-                        Toast.makeText(context, context.getString(R.string.player_added_to_playlists, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
-                        playlistPickerSongs = null
-                        finishSelectionMode()
-                    }
-                )
-            }
-        }
-
-        createPlaylistSongs?.let { songsToAdd ->
-            ArtistCreatePlaylistSheet(
-                onDismiss = { createPlaylistSongs = null },
-                onCreate = { name ->
-                    mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
-                        mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
-                        createPlaylistSongs = null
-                        finishSelectionMode()
-                    }
-                }
-            )
-        }
-        ConfirmDangerDialog(
-            show = pendingDeleteSongs.isNotEmpty(),
-            title = stringResource(R.string.song_more_delete_song_title),
-            message = stringResource(R.string.library_delete_selected_message, pendingDeleteSongs.size),
-            confirmText = stringResource(R.string.song_more_delete_permanently),
-            onDismiss = { pendingDeleteSongs = emptyList() },
-            onConfirm = {
-                val songsToDelete = pendingDeleteSongs
-                pendingDeleteSongs = emptyList()
-                requestDeleteSongs(songsToDelete)
-                finishSelectionMode()
-            }
-        )
-
-        tagEditorSong?.let { song ->
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.song_more_edit_tags_title),
-                onDismissRequest = { tagEditorSong = null }
-            ) {
-                ArtistTagEditorMenu(
-                    song = song,
-                    onDismiss = { tagEditorSong = null },
-                    onOptionClick = { option ->
-                        launchTagEditorOption(context, option)
-                        tagEditorSong = null
-                    }
-                )
-            }
-        }
-
-        songInfoSheetSong?.let { song ->
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.player_song_info),
-                onDismissRequest = { songInfoSheetSong = null }
-            ) {
-                ArtistSongInfoMenu(
-                    song = song,
-                    mainViewModel = mainViewModel,
-                    onAiInterpret = {
-                        songInfoSheetSong = null
-                        aiInterpretationSong = song
-                    },
-                    onDismiss = { songInfoSheetSong = null }
-                )
-            }
-        }
-
-        aiInterpretationSong?.let { song ->
-            EllaMiuixBottomSheet(
-                show = true,
-                enableNestedScroll = false,
-                title = stringResource(R.string.song_more_ai_title),
-                onDismissRequest = { aiInterpretationSong = null }
-            ) {
-                ArtistAiInterpretationMenu(
-                    song = song,
-                    mainViewModel = mainViewModel,
-                    onDismiss = { aiInterpretationSong = null }
-                )
-            }
-        }
     }
 }

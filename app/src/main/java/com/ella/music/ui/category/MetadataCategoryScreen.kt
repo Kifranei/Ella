@@ -606,164 +606,29 @@ fun MetadataCategoryScreen(
         }
     }
 
-    categoryMenuItem?.let { item ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = item.name.substringAfterLast('/').ifBlank { item.name },
-            onDismissRequest = { categoryMenuItem = null }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                    .background(MiuixTheme.colorScheme.background.copy(alpha = 0.98f))
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val isPinned = item.name in pinnedCategoryKeys
-                CategorySheetItem(
-                    stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top)
-                ) {
-                    scope.launch {
-                        mainViewModel.settingsManager.setPinned("category:$type", item.name, !isPinned)
-                    }
-                    categoryMenuItem = null
-                }
-                if (type == "folder") {
-                    CategorySheetItem(stringResource(R.string.folder_block_folder)) {
-                        folderToBlock = item.name.normalizeFolderPath()
-                        categoryMenuItem = null
-                    }
-                }
-                CategorySheetItem(stringResource(R.string.common_share)) {
-                    val selectedSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
-                    shareLocalSongs(context, selectedSongs)
-                    categoryMenuItem = null
-                }
-                CategorySheetItem(stringResource(R.string.song_more_add_to_playlist)) {
-                    scope.launch {
-                        playlistPickerSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
-                    }
-                    categoryMenuItem = null
-                }
-                CategorySheetItem(stringResource(R.string.common_add_to_queue)) {
-                    scope.launch {
-                        val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
-                        playerViewModel.addToPlaylist(selectedSongs)
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
-                    }
-                    categoryMenuItem = null
-                }
-                CategorySheetItem(stringResource(R.string.song_more_play_next)) {
-                    scope.launch {
-                        val selectedSongs = mainViewModel.detailSortedSongsForMetadataCategory(type, item.name)
-                        playerViewModel.playNext(selectedSongs)
-                        Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
-                    }
-                    categoryMenuItem = null
-                }
-                CategorySheetItem(stringResource(R.string.common_add_desktop_shortcut)) {
-                    val ok = requestPinnedEllaShortcut(
-                        context = context,
-                        id = "category_${type}_${item.name}",
-                        label = item.name,
-                        route = Screen.MetadataCategoryDetail.createRoute(type, item.name)
-                    )
-                    Toast.makeText(
-                        context,
-                        if (ok) context.getString(R.string.playlist_shortcut_requested, item.name) else context.getString(R.string.playlist_shortcut_unsupported),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    categoryMenuItem = null
-                }
-                if (type != "folder") {
-                    CategorySheetItem(stringResource(R.string.song_more_delete_permanently)) {
-                        pendingDeleteSongs = mainViewModel.getSongsForMetadataCategory(type, item.name)
-                        categoryMenuItem = null
-                    }
-                }
-                CategorySheetItem(stringResource(R.string.common_cancel)) {
-                    categoryMenuItem = null
-                }
-            }
+    MetadataCategoryScreenSurfaces(
+        context = context,
+        type = type,
+        mainViewModel = mainViewModel,
+        playerViewModel = playerViewModel,
+        playlists = playlists,
+        blockedFolders = blockedFolders,
+        categoryMenuItem = categoryMenuItem,
+        onCategoryMenuItemChange = { categoryMenuItem = it },
+        pinnedCategoryKeys = pinnedCategoryKeys,
+        folderToBlock = folderToBlock,
+        onFolderToBlockChange = { folderToBlock = it },
+        playlistPickerSongs = playlistPickerSongs,
+        onPlaylistPickerSongsChange = { playlistPickerSongs = it },
+        createPlaylistSongs = createPlaylistSongs,
+        onCreatePlaylistSongsChange = { createPlaylistSongs = it },
+        pendingDeleteSongs = pendingDeleteSongs,
+        onPendingDeleteSongsChange = { pendingDeleteSongs = it },
+        onRequestDeleteSongs = requestDeleteSongs,
+        loadDetailSongs = { categoryType, categoryName ->
+            mainViewModel.detailSortedSongsForMetadataCategory(categoryType, categoryName)
         }
-    }
-
-    folderToBlock?.let { folderPath ->
-        FolderBlockDialog(
-            folderPath = folderPath,
-            onDismiss = { folderToBlock = null },
-            onBlock = {
-                scope.launch {
-                    val normalizedPath = folderPath.normalizeFolderPath()
-                    mainViewModel.settingsManager.setScanExcludeFolders(
-                        (blockedFolders + normalizedPath)
-                            .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
-                            .joinToString("；")
-                    )
-                    mainViewModel.scanMusic()
-                }
-                folderToBlock = null
-            }
-        )
-    }
-
-    playlistPickerSongs?.let { songs ->
-        EllaMiuixBottomSheet(
-            show = true,
-            enableNestedScroll = false,
-            title = stringResource(R.string.song_more_add_to_playlist_title),
-            onDismissRequest = { playlistPickerSongs = null }
-        ) {
-            AddToPlaylistSheet(
-                playlists = playlists,
-                songCount = songs.size,
-                onDismiss = { playlistPickerSongs = null },
-                onCreatePlaylist = {
-                    createPlaylistSongs = songs
-                    playlistPickerSongs = null
-                },
-                onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
-                    selectedPlaylists.forEach { playlist ->
-                        mainViewModel.addSongsToPlaylist(playlist.id, songs, appendToEnd)
-                    }
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    playlistPickerSongs = null
-                }
-            )
-        }
-    }
-
-    createPlaylistSongs?.let { songs ->
-        CreatePlaylistAndAddSheet(
-            onDismiss = { createPlaylistSongs = null },
-            onCreate = { name ->
-                mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
-                    mainViewModel.addSongsToPlaylist(playlist.id, songs)
-                    createPlaylistSongs = null
-                }
-            }
-        )
-    }
-
-    if (pendingDeleteSongs.isNotEmpty()) {
-        ConfirmDangerDialog(
-            show = true,
-            title = stringResource(R.string.song_more_delete_song_title),
-            message = stringResource(R.string.library_delete_selected_message, pendingDeleteSongs.size),
-            confirmText = stringResource(R.string.song_more_delete_permanently),
-            onDismiss = { pendingDeleteSongs = emptyList() },
-            onConfirm = {
-                requestDeleteSongs(pendingDeleteSongs)
-                pendingDeleteSongs = emptyList()
-            }
-        )
-    }
+    )
 }
 }
 
