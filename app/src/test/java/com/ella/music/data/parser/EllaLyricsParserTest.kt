@@ -312,6 +312,41 @@ class EllaLyricsParserTest {
     }
 
     @Test
+    fun ttmlTranslationPreservesIntentionalCjkSpaces() {
+        val result = LrcParser.parse(
+            """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+              <body>
+                <div>
+                  <p begin="00:01.000" end="00:03.000">
+                    <span begin="00:01.000" end="00:02.000">We will overcome.</span>
+                    <span begin="00:02.000" end="00:03.000"> Your salvation has begun</span>
+                    <span ttm:role="x-translation">我们会征服一切 你的救赎才刚刚开始</span>
+                  </p>
+                </div>
+              </body>
+            </tt>
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("我们会征服一切 你的救赎才刚刚开始", result.lyrics.single().translation)
+    }
+
+    @Test
+    fun lrcUntimedTranslationPreservesIntentionalCjkSpaces() {
+        val result = LrcParser.parse(
+            """
+            [00:01.000]We will overcome. Your salvation has begun
+            我们会征服一切 你的救赎才刚刚开始
+            """.trimIndent()
+        )
+
+        assertEquals(1, result.lyrics.size)
+        assertEquals("我们会征服一切 你的救赎才刚刚开始", result.lyrics.single().translation)
+    }
+
+    @Test
     fun ellaTtmlFallbackTrimsStandaloneBackgroundParentheses() {
         val result = EllaLyricsParser.parse(
             """

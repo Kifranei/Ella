@@ -133,7 +133,7 @@ internal object EllaLyricsParser {
     private fun MutableList<LyricLine>.appendUntimedTranslation(indexes: List<Int>, rawLine: String): Boolean {
         if (indexes.isEmpty()) return false
         val (_, content) = rawLine.extractLrcAgent()
-        val text = content.cleanLyricText()
+        val text = content.cleanLyricSecondaryText()
         if (text.isIgnorableLyricText()) return false
         indexes.forEach { index ->
             val line = getOrNull(index) ?: return@forEach
@@ -370,14 +370,14 @@ internal object EllaLyricsParser {
                 val inlineTranslation = p.childrenElements()
                     .firstOrNull { it.hasRole("x-translation") && !it.hasRole("x-bg") }
                     ?.textContent
-                    ?.cleanLyricText()
+                    ?.cleanLyricSecondaryText()
                 val bg = p.childrenElements()
                     .firstOrNull { it.hasRole("x-bg") }
                     ?.parseTtmlBackground(end, translations[key])
                 val linePronunciation = p.childrenElements()
                     .firstOrNull { it.hasAnyRole("x-roman", "x-romanization") }
                     ?.textContent
-                    ?.cleanLyricText()
+                    ?.cleanLyricSecondaryText()
                 val transliteration = transliterations[key]
                 val pronunciationWords = when {
                     transliteration?.words?.isNotEmpty() == true -> transliteration.words.alignPronunciationWords(displayWords, text)
@@ -385,7 +385,7 @@ internal object EllaLyricsParser {
                     else -> emptyList()
                 }
                 val pronunciation = linePronunciation
-                    ?: transliteration?.text?.takeUsefulText()
+                    ?: transliteration?.text?.takeUsefulSecondaryText()
                     ?: rubyPronunciationWords.joinLyricText().takeIf { it.isNotBlank() }
                     ?: pronunciationWords.joinLyricText().takeIf { it.isNotBlank() }
 
@@ -395,8 +395,8 @@ internal object EllaLyricsParser {
                     timeMs = start,
                     text = displayText,
                     words = displayWords,
-                    translation = inlineTranslation?.takeUsefulText() ?: translations[key]?.splitAppleTranslation()?.first,
-                    pronunciation = pronunciation?.takeUsefulText(),
+                    translation = inlineTranslation?.takeUsefulSecondaryText() ?: translations[key]?.splitAppleTranslation()?.first,
+                    pronunciation = pronunciation?.takeUsefulSecondaryText(),
                     pronunciationWords = pronunciationWords.toDisplayWords(pronunciation.orEmpty()),
                     agent = agentIds.firstOrNull() ?: rawAgent.takeIf(String::isNotBlank),
                     agentName = displayAgentName,
@@ -544,7 +544,7 @@ internal object EllaLyricsParser {
             )
             .forEach { text ->
                 val key = text.attr("for").ifBlank { return@forEach }
-                val value = text.textContent.cleanLyricText()
+                val value = text.textContent.cleanLyricSecondaryText()
                 if (value.isNotBlank()) result.putIfAbsent(key, value)
             }
         return result
@@ -575,8 +575,8 @@ internal object EllaLyricsParser {
                     }
                 val plainText = text.textContent
                     .removeBackgroundParentheses()
-                    .cleanLyricText()
-                    .takeUsefulText()
+                    .cleanLyricSecondaryText()
+                    .takeUsefulSecondaryText()
                 if (!plainText.isNullOrBlank() || words.isNotEmpty()) {
                     result[key] = TtmlPronunciation(
                         text = plainText.orEmpty(),
@@ -709,8 +709,8 @@ internal object EllaLyricsParser {
         val translation = childrenElements()
             .firstOrNull { it.hasRole("x-translation") }
             ?.textContent
-            ?.cleanLyricText()
-            ?.takeUsefulText()
+            ?.cleanLyricSecondaryText()
+            ?.takeUsefulSecondaryText()
             ?: fallbackTranslation?.splitAppleTranslation()?.second
         val text = collectTtmlMainText(this, words, fallbackEnd)
             .removeBackgroundParentheses()
@@ -1057,6 +1057,11 @@ internal object EllaLyricsParser {
             .replace(Regex("""(?<=[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]) (?=[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af])"""), "")
             .trim()
 
+    private fun String.cleanLyricSecondaryText(): String =
+        decodeHtmlCompat()
+            .replace(Regex("""[ \t\r\n]+"""), " ")
+            .trim()
+
     fun isPlaceholderOnlyLine(line: String): Boolean =
         lrcTimePattern.replace(line.cleanLyricText(), "")
             .replace(Regex("""\s+"""), "")
@@ -1104,16 +1109,19 @@ internal object EllaLyricsParser {
     private fun String.takeUsefulText(): String? =
         cleanLyricText().takeIf { !it.isIgnorableLyricText() }
 
+    private fun String.takeUsefulSecondaryText(): String? =
+        cleanLyricSecondaryText().takeIf { !it.isIgnorableLyricText() }
+
     private fun String.isIgnorableLyricText(): Boolean =
         isBlank() || isMusicSymbolOnly() || isPlaceholderOnlyLine(this) || lrcGenericMetaPattern.matches(cleanLyricText())
 
     private fun String.splitAppleTranslation(): Pair<String?, String?> {
-        val text = cleanLyricText()
-        if (!text.endsWith('）')) return text.takeUsefulText() to null
+        val text = cleanLyricSecondaryText()
+        if (!text.endsWith('）')) return text.takeUsefulSecondaryText() to null
         val start = text.lastIndexOf('（')
-        if (start < 0) return text.takeUsefulText() to null
-        val main = text.substring(0, start).takeUsefulText()
-        val bg = text.substring(start + 1, text.length - 1).takeUsefulText()
+        if (start < 0) return text.takeUsefulSecondaryText() to null
+        val main = text.substring(0, start).takeUsefulSecondaryText()
+        val bg = text.substring(start + 1, text.length - 1).takeUsefulSecondaryText()
         return main to bg
     }
 

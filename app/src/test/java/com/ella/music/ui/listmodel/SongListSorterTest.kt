@@ -97,4 +97,7 @@ class SongListSorterTest {
             fileName = fileName,
             year = year
         )
+
+    private fun Song.releaseYearOrNull(): Int? =
+        year.trim().takeIf { it.length >= 4 }?.substring(0, 4)?.toIntOrNull()
 }
