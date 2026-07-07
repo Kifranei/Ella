@@ -66,9 +66,11 @@ import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
+import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ScanRefreshIconButton
+import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SortDropdownItem
@@ -1213,6 +1215,16 @@ fun FolderPlaylistDetailScreen(
                 }
             }
         }
+            ShuffleAllFloatingButton(
+                visible = !selectionMode && selectedTab == FolderPlaylistTab.Songs && displayedSongs.isNotEmpty(),
+                onClick = {
+                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
+                    if (openPlayerOnPlay) onNavigateToPlayer()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
+            )
             FloatingSelectionControls(
                 visible = selectionMode && displayedKeysForTab.isNotEmpty(),
                 rangeEnabled = rangeSelectionAvailable,

@@ -50,8 +50,10 @@ import com.ella.music.ui.components.FastIndexBar
 import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
+import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
+import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SortDropdownItem
@@ -536,6 +538,16 @@ fun PlaylistDetailScreen(
                 )
             }
 
+            ShuffleAllFloatingButton(
+                visible = !selectionMode && displayedSongs.isNotEmpty(),
+                onClick = {
+                    playerViewModel.setPlaylist(displayedSongs.shuffled(), 0)
+                    if (openPlayerOnPlay) onNavigateToPlayer()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
+            )
             LocateCurrentSongFloatingButton(
                 listState = listState,
                 currentItemIndex = if (selectionMode) -1 else currentSongItemIndex,

@@ -438,17 +438,27 @@ class MusicRepository(private val context: Context) {
         previousSongs: List<Song>,
         scannedSongs: List<Song>,
         fullRescan: Boolean
+    ): MusicScanSummary = buildLibraryDeltaSummary(
+        previousSongs = previousSongs,
+        currentSongs = scannedSongs,
+        fullRescan = fullRescan
+    )
+
+    private fun buildLibraryDeltaSummary(
+        previousSongs: List<Song>,
+        currentSongs: List<Song>,
+        fullRescan: Boolean = false
     ): MusicScanSummary {
-        val previousByKey = previousSongs.associateBy { it.librarySyncKey() }
-        val scannedByKey = scannedSongs.associateBy { it.librarySyncKey() }
-        val added = scannedByKey.keys.count { it !in previousByKey }
-        val deleted = previousByKey.keys.count { it !in scannedByKey }
-        val updated = scannedByKey.count { (key, song) ->
+        val previousByKey = previousSongs.associateBy { it.scanSummaryKey() }
+        val currentByKey = currentSongs.associateBy { it.scanSummaryKey() }
+        val added = currentByKey.keys.count { it !in previousByKey }
+        val deleted = previousByKey.keys.count { it !in currentByKey }
+        val updated = currentByKey.count { (key, song) ->
             val previous = previousByKey[key]
-            previous != null && previous.toLibrarySyncInfo() != song.toLibrarySyncInfo()
+            previous != null && previous.toScanSummaryInfo() != song.toScanSummaryInfo()
         }
         return MusicScanSummary(
-            total = scannedSongs.size,
+            total = currentSongs.size,
             added = added,
             updated = updated,
             deleted = deleted,
@@ -532,6 +542,8 @@ class MusicRepository(private val context: Context) {
      */
     suspend fun loadRemoteLibrary(source: String, forceRefresh: Boolean): MusicScanSummary = withContext(Dispatchers.IO) {
         val cacheFile = remoteLibraryCacheFile(source)
+        val previousSongs = _songs.value.takeIf { it.isNotEmpty() }
+            ?: runCatching { readLibraryCacheSongs(cacheFile) }.getOrDefault(emptyList())
 
         fun applyCache(): Boolean {
             if (!cacheFile.exists()) return false
@@ -577,7 +589,7 @@ class MusicRepository(private val context: Context) {
         _songs.value = remoteSongs
         _albums.value = remoteSongs.toAlbums()
         saveLibraryCacheTo(cacheFile, remoteSongs, _albums.value)
-        MusicScanSummary(total = remoteSongs.size, added = remoteSongs.size)
+        buildLibraryDeltaSummary(previousSongs, remoteSongs)
     }
 
     private fun listWebDavLibrarySongs(config: WebDavConfig, forceRefresh: Boolean): List<Song> {
@@ -1659,6 +1671,8 @@ class MusicRepository(private val context: Context) {
             path
         }
 
+    private fun Song.scanSummaryKey(): String = path.ifBlank { librarySyncKey() }
+
     private fun Song.toLibrarySyncInfo(): LibrarySyncInfo =
         LibrarySyncInfo(
             key = librarySyncKey(),
@@ -1673,6 +1687,20 @@ class MusicRepository(private val context: Context) {
             path = path,
             fileSize = fileSize,
             dateModified = dateModified
+        )
+
+    private fun Song.toScanSummaryInfo(): ScanSummaryInfo =
+        ScanSummaryInfo(
+            key = scanSummaryKey(),
+            fileSize = fileSize,
+            dateModified = dateModified,
+            title = title,
+            artist = artist,
+            album = album,
+            duration = duration,
+            year = year,
+            trackNumber = trackNumber,
+            discNumber = discNumber
         )
 
     private fun String.extractYearInt(): Int? =
@@ -1774,5 +1802,18 @@ class MusicRepository(private val context: Context) {
         val path: String,
         val fileSize: Long,
         val dateModified: Long
+    )
+
+    private data class ScanSummaryInfo(
+        val key: String,
+        val fileSize: Long,
+        val dateModified: Long,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val duration: Long,
+        val year: String,
+        val trackNumber: Int,
+        val discNumber: Int
     )
 }

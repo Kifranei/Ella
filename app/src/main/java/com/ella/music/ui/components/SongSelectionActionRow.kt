@@ -24,6 +24,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 internal val LibraryFloatingControlsBottomPadding = 156.dp
 internal val LibraryFloatingControlsEndPadding = 22.dp
+internal val LibrarySecondaryFloatingControlsBottomPadding = LibraryFloatingControlsBottomPadding + 58.dp
 
 @Composable
 fun SongSelectionActionRow(

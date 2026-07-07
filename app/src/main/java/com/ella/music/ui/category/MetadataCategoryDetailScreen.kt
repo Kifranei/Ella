@@ -96,11 +96,13 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.FolderOutlineIcon
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
+import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LazyGridScrollIndicator
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
+import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
@@ -805,6 +807,16 @@ fun MetadataCategoryDetailScreen(
                 }
             }
 
+            ShuffleAllFloatingButton(
+                visible = !selectionMode && sortedSongs.isNotEmpty(),
+                onClick = {
+                    playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                    if (openPlayerOnPlay) onNavigateToPlayer()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
+            )
             LocateCurrentSongFloatingButton(
                 listState = listState,
                 currentItemIndex = currentSongItemIndex,

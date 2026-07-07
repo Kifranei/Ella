@@ -96,6 +96,7 @@ fun BackupSettingsScreen(
     var showImportTypeSheet by remember { mutableStateOf(false) }
     var pendingExportTypes by remember { mutableStateOf<Set<BackupType>?>(null) }
     var pendingImportRoot by remember { mutableStateOf<JSONObject?>(null) }
+    var pendingImportSource by remember { mutableStateOf(BackupImportSource.LocalFile) }
     var exportTypeSelection by remember { mutableStateOf(BackupType.entries.toSet()) }
     var importTypeSelection by remember { mutableStateOf(BackupType.entries.toSet()) }
     val settingsExportLauncher = rememberLauncherForActivityResult(
@@ -159,6 +160,7 @@ fun BackupSettingsScreen(
                     }
                     return@runCatching
                 }
+                pendingImportSource = BackupImportSource.LocalFile
                 pendingImportRoot = root
                 showImportTypeSheet = true
             }.onFailure {
@@ -166,7 +168,12 @@ fun BackupSettingsScreen(
             }
         }
     }
-    fun restoreSelectedTypes(root: JSONObject, selectedTypes: Set<BackupType>) {
+    fun restoreSelectedTypes(
+        root: JSONObject,
+        selectedTypes: Set<BackupType>,
+        source: BackupImportSource,
+        onFinished: () -> Unit = {}
+    ) {
         backupScope.launch {
             runCatching {
                 val filteredSettings = (root.optJSONObject("settings") ?: root).filterBackupSettings(selectedTypes)
@@ -187,10 +194,20 @@ fun BackupSettingsScreen(
                     root.optJSONObject("aiChat")?.let { restoreAiChatBackupJson(context, it) }
                 }
             }.onSuccess {
-                Toast.makeText(context, context.getString(R.string.settings_backup_restore_success), Toast.LENGTH_SHORT).show()
+                val successMessage = when (source) {
+                    BackupImportSource.LocalFile -> R.string.settings_backup_restore_success
+                    BackupImportSource.WebDav -> R.string.settings_backup_webdav_download_success
+                }
+                Toast.makeText(context, context.getString(successMessage), Toast.LENGTH_SHORT).show()
                 pendingImportRoot = null
+                onFinished()
             }.onFailure {
-                Toast.makeText(context, context.getString(R.string.settings_backup_restore_failed), Toast.LENGTH_SHORT).show()
+                val failureMessage = when (source) {
+                    BackupImportSource.LocalFile -> R.string.settings_backup_restore_failed
+                    BackupImportSource.WebDav -> R.string.settings_backup_webdav_download_failed
+                }
+                Toast.makeText(context, context.getString(failureMessage), Toast.LENGTH_SHORT).show()
+                onFinished()
             }
         }
     }
@@ -470,21 +487,15 @@ fun BackupSettingsScreen(
                                 tempFile.readText(Charsets.UTF_8)
                             }
                             val root = JSONObject(text)
-                            settingsManager.restoreSettingsJson(root.optJSONObject("settings") ?: root)
-                            val playlistPayload = root.optJSONObject("playlists")
-                                ?: root.takeIf { it.has("playlists") }
-                            if (playlistPayload != null) {
-                                playlistStore.restoreJson(playlistPayload)
-                            }
-                            root.optJSONObject("playback")?.let { playbackStatsStore.restoreJson(it) }
-                            root.optJSONObject("aiChat")?.let { restoreAiChatBackupJson(context, it) }
                             withContext(Dispatchers.IO) { tempFile.delete() }
+                            pendingImportSource = BackupImportSource.WebDav
+                            pendingImportRoot = root
+                            showImportTypeSheet = true
                         }.onSuccess {
-                            Toast.makeText(context, context.getString(R.string.settings_backup_webdav_download_success), Toast.LENGTH_SHORT).show()
                         }.onFailure {
                             Toast.makeText(context, context.getString(R.string.settings_backup_webdav_download_failed) + ": " + (it.message ?: ""), Toast.LENGTH_LONG).show()
+                            webDavDownloading = false
                         }
-                        webDavDownloading = false
                     }
                 }
             }
@@ -508,15 +519,33 @@ fun BackupSettingsScreen(
         show = showImportTypeSheet,
         title = stringResource(R.string.settings_backup_import_type_title),
         confirmText = stringResource(R.string.common_import),
-        onDismiss = { showImportTypeSheet = false },
+        onDismiss = {
+            showImportTypeSheet = false
+            pendingImportRoot = null
+            if (pendingImportSource == BackupImportSource.WebDav) {
+                webDavDownloading = false
+            }
+            pendingImportSource = BackupImportSource.LocalFile
+        },
         initialSelected = importTypeSelection,
         onConfirm = { selectedTypes ->
             importTypeSelection = selectedTypes
             val root = pendingImportRoot
+            val source = pendingImportSource
             pendingImportRoot = null
+            pendingImportSource = BackupImportSource.LocalFile
             if (root != null) {
-                restoreSelectedTypes(root, selectedTypes)
+                restoreSelectedTypes(root, selectedTypes, source) {
+                    if (source == BackupImportSource.WebDav) {
+                        webDavDownloading = false
+                    }
+                }
             }
         }
     )
+}
+
+private enum class BackupImportSource {
+    LocalFile,
+    WebDav
 }

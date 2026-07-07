@@ -100,8 +100,6 @@ fun SettingsDetailScreen(
     )
     val homeOnlineTileItems = listOf(
         HomePreferenceItem("lx", "LX Music", stringResource(R.string.home_import_api_source)),
-        HomePreferenceItem("navidrome", stringResource(R.string.remote_source_navidrome), stringResource(R.string.remote_source_navidrome_summary)),
-        HomePreferenceItem("emby", stringResource(R.string.remote_source_emby), stringResource(R.string.remote_source_emby_summary)),
         HomePreferenceItem("webdav", "WebDAV", stringResource(R.string.home_connect_cloud_music))
     )
     var showHomeDisplayPage by remember(initialHomeDisplay) { mutableStateOf(initialHomeDisplay) }
