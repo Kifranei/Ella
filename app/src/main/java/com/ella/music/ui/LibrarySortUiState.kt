@@ -29,6 +29,7 @@ object LibrarySortUiState {
     var pendingFolderDetailSongSortIndex by mutableStateOf<Int?>(null)
     var folderPlaylistListSortIndex by mutableIntStateOf(2)
     var playlistListSortIndex by mutableIntStateOf(2)
+    var playlistCustomOrderIds by mutableStateOf<List<String>>(emptyList())
     var pendingPlaylistListSortIndex by mutableStateOf<Int?>(null)
 
     val metadataCategoryScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
@@ -61,6 +62,7 @@ object LibrarySortUiState {
         pendingFolderDetailSongSortIndex = null
         folderPlaylistListSortIndex = settingsManager.folderPlaylistListSortIndex.first()
         playlistListSortIndex = settingsManager.playlistListSortIndex.first()
+        playlistCustomOrderIds = settingsManager.playlistCustomOrder.first()
         pendingPlaylistListSortIndex = null
         metadataCategoryTypes.forEach { type ->
             metadataCategorySortIndices[type] = settingsManager.metadataCategorySortIndex(type).first()

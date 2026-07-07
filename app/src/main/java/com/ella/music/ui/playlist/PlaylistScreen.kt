@@ -87,7 +87,9 @@ fun PlaylistScreen(
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val persistedPlaylistSortIndex by mainViewModel.settingsManager.playlistListSortIndex.collectAsState(initial = LibrarySortUiState.playlistListSortIndex)
-    val playlistCustomOrderIds by mainViewModel.settingsManager.playlistCustomOrder.collectAsState(initial = emptyList())
+    val playlistCustomOrderIds by mainViewModel.settingsManager.playlistCustomOrder.collectAsState(
+        initial = LibrarySortUiState.playlistCustomOrderIds
+    )
     val specialPlaylistEntriesVisible by mainViewModel.settingsManager.playlistSpecialEntriesVisible.collectAsState(initial = false)
     val playlistSortIndex = LibrarySortUiState.pendingPlaylistListSortIndex ?: persistedPlaylistSortIndex
     val playlistSortMode = PlaylistSortMode.entries.getOrElse(playlistSortIndex) { PlaylistSortMode.UpdatedAt }
@@ -98,6 +100,9 @@ fun PlaylistScreen(
         if (LibrarySortUiState.pendingPlaylistListSortIndex == persistedPlaylistSortIndex) {
             LibrarySortUiState.pendingPlaylistListSortIndex = null
         }
+    }
+    LaunchedEffect(playlistCustomOrderIds) {
+        LibrarySortUiState.playlistCustomOrderIds = playlistCustomOrderIds
     }
     var pendingImportUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var showImportModeSheet by remember { mutableStateOf(false) }

@@ -385,7 +385,16 @@ class MusicRepository(private val context: Context) {
                     cached?.let(::clearMetadataCache)
                     clearMetadataCache(scanned)
                     mergedSongs += scanned
-                    if (cached == null) addedCount++ else updatedCount++
+                    if (cached == null) {
+                        addedCount++
+                    } else {
+                        val librarySnapshotChanged =
+                            cached.toLibrarySyncInfo() != scanned.toLibrarySyncInfo() ||
+                                cached.toScanSummaryInfo() != scanned.toScanSummaryInfo()
+                        if (librarySnapshotChanged) {
+                            updatedCount++
+                        }
+                    }
                 } else if (cached != null) {
                     mergedSongs += cached
                 }

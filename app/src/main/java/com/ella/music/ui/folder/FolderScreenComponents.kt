@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.webdav.WebDavItem
 import com.ella.music.ui.components.FolderOutlineIcon
+import com.ella.music.ui.components.EllaMiuixBottomSheet
+import com.ella.music.ui.components.EllaMiuixMenuItem
 import com.ella.music.ui.components.wallpaperAwareCardColors
 import com.ella.music.ui.playlist.wallpaperAwarePlaylistCardColor
 import top.yukonga.miuix.kmp.basic.Card
@@ -193,6 +195,57 @@ internal fun WebDavBrowserCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+internal fun FolderActionSheet(
+    title: String,
+    onDismiss: () -> Unit,
+    onShare: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddShortcut: () -> Unit,
+    onBlock: () -> Unit
+) {
+    EllaMiuixBottomSheet(
+        show = true,
+        enableNestedScroll = false,
+        title = title,
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.common_share),
+                onClick = onShare
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.song_more_add_to_playlist),
+                onClick = onAddToPlaylist
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.common_add_to_queue),
+                onClick = onAddToQueue
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.song_more_play_next),
+                onClick = onPlayNext
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.common_add_desktop_shortcut),
+                onClick = onAddShortcut
+            )
+            EllaMiuixMenuItem(
+                text = stringResource(R.string.folder_block_folder),
+                onClick = onBlock
+            )
         }
     }
 }

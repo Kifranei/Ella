@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -23,6 +25,7 @@ import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.requestPinnedEllaShortcut
 import com.ella.music.ui.components.shareLocalSongs
+import com.ella.music.ui.folder.FolderBlockDialog
 import com.ella.music.ui.folder.normalizeFolderPath
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -59,6 +62,7 @@ internal fun LibrarySearchAuxiliarySurfaces(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var folderToBlock by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
     actionTarget?.let { target ->
         EllaMiuixBottomSheet(
@@ -124,19 +128,29 @@ internal fun LibrarySearchAuxiliarySurfaces(
                     EllaMiuixMenuItem(
                         text = stringResource(R.string.folder_block_folder),
                         onClick = {
-                            val normalizedPath = target.item.name.normalizeFolderPath()
-                            scope.launch {
-                                val nextBlockedFolders = (blockedFolders + normalizedPath)
-                                    .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
-                                settingsManager.setScanExcludeFolders(nextBlockedFolders.joinToString("；"))
-                                mainViewModel.scanMusic()
-                            }
+                            folderToBlock = target.item.name.normalizeFolderPath()
                             onActionTargetChange(null)
                         }
                     )
                 }
             }
         }
+    }
+
+    folderToBlock?.let { folderPath ->
+        FolderBlockDialog(
+            folderPath = folderPath,
+            onDismiss = { folderToBlock = null },
+            onBlock = {
+                scope.launch {
+                    val nextBlockedFolders = (blockedFolders + folderPath)
+                        .distinctBy { it.normalizeFolderPath().lowercase(Locale.ROOT) }
+                    settingsManager.setScanExcludeFolders(nextBlockedFolders.joinToString("；"))
+                    mainViewModel.scanMusic()
+                }
+                folderToBlock = null
+            }
+        )
     }
 
     playlistPickerSongs?.let { songsToAdd ->

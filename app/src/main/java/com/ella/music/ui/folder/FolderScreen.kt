@@ -48,17 +48,25 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.ui.LibrarySortUiState
 import com.ella.music.ui.settings.findComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.ella.music.data.tagIdentityKey
 import com.ella.music.ui.components.DoubleTapScrollOverlay
 import com.ella.music.ui.components.DirectionalSortField
+import com.ella.music.ui.components.AddToPlaylistSheet
+import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.EllaSearchBar
 import com.ella.music.ui.components.EllaCenteredLoadingIndicator
+import com.ella.music.ui.components.EllaMiuixBottomSheet
 import com.ella.music.ui.components.LazyListScrollIndicator
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
+import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.directionalSortDropdownItems
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.wallpaperContentOverlayColor
 import com.ella.music.ui.listmodel.SortDirection
+import com.ella.music.ui.navigation.Screen
 import com.ella.music.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
 import com.ella.music.viewmodel.PlayerViewModel
@@ -92,6 +100,7 @@ fun FolderScreen(
     val context = LocalContext.current
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     val songs by mainViewModel.songs.collectAsState()
+    val playlists by mainViewModel.playlists.collectAsState()
     val libraryCacheLoaded by mainViewModel.libraryCacheLoaded.collectAsState()
     val isScanning by mainViewModel.isScanning.collectAsState()
     val scanProgress by mainViewModel.scanProgress.collectAsState()
@@ -103,6 +112,9 @@ fun FolderScreen(
         LibrarySortUiState.folderListSortIndex = folderSortIndex
     }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
+    var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
+    var playlistPickerSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
+    var createPlaylistSongs by remember { mutableStateOf<List<com.ella.music.data.model.Song>?>(null) }
     var sortExpanded by remember { mutableStateOf(false) }
     var searchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -111,9 +123,12 @@ fun FolderScreen(
     val rootFolderPath = remember(songs) { songs.commonFolderRoot() }
     val rootSongs = songs
     val rootChildFolders = remember(songs, rootFolderPath) { songs.childFoldersOf(context, rootFolderPath) }
+    fun songsForFolder(folder: FolderTreeEntry): List<com.ella.music.data.model.Song> =
+        songs.recursiveSongsInFolder(folder.path)
 
-    BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null) {
+    BackHandler(enabled = sortExpanded || searchExpanded || folderToBlock != null || folderMenuTarget != null) {
         when {
+            folderMenuTarget != null -> folderMenuTarget = null
             folderToBlock != null -> folderToBlock = null
             searchExpanded -> {
                 searchExpanded = false
@@ -270,6 +285,48 @@ fun FolderScreen(
 
         LibraryAnalysisEntryCard(onClick = onNavigateToLibraryAnalysis)
 
+        folderMenuTarget?.let { folder ->
+            FolderActionSheet(
+                title = folder.name,
+                onDismiss = { folderMenuTarget = null },
+                onShare = {
+                    shareLocalSongs(context, songsForFolder(folder))
+                    folderMenuTarget = null
+                },
+                onAddToPlaylist = {
+                    playlistPickerSongs = songsForFolder(folder)
+                    folderMenuTarget = null
+                },
+                onAddToQueue = {
+                    playerViewModel.addToPlaylist(songsForFolder(folder))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    folderMenuTarget = null
+                },
+                onPlayNext = {
+                    playerViewModel.playNext(songsForFolder(folder))
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    folderMenuTarget = null
+                },
+                onAddShortcut = {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "folder_${folder.path.tagIdentityKey()}",
+                        label = folder.name,
+                        route = Screen.FolderDetail.createRoute(folder.path)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, folder.name) else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    folderMenuTarget = null
+                },
+                onBlock = {
+                    folderToBlock = folder.path
+                    folderMenuTarget = null
+                }
+            )
+        }
         folderToBlock?.let { folderPath ->
             FolderBlockDialog(
                 folderPath = folderPath,
@@ -282,6 +339,46 @@ fun FolderScreen(
                         mainViewModel.scanMusic()
                     }
                     folderToBlock = null
+                }
+            )
+        }
+        playlistPickerSongs?.let { songsToAdd ->
+            EllaMiuixBottomSheet(
+                show = true,
+                enableNestedScroll = false,
+                title = stringResource(R.string.song_more_add_to_playlist_title),
+                onDismissRequest = { playlistPickerSongs = null }
+            ) {
+                AddToPlaylistSheet(
+                    playlists = playlists,
+                    songCount = songsToAdd.size,
+                    onDismiss = { playlistPickerSongs = null },
+                    onCreatePlaylist = {
+                        createPlaylistSongs = songsToAdd
+                        playlistPickerSongs = null
+                    },
+                    onPlaylistsConfirm = { selectedPlaylists, appendToEnd ->
+                        selectedPlaylists.forEach { playlist ->
+                            mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd, appendToEnd)
+                        }
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.player_added_to_playlists, selectedPlaylists.size),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        playlistPickerSongs = null
+                    }
+                )
+            }
+        }
+        createPlaylistSongs?.let { songsToAdd ->
+            CreatePlaylistAndAddSheet(
+                onDismiss = { createPlaylistSongs = null },
+                onCreate = { name ->
+                    mainViewModel.createPlaylistOrShowDuplicateToast(context, name) { playlist ->
+                        mainViewModel.addSongsToPlaylist(playlist.id, songsToAdd)
+                        createPlaylistSongs = null
+                    }
                 }
             )
         }
@@ -357,7 +454,7 @@ fun FolderScreen(
                             folder = folder,
                             sortMode = folderSortMode,
                             onClick = { onFolderClick(folder.path) },
-                            onLongClick = { folderToBlock = folder.path }
+                            onLongClick = { folderMenuTarget = folder }
                         )
                     }
                 }

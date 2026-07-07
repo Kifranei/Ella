@@ -2290,5 +2290,4 @@ internal fun isLyricViewLineHighlighted(
     index: Int,
     currentIndex: Int,
     activeHighlightIndices: Set<Int>
-): Boolean = index in activeHighlightIndices ||
-    (activeHighlightIndices.isEmpty() && index == currentIndex)
+): Boolean = index == currentIndex || index in activeHighlightIndices
