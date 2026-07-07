@@ -969,6 +969,8 @@
     <string name="settings_player_background_opacity_summary">调节播放页自定义背景图片的显示强度</string>
     <string name="settings_player_background_dim">播放页背景压暗</string>
     <string name="settings_player_background_dim_summary">在播放页自定义背景上叠加暗色遮罩</string>
+    <string name="settings_player_dynamic_flow">Apple Music 背景动态效果</string>
+    <string name="settings_player_dynamic_flow_summary">关闭后保留 Apple Music 背景样式，但不再持续流动；仅对 Apple Music 背景生效</string>
     <string name="settings_beautiful_lyrics_background">播放与歌词页背景</string>
     <string name="settings_beautiful_lyrics_background_summary">Apple Music 动态背景，低功耗；Beautiful Lyrics 动态背景，取色更鲜艳</string>
     <string name="settings_beautiful_lyrics_background_static">Apple Music 动态背景</string>

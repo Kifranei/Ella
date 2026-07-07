@@ -48,6 +48,7 @@ internal fun PlayerDetailPage(
     customBackgroundOpacity: Float = 1f,
     customBackgroundDim: Float = 0.26f,
     drawBackground: Boolean = true,
+    dynamicFlowEnabled: Boolean = false,
     onAlbum: () -> Unit,
     onArtist: (String) -> Unit,
     onComposer: (String) -> Unit,
@@ -69,6 +70,14 @@ internal fun PlayerDetailPage(
     var showNeteaseArtistPicker by remember(neteaseInfo) { mutableStateOf(false) }
     val neteaseArtists = remember(neteaseInfo) {
         neteaseInfo?.artists.orEmpty().filter { it.id.isNotBlank() }
+    }
+    val aliasText = remember(neteaseInfo?.aliases) {
+        neteaseInfo
+            ?.aliases
+            .orEmpty()
+            .mapNotNull { it.trim().takeIf(String::isNotBlank) }
+            .distinct()
+            .joinToString(" · ")
     }
 
     if (showNeteaseArtistPicker) {
@@ -96,6 +105,7 @@ internal fun PlayerDetailPage(
                 playerBackgroundOpacity = customBackgroundOpacity,
                 playerBackgroundDim = customBackgroundDim,
                 beautifulLyricsBackground = beautifulLyricsBackground,
+                dynamicFlowEnabled = dynamicFlowEnabled,
                 useBlurBackground = useBlurBackground,
                 modifier = Modifier.fillMaxSize()
             )
@@ -116,11 +126,18 @@ internal fun PlayerDetailPage(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(14.dp))
-                PlayerDetailInfoLine(stringResource(R.string.player_detail_song), song?.title.orEmpty().ifBlank { stringResource(R.string.player_unknown_song) })
-                neteaseInfo?.aliases?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { alias ->
+                Text(
+                    text = song?.title.orEmpty().ifBlank { stringResource(R.string.player_unknown_song) },
+                    color = LocalPlayerContentColor.current.copy(alpha = 0.96f),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                aliasText.takeIf { it.isNotBlank() }?.let { alias ->
+                    Spacer(modifier = Modifier.height(8.dp))
                     PlayerDetailInfoLine(stringResource(R.string.player_detail_alias), alias)
                 }
                 tagInfo?.displayComment?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
                     PlayerDetailInfoLine(stringResource(R.string.player_detail_comment), it)
                 }
                 Spacer(modifier = Modifier.height(18.dp))

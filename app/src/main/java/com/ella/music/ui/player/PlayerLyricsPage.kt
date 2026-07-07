@@ -71,6 +71,7 @@ internal fun LyricsPlayerPage(
     playerBackgroundOpacity: Float,
     playerBackgroundDim: Float,
     beautifulLyricsBackground: Boolean,
+    dynamicFlowEnabled: Boolean,
     isFavorite: Boolean,
     audioSessionId: Int,
     visualizerEnabled: Boolean,
@@ -145,6 +146,7 @@ internal fun LyricsPlayerPage(
                 playerBackgroundOpacity = playerBackgroundOpacity,
                 playerBackgroundDim = playerBackgroundDim,
                 beautifulLyricsBackground = beautifulLyricsBackground,
+                dynamicFlowEnabled = dynamicFlowEnabled,
                 useBlurBackground = useBlurBackground,
                 modifier = Modifier.fillMaxSize()
             )

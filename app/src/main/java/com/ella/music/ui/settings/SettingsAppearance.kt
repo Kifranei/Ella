@@ -73,6 +73,7 @@ internal fun SettingsAppearanceSection(
     val playerBackgroundOpacity by settingsManager.playerBackgroundOpacity.collectAsState(initial = 100)
     val playerBackgroundDim by settingsManager.playerBackgroundDim.collectAsState(initial = 26)
     val beautifulLyricsBackground by settingsManager.playerBeautifulLyricsBackground.collectAsState(initial = false)
+    val playerDynamicFlowEnabled by settingsManager.playerDynamicFlowEnabled.collectAsState(initial = false)
     val beautifulLyricsSpeed by settingsManager.playerBeautifulLyricsSpeed.collectAsState(initial = 25)
     val beautifulLyricsBlur by settingsManager.playerBeautifulLyricsBlur.collectAsState(initial = 32)
     val beautifulLyricsBrightness by settingsManager.playerBeautifulLyricsBrightness.collectAsState(initial = 70)
@@ -475,6 +476,15 @@ internal fun SettingsAppearanceSection(
                 valueText = "$playerBackgroundDim%",
                 enabled = playerBackgroundEnabled,
                 onValueChange = { scope.launch { settingsManager.setPlayerBackgroundDim(it) } }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_player_dynamic_flow),
+                summary = stringResource(R.string.settings_player_dynamic_flow_summary),
+                checked = playerDynamicFlowEnabled,
+                enabled = !beautifulLyricsBackground,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setPlayerDynamicFlowEnabled(it) }
+                }
             )
             WindowSpinnerPreference(
                 title = stringResource(R.string.settings_beautiful_lyrics_background),

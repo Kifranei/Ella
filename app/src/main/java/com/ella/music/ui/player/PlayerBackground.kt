@@ -61,6 +61,7 @@ internal fun SharedPlayerPageBackground(
     playerBackgroundOpacity: Float,
     playerBackgroundDim: Float,
     beautifulLyricsBackground: Boolean,
+    dynamicFlowEnabled: Boolean = false,
     useBlurBackground: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -92,6 +93,7 @@ internal fun SharedPlayerPageBackground(
             backgroundColor = palette.middle,
             isDark = !palette.isLight,
             isPlaying = isPlaying,
+            animate = dynamicFlowEnabled,
             modifier = modifier
         )
         else -> Box(

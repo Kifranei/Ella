@@ -237,6 +237,7 @@ fun PlayerScreen(
     val playerBackgroundOpacity = playerSettings.playerBackgroundOpacity / 100f
     val playerBackgroundDim = playerSettings.playerBackgroundDim / 100f
     val beautifulLyricsBackground = playerSettings.beautifulLyricsBackground
+    val playerDynamicFlowEnabled = playerSettings.playerDynamicFlowEnabled
     val hiResLogoEnabled = playerSettings.hiResLogoEnabled
     val hiResLogoUri = playerSettings.hiResLogoUri
     val lyricShareCustomInfo = playerSettings.lyricShareCustomInfo
@@ -502,6 +503,7 @@ fun PlayerScreen(
                     playerBackgroundOpacity = playerBackgroundOpacity,
                     playerBackgroundDim = playerBackgroundDim,
                     beautifulLyricsBackground = beautifulLyricsBackground,
+                    dynamicFlowEnabled = playerDynamicFlowEnabled,
                     useBlurBackground = false,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -540,6 +542,7 @@ fun PlayerScreen(
                         playerBackgroundOpacity = playerBackgroundOpacity,
                         playerBackgroundDim = playerBackgroundDim,
                         beautifulLyricsBackground = beautifulLyricsBackground,
+                        playerDynamicFlowEnabled = playerDynamicFlowEnabled,
                         hiResLogoEnabled = hiResLogoEnabled,
                         hiResLogoUri = hiResLogoUri,
                         isPlaying = isPlaying,
@@ -663,6 +666,7 @@ fun PlayerScreen(
                         playerBackgroundOpacity = playerBackgroundOpacity,
                         playerBackgroundDim = playerBackgroundDim,
                         beautifulLyricsBackground = beautifulLyricsBackground,
+                        playerDynamicFlowEnabled = playerDynamicFlowEnabled,
                         isCurrentSongFavorite = isCurrentSongFavorite,
                         audioSessionId = audioSessionId,
                         effectiveAudioVisualizerEnabled = effectiveAudioVisualizerEnabled,
@@ -692,6 +696,7 @@ fun PlayerScreen(
                         currentPosition = currentPosition,
                         isPlaying = isPlaying,
                         beautifulLyricsBackground = beautifulLyricsBackground,
+                        playerDynamicFlowEnabled = playerDynamicFlowEnabled,
                         playerBackgroundUri = playerBackgroundUri,
                         playerBackgroundOpacity = playerBackgroundOpacity,
                         playerBackgroundDim = playerBackgroundDim,

@@ -32,6 +32,7 @@ internal data class PlayerScreenSettings(
     val playerBackgroundOpacity: Int = 100,
     val playerBackgroundDim: Int = 26,
     val beautifulLyricsBackground: Boolean = false,
+    val playerDynamicFlowEnabled: Boolean = false,
     val showSongAnnotation: Boolean = true,
     val coverSwipeEnabled: Boolean = true,
     val lyricParserEngine: Int = SettingsManager.LYRIC_PARSER_ENGINE_ELLA,
@@ -72,6 +73,7 @@ private data class PlayerSettingsGroupB(
     val playerBackgroundOpacity: Int,
     val playerBackgroundDim: Int,
     val beautifulLyricsBackground: Boolean,
+    val playerDynamicFlowEnabled: Boolean,
     val showSongAnnotation: Boolean,
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
@@ -91,6 +93,7 @@ private data class PlayerSettingsGroupBBase(
 
 private data class PlayerSettingsGroupBExtra(
     val beautifulLyricsBackground: Boolean,
+    val playerDynamicFlowEnabled: Boolean,
     val showSongAnnotation: Boolean,
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
@@ -102,6 +105,7 @@ private data class PlayerSettingsGroupBExtra(
 
 private data class PlayerSettingsGroupBFlagsPart1(
     val beautifulLyricsBackground: Boolean,
+    val playerDynamicFlowEnabled: Boolean,
     val showSongAnnotation: Boolean,
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int
@@ -109,6 +113,7 @@ private data class PlayerSettingsGroupBFlagsPart1(
 
 private data class PlayerSettingsGroupBFlags(
     val beautifulLyricsBackground: Boolean,
+    val playerDynamicFlowEnabled: Boolean,
     val showSongAnnotation: Boolean,
     val coverSwipeEnabled: Boolean,
     val lyricParserEngine: Int,
@@ -179,11 +184,18 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         }
         val groupBFlagsPart1 = combine(
             settingsManager.playerBeautifulLyricsBackground,
+            settingsManager.playerDynamicFlowEnabled,
             settingsManager.playerShowSongAnnotation,
             settingsManager.playerCoverSwipeEnabled,
             settingsManager.lyricParserEngine
-        ) { beautifulLyrics, showAnnotation, coverSwipe, parserEngine ->
-            PlayerSettingsGroupBFlagsPart1(beautifulLyrics, showAnnotation, coverSwipe, parserEngine)
+        ) { beautifulLyrics, dynamicFlowEnabled, showAnnotation, coverSwipe, parserEngine ->
+            PlayerSettingsGroupBFlagsPart1(
+                beautifulLyrics,
+                dynamicFlowEnabled,
+                showAnnotation,
+                coverSwipe,
+                parserEngine
+            )
         }
         val groupBFlags = combine(
             groupBFlagsPart1,
@@ -192,6 +204,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         ) { part1, titlePosition, keepScreenOn ->
             PlayerSettingsGroupBFlags(
                 beautifulLyricsBackground = part1.beautifulLyricsBackground,
+                playerDynamicFlowEnabled = part1.playerDynamicFlowEnabled,
                 showSongAnnotation = part1.showSongAnnotation,
                 coverSwipeEnabled = part1.coverSwipeEnabled,
                 lyricParserEngine = part1.lyricParserEngine,
@@ -208,6 +221,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         val groupBExtra = combine(groupBFlags, groupBHiRes) { flags, hiRes ->
             PlayerSettingsGroupBExtra(
                 beautifulLyricsBackground = flags.beautifulLyricsBackground,
+                playerDynamicFlowEnabled = flags.playerDynamicFlowEnabled,
                 showSongAnnotation = flags.showSongAnnotation,
                 coverSwipeEnabled = flags.coverSwipeEnabled,
                 lyricParserEngine = flags.lyricParserEngine,
@@ -225,6 +239,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 playerBackgroundOpacity = base.playerBackgroundOpacity,
                 playerBackgroundDim = base.playerBackgroundDim,
                 beautifulLyricsBackground = extra.beautifulLyricsBackground,
+                playerDynamicFlowEnabled = extra.playerDynamicFlowEnabled,
                 showSongAnnotation = extra.showSongAnnotation,
                 coverSwipeEnabled = extra.coverSwipeEnabled,
                 lyricParserEngine = extra.lyricParserEngine,
@@ -266,6 +281,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 playerBackgroundOpacity = b.playerBackgroundOpacity,
                 playerBackgroundDim = b.playerBackgroundDim,
                 beautifulLyricsBackground = b.beautifulLyricsBackground,
+                playerDynamicFlowEnabled = b.playerDynamicFlowEnabled,
                 showSongAnnotation = b.showSongAnnotation,
                 coverSwipeEnabled = b.coverSwipeEnabled,
                 lyricParserEngine = b.lyricParserEngine,

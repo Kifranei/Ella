@@ -257,6 +257,7 @@ internal fun CoverPlayerPage(
                 playerBackgroundOpacity = playerBackgroundOpacity,
                 playerBackgroundDim = playerBackgroundDim,
                 beautifulLyricsBackground = beautifulLyricsBackground,
+                dynamicFlowEnabled = dynamicFlowEnabled,
                 useBlurBackground = false,
                 modifier = Modifier.fillMaxSize()
             )
