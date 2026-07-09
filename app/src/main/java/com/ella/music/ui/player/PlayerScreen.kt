@@ -109,6 +109,7 @@ import androidx.core.view.WindowCompat
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.normalizedAudioFormat
+import com.ella.music.data.normalizedBitDepth
 import com.ella.music.data.parser.LrcParser
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.tagIdentityKey
@@ -855,14 +856,7 @@ private fun isLyricVideoShareUnsupported(
     song: Song?,
     audioInfo: AudioInfo?
 ): Boolean {
-    // Apple Lossless (ALAC) — container/format not supported by the muxer pipeline
-    if (normalizedAudioFormat(audioInfo?.format.orEmpty()) == "ALAC") return true
-
-    val mimeType = song?.mimeType.orEmpty().lowercase()
-    if ("alac" in mimeType) return true
-
-    val path = song?.path.orEmpty().lowercase()
-    if (path.endsWith(".alac")) return true
+    if (isLikelyLosslessM4aLyricVideoSource(song, audioInfo)) return true
 
     // Master / Hi-Res 24-bit 192kHz+ audio — transcode pipeline produces pitch-shifted output
     // due to PCM buffer size miscalculation at very high sample rates.
@@ -872,4 +866,32 @@ private fun isLyricVideoShareUnsupported(
     if (sampleRate >= 192_000 && bitDepth >= 24) return true
 
     return false
+}
+
+private fun isLikelyLosslessM4aLyricVideoSource(
+    song: Song?,
+    audioInfo: AudioInfo?
+): Boolean {
+    if (normalizedAudioFormat(audioInfo?.format.orEmpty()) == "ALAC") return true
+
+    val mimeType = song?.mimeType.orEmpty().lowercase()
+    if ("alac" in mimeType) return true
+
+    val path = song?.path.orEmpty().lowercase()
+    if (path.endsWith(".alac")) return true
+
+    val isM4aContainer = path.endsWith(".m4a") ||
+        path.endsWith(".mp4") ||
+        "audio/mp4" in mimeType ||
+        "audio/x-m4a" in mimeType ||
+        "mp4a" in mimeType
+    if (!isM4aContainer) return false
+
+    val sampleRate = audioInfo?.sampleRate ?: 0
+    val bitRate = audioInfo?.bitRate ?: 0
+    val bitDepth = audioInfo?.let(::normalizedBitDepth) ?: 0
+    return sampleRate >= 44_100 && (
+        bitDepth >= 24 ||
+            (bitDepth >= 16 && bitRate >= 450_000)
+        )
 }

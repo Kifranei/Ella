@@ -269,7 +269,7 @@ private fun muxVideoAndAudio(
 
     return try {
         val sourceAudioMime = findPrimaryAudioTrackMime(context, path)
-        if (shouldTryDirectSourceAudioMux(path, sourceAudioMime)) {
+        if (shouldTryDirectSourceAudioMux(sourceAudioMime)) {
             val directMuxed = muxVideoWithSourceAudioSegment(
                 context = context,
                 videoFile = videoFile,
@@ -320,15 +320,13 @@ private fun findPrimaryAudioTrackMime(context: Context, songPath: String): Strin
     }
 }
 
-private fun shouldTryDirectSourceAudioMux(songPath: String, sourceAudioMime: String?): Boolean {
-    val extension = songPath.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase()
+internal fun shouldTryDirectSourceAudioMux(sourceAudioMime: String?): Boolean {
     val normalizedMime = sourceAudioMime.orEmpty().lowercase()
-    return normalizedMime.startsWith("audio/") && (
-        normalizedMime == MediaFormat.MIMETYPE_AUDIO_AAC ||
-            normalizedMime == "audio/alac" ||
-            normalizedMime == "audio/mpeg" ||
-            extension in setOf("m4a", "mp4", "m4b", "aac", "alac", "mp3")
-        )
+    // Only direct-copy codecs that stay broadly playable inside the exported MP4.
+    // Lossless M4A/ALAC must be transcoded to AAC, otherwise the lyric video can
+    // look correct but play back silently in other apps.
+    return normalizedMime == MediaFormat.MIMETYPE_AUDIO_AAC ||
+        normalizedMime == "audio/mpeg"
 }
 
 private fun transcodeAudioSegmentToAac(

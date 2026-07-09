@@ -11,25 +11,23 @@ class LyricViewIndexPolicyTest {
     )
 
     @Test
-    fun monotonicPlaybackDoesNotBounceBackAfterPreviewAdvance() {
-        val firstAdvance = resolveLyricViewIndex(
+    fun activeLineDoesNotAdvanceBeforeNextBegin() {
+        val beforeNextBegin = resolveLyricViewIndex(
             positionMs = 3_890L,
             previousPositionMs = 3_840L,
             currentIndex = 0,
-            currentPreviewOffsetMs = computeLyricViewPreviewOffsetMs(0, lines),
             lines = lines
         )
 
-        val stayOnPreviewedLine = resolveLyricViewIndex(
-            positionMs = 3_915L,
-            previousPositionMs = 3_890L,
-            currentIndex = firstAdvance,
-            currentPreviewOffsetMs = computeLyricViewPreviewOffsetMs(firstAdvance, lines),
+        val atNextBegin = resolveLyricViewIndex(
+            positionMs = 4_500L,
+            previousPositionMs = 4_490L,
+            currentIndex = beforeNextBegin,
             lines = lines
         )
 
-        assertEquals(1, firstAdvance)
-        assertEquals(1, stayOnPreviewedLine)
+        assertEquals(0, beforeNextBegin)
+        assertEquals(1, atNextBegin)
     }
 
     @Test
@@ -38,7 +36,6 @@ class LyricViewIndexPolicyTest {
             positionMs = 3_200L,
             previousPositionMs = 3_780L,
             currentIndex = 1,
-            currentPreviewOffsetMs = computeLyricViewPreviewOffsetMs(1, lines),
             lines = lines
         )
 
@@ -63,7 +60,6 @@ class LyricViewIndexPolicyTest {
             positionMs = 50L,
             previousPositionMs = 40L,
             currentIndex = 0,
-            currentPreviewOffsetMs = PREVIEW_OFFSET_MIN_MS,
             lines = overlap
         )
         assertEquals(1, inInner)
@@ -73,7 +69,6 @@ class LyricViewIndexPolicyTest {
             positionMs = 85L,
             previousPositionMs = 82L,
             currentIndex = 1,
-            currentPreviewOffsetMs = PREVIEW_OFFSET_MIN_MS,
             lines = overlap
         )
         assertEquals(0, afterInner)
@@ -98,7 +93,6 @@ class LyricViewIndexPolicyTest {
                 positionMs = 30L,
                 previousPositionMs = 25L,
                 currentIndex = 0,
-                currentPreviewOffsetMs = PREVIEW_OFFSET_MIN_MS,
                 lines = parallel
             )
         )
@@ -110,13 +104,8 @@ class LyricViewIndexPolicyTest {
                 positionMs = 55L,
                 previousPositionMs = 52L,
                 currentIndex = 2,
-                currentPreviewOffsetMs = PREVIEW_OFFSET_MIN_MS,
                 lines = parallel
             )
         )
-    }
-
-    private companion object {
-        private const val PREVIEW_OFFSET_MIN_MS = 480L
     }
 }

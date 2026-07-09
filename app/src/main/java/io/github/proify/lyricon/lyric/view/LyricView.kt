@@ -87,10 +87,6 @@ class LyricView @JvmOverloads constructor(
         private const val MARQUEE_SPEED_DP_PER_SEC = 36f
         private const val MARQUEE_RESTART_GAP_DP = 48f
         private const val LINE_BLUR_RADIUS_DP = 4f
-        private const val LINE_OFFSET_MIN_MS = 480L
-        private const val LINE_OFFSET_MAX_MS = 750L
-        private const val LINE_OFFSET_GAP_MIN_MS = 200L
-        private const val LINE_OFFSET_GAP_MAX_MS = 750L
         private const val KARAOKE_WORD_OFFSET_MS = 100L
         private const val SECONDARY_TRANSLATION_SEPARATOR = "\u000B"
     }
@@ -139,7 +135,6 @@ class LyricView @JvmOverloads constructor(
     private var currentPosMs = 0L
     private var lastPositionWallTime = 0L
     private var playbackActive = true
-    private var lineOffsetMs = LINE_OFFSET_MIN_MS
     private var displayTranslation = false
     private var displayRoma = false
     private var anchorOffsetPx = 0f
@@ -403,7 +398,6 @@ class LyricView @JvmOverloads constructor(
             positionMs = positionMs,
             previousPositionMs = previousPositionMs,
             currentIndex = currentIndex,
-            currentPreviewOffsetMs = lineOffsetMs,
             lines = lyricWindows
         )
         if (newIndex != currentIndex) {
@@ -422,7 +416,6 @@ class LyricView @JvmOverloads constructor(
                 scrollToCurrentLine(positionInitialized && playbackActive)
             }
             positionInitialized = true
-            updateLineOffset(newIndex)
         } else if (!positionInitialized) {
             scrollToCurrentLine(false)
             positionInitialized = true
@@ -618,7 +611,6 @@ class LyricView @JvmOverloads constructor(
         currentIndex = -1
         activeHighlightIndices = emptySet()
         currentPosMs = 0L
-        lineOffsetMs = LINE_OFFSET_MIN_MS
         secondaryVisibilitySignature = 0
         lineAlphas.clear()
         lineScales.clear()
@@ -910,14 +902,6 @@ class LyricView @JvmOverloads constructor(
             builder.setMaxLines(maxMainLines)
         }
         return builder.build()
-    }
-
-    private fun findCurrentLine(posMs: Long): Int {
-        return previewLyricViewIndexAt(posMs, lyricWindows)
-    }
-
-    private fun updateLineOffset(currentIdx: Int) {
-        lineOffsetMs = computeLyricViewPreviewOffsetMs(currentIdx, lyricWindows)
     }
 
     private fun onLineChanged(
@@ -2290,4 +2274,8 @@ internal fun isLyricViewLineHighlighted(
     index: Int,
     currentIndex: Int,
     activeHighlightIndices: Set<Int>
-): Boolean = index == currentIndex || index in activeHighlightIndices
+): Boolean = if (activeHighlightIndices.isNotEmpty()) {
+    index in activeHighlightIndices
+} else {
+    index == currentIndex
+}

@@ -383,9 +383,12 @@ fun PlaylistScreen(
             val fromIndex = from.index - playlistListHeaderCount
             val toIndex = to.index - playlistListHeaderCount
             if (fromIndex !in manualCustomPlaylists.indices || toIndex !in manualCustomPlaylists.indices) return@rememberReorderableLazyListState
-            manualCustomPlaylists = manualCustomPlaylists.toMutableList().apply {
-                add(toIndex, removeAt(fromIndex))
-            }
+            manualCustomPlaylists = manualCustomPlaylists.moveSelectedItemsAsBlock(
+                from = fromIndex,
+                to = toIndex,
+                selectedKeys = selectedPlaylistIds,
+                keyOf = UserPlaylist::id
+            )
         }
     )
 

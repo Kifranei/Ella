@@ -164,9 +164,12 @@ fun PlaylistDetailScreen(
             val fromSongIndex = from.index - songListHeaderCount
             val toSongIndex = to.index - songListHeaderCount
             if (fromSongIndex !in manualOrder.indices || toSongIndex !in manualOrder.indices) return@rememberReorderableLazyListState
-            manualOrder = manualOrder.toMutableList().apply {
-                add(toSongIndex, removeAt(fromSongIndex))
-            }
+            manualOrder = manualOrder.moveSelectedItemsAsBlock(
+                from = fromSongIndex,
+                to = toSongIndex,
+                selectedKeys = selectedSongKeys,
+                keyOf = { it.playlistIdentityKey() }
+            )
         }
     )
     fun finishSelectionMode() {

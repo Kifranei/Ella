@@ -5,10 +5,6 @@ internal data class LyricViewLineWindow(
     val end: Long
 )
 
-private const val PREVIEW_OFFSET_MIN_MS = 480L
-private const val PREVIEW_OFFSET_MAX_MS = 750L
-private const val PREVIEW_OFFSET_GAP_MIN_MS = 200L
-private const val PREVIEW_OFFSET_GAP_MAX_MS = 750L
 private const val POSITION_JITTER_TOLERANCE_MS = 32L
 
 internal fun previewLyricViewIndexAt(
@@ -32,29 +28,10 @@ internal fun previewLyricViewIndexAt(
     return -1
 }
 
-internal fun computeLyricViewPreviewOffsetMs(
-    currentIndex: Int,
-    lines: List<LyricViewLineWindow>
-): Long {
-    if (currentIndex !in lines.indices || currentIndex + 1 >= lines.size) {
-        return PREVIEW_OFFSET_MIN_MS
-    }
-    val gap = lines[currentIndex + 1].begin - lines[currentIndex].end
-    val clampedGap = gap.coerceIn(PREVIEW_OFFSET_GAP_MIN_MS, PREVIEW_OFFSET_GAP_MAX_MS)
-    val fraction =
-        (clampedGap - PREVIEW_OFFSET_GAP_MIN_MS).toFloat() /
-            (PREVIEW_OFFSET_GAP_MAX_MS - PREVIEW_OFFSET_GAP_MIN_MS)
-    return (
-        PREVIEW_OFFSET_MIN_MS +
-            (PREVIEW_OFFSET_MAX_MS - PREVIEW_OFFSET_MIN_MS) * fraction
-        ).toLong()
-}
-
 internal fun resolveLyricViewIndex(
     positionMs: Long,
     previousPositionMs: Long,
     currentIndex: Int,
-    currentPreviewOffsetMs: Long,
     lines: List<LyricViewLineWindow>
 ): Int {
     if (lines.isEmpty()) return -1
@@ -63,27 +40,7 @@ internal fun resolveLyricViewIndex(
     if (monotonicPlayback && currentIndex in lines.indices) {
         val active = pickActiveLineIndex(positionMs, lines)
         if (active >= 0) {
-            // 预览推进：当前 active 行接近结束时，提前推进到下一行，提升歌词跟随的流畅感。
-            //   仅当下一行尚未开始（pos < next.begin）且 pos+previewOffset 已越过 next.begin
-            //   时触发。重叠时段（多行同时 active）下一行通常已 active（pos >= next.begin），
-            //   条件不成立，不会预览跳走，保证嵌套重叠的稳定选择不被破坏。
-            val nextIndex = active + 1
-            if (nextIndex < lines.size) {
-                val nextBegin = lines[nextIndex].begin
-                if (positionMs < nextBegin &&
-                    positionMs + currentPreviewOffsetMs >= nextBegin
-                ) {
-                    return nextIndex
-                }
-            }
-            // 不回弹：若已经预览推进到 active 之后的行（currentIndex > active）且尚未真正进入
-            //   该行（pos < lines[currentIndex].begin），保持 currentIndex，避免在 active 行
-            //   end 之前因预览 offset 不足而反复弹回前一帧已预览到的行。
-            if (currentIndex > active && currentIndex < lines.size &&
-                positionMs < lines[currentIndex].begin
-            ) {
-                return currentIndex
-            }
+            // 与 Apple Music 一样，滚动/高亮/翻译在真正进入下一句时一起切换。
             return active
         }
 
