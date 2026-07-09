@@ -186,6 +186,10 @@
     <string name="settings_language_summary_german">Force German for the app UI</string>
     <string name="settings_language_summary_russian">Force Russian for the app UI</string>
     <string name="settings_language_summary_french">Force French for the app UI</string>
+    <string name="settings_app_icon">App icon</string>
+    <string name="settings_app_icon_summary">Switch the launcher icon. Current: %1$s. Some launchers may refresh after a short delay</string>
+    <string name="settings_app_icon_default">Default</string>
+    <string name="settings_app_icon_anime">Anime</string>
     <string name="settings_preferences">App preferences</string>
     <string name="settings_preferences_summary">Appearance, home, and personalization settings</string>
     <string name="settings_customize">Personalization</string>

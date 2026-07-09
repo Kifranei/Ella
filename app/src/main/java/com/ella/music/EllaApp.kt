@@ -3,6 +3,7 @@ package com.ella.music
 import android.app.Application
 import com.ella.music.data.AppLogcatCollector
 import com.ella.music.data.AppLogStore
+import com.ella.music.data.AppIconManager
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.webdav.WebDavClient
 import com.ella.music.mcp.McpServerService
@@ -10,6 +11,8 @@ import com.ella.music.ui.LibrarySortUiState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -42,6 +45,13 @@ class EllaApp : Application() {
             if (settingsManager.mcpServerEnabled.first()) {
                 McpServerService.start(this@EllaApp)
             }
+        }
+        appScope.launch {
+            settingsManager.appIconStyle
+                .distinctUntilChanged()
+                .collect { style ->
+                    AppIconManager.apply(this@EllaApp, style)
+                }
         }
     }
 }

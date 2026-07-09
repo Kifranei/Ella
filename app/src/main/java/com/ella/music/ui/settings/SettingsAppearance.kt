@@ -56,6 +56,7 @@ internal fun SettingsAppearanceSection(
 
     val themeMode by settingsManager.themeMode.collectAsState(initial = 0)
     val appLanguage by settingsManager.appLanguage.collectAsState(initial = SettingsManager.APP_LANGUAGE_SYSTEM)
+    val appIconStyle by settingsManager.appIconStyle.collectAsState(initial = SettingsManager.APP_ICON_STYLE_DEFAULT)
     val bottomBarGlassEffect by settingsManager.bottomBarGlassEffect.collectAsState(initial = BottomBarGlassEffect.LiquidGlass)
     val bottomDockItems by settingsManager.bottomDockItems.collectAsState(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
@@ -158,6 +159,16 @@ internal fun SettingsAppearanceSection(
         SettingsManager.APP_LANGUAGE_FR -> stringResource(R.string.settings_language_summary_french)
         SettingsManager.APP_LANGUAGE_RU -> stringResource(R.string.settings_language_summary_russian)
         else -> stringResource(R.string.settings_language_summary_system)
+    }
+    val appIconOptions = listOf(
+        SettingsManager.APP_ICON_STYLE_DEFAULT to stringResource(R.string.settings_app_icon_default),
+        SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime)
+    )
+    val selectedAppIconIndex = appIconOptions.indexOfFirst { it.first == appIconStyle }
+        .takeIf { it >= 0 }
+        ?: 0
+    val appIconEntries = remember(appIconOptions) {
+        appIconOptions.map { (_, label) -> DropdownItem(title = label) }
     }
 
     val bottomDockOptions = listOf(
@@ -303,6 +314,20 @@ internal fun SettingsAppearanceSection(
                 onSelectedIndexChange = { index ->
                     languageOptions.getOrNull(index)?.first?.let { language ->
                         scope.launch { settingsManager.setAppLanguage(language) }
+                    }
+                }
+            )
+            WindowSpinnerPreference(
+                title = stringResource(R.string.settings_app_icon),
+                summary = stringResource(
+                    R.string.settings_app_icon_summary,
+                    appIconOptions[selectedAppIconIndex].second
+                ),
+                items = appIconEntries,
+                selectedIndex = selectedAppIconIndex,
+                onSelectedIndexChange = { index ->
+                    appIconOptions.getOrNull(index)?.first?.let { style ->
+                        scope.launch { settingsManager.setAppIconStyle(style) }
                     }
                 }
             )

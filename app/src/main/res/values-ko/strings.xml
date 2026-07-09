@@ -170,6 +170,10 @@
     <string name="settings_language_summary_german">앱 UI에 독일어 강제 적용</string>
     <string name="settings_language_summary_russian">앱 UI에 러시아어 강제 적용</string>
     <string name="settings_language_summary_french">앱 UI에 프랑스어 강제 적용</string>
+    <string name="settings_app_icon">앱 아이콘</string>
+    <string name="settings_app_icon_summary">홈 화면 실행 아이콘을 전환합니다. 현재: %1$s. 일부 런처는 새로고침에 시간이 걸릴 수 있습니다</string>
+    <string name="settings_app_icon_default">기본</string>
+    <string name="settings_app_icon_anime">애니메</string>
     <string name="settings_preferences">앱 환경설정</string>
     <string name="settings_preferences_summary">외관, 홈, 개인 설정</string>
     <string name="settings_customize">개인화</string>

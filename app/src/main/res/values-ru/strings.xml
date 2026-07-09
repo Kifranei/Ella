@@ -169,6 +169,10 @@
     <string name="settings_language_summary_german">Принудительный немецкий для пользовательского интерфейса приложения</string>
     <string name="settings_language_summary_russian">Принудительный русский язык для пользовательского интерфейса приложения</string>
     <string name="settings_language_summary_french">Принудительно использовать французский язык для пользовательского интерфейса приложения</string>
+    <string name="settings_app_icon">Значок приложения</string>
+    <string name="settings_app_icon_summary">Переключает значок на рабочем столе. Текущий: %1$s. Некоторым лаунчерам нужно немного времени для обновления</string>
+    <string name="settings_app_icon_default">По умолчанию</string>
+    <string name="settings_app_icon_anime">Аниме</string>
 
     <string name="settings_preferences">Настройки приложения</string>
     <string name="settings_preferences_summary">Настройки внешнего вида, дома и персонализации</string>

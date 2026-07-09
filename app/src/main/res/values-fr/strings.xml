@@ -170,6 +170,10 @@
     <string name="settings_language_summary_german">Forcer l’allemand pour l’interface de l’application</string>
     <string name="settings_language_summary_russian">Forcer le russe pour l’interface de l’application</string>
     <string name="settings_language_summary_french">Forcer le français pour l’interface de l’application</string>
+    <string name="settings_app_icon">Icône de l’application</string>
+    <string name="settings_app_icon_summary">Change l’icône du lanceur. Actuel : %1$s. Certains lanceurs peuvent mettre un moment à se rafraîchir</string>
+    <string name="settings_app_icon_default">Par défaut</string>
+    <string name="settings_app_icon_anime">Anime</string>
     <string name="settings_preferences">Préférences de l’application</string>
     <string name="settings_preferences_summary">Apparence, accueil et personnalisation</string>
     <string name="settings_customize">Personnalisation</string>

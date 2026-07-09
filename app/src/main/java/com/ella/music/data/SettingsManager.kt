@@ -70,6 +70,7 @@ class SettingsManager(private val context: Context) {
         val KEY_MONET_COLOR_MODE = intPreferencesKey("monet_color_mode")
         val KEY_PLAYER_BACKGROUND_THEME = intPreferencesKey("player_background_theme")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
+        val KEY_APP_ICON_STYLE = stringPreferencesKey("app_icon_style")
         val KEY_LIBRARY_SOURCE = stringPreferencesKey("library_source")
         val KEY_BOTTOM_BAR_GLASS_EFFECT = stringPreferencesKey("bottom_bar_glass_effect")
         val KEY_BOTTOM_DOCK_ITEMS = stringPreferencesKey("bottom_dock_items")
@@ -406,6 +407,8 @@ class SettingsManager(private val context: Context) {
         const val APP_LANGUAGE_DE = "de"
         const val APP_LANGUAGE_FR = "fr"
         const val APP_LANGUAGE_RU = "ru"
+        const val APP_ICON_STYLE_DEFAULT = "default"
+        const val APP_ICON_STYLE_ANIME = "anime"
         const val BOTTOM_DOCK_ITEM_HOME = "home"
         const val BOTTOM_DOCK_ITEM_LIBRARY = "library"
         // Search stays as a fixed action pill outside the configurable dock tabs.
@@ -609,6 +612,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_PLAYER_BACKGROUND_THEME] ?: PLAYER_BG_THEME_FOLLOW_SYSTEM }
     val appLanguage: Flow<String> =
         context.dataStore.data.map { it[KEY_APP_LANGUAGE] ?: APP_LANGUAGE_SYSTEM }
+    val appIconStyle: Flow<String> =
+        context.dataStore.data.map { AppIconManager.normalize(it[KEY_APP_ICON_STYLE]) }
     val bottomBarGlassEffect: Flow<BottomBarGlassEffect> = context.dataStore.data.map { preferences ->
         runCatching {
             BottomBarGlassEffect.valueOf(
@@ -1185,6 +1190,10 @@ class SettingsManager(private val context: Context) {
             else -> APP_LANGUAGE_SYSTEM
         }
         context.dataStore.edit { it[KEY_APP_LANGUAGE] = normalized }
+    }
+
+    suspend fun setAppIconStyle(style: String) {
+        context.dataStore.edit { it[KEY_APP_ICON_STYLE] = AppIconManager.normalize(style) }
     }
 
     suspend fun setBottomBarGlassEffect(effect: BottomBarGlassEffect) {
@@ -2526,6 +2535,7 @@ class SettingsManager(private val context: Context) {
             setString(KEY_HOME_LIBRARY_TILE_ORDER)
             setString(KEY_HOME_HIDDEN_LIBRARY_TILES)
             setString(KEY_APP_LANGUAGE)
+            setString(KEY_APP_ICON_STYLE)
             setString(KEY_BOTTOM_BAR_GLASS_EFFECT)
             setString(KEY_BOTTOM_DOCK_ITEMS)
             setString(KEY_LYRIC_OFFSET_OVERRIDES)

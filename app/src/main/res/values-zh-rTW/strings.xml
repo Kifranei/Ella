@@ -165,6 +165,10 @@
     <string name="settings_language_summary_german">使用德文介面</string>
     <string name="settings_language_summary_russian">使用俄文介面</string>
     <string name="settings_language_summary_french">使用法文介面</string>
+    <string name="settings_app_icon">應用程式圖示</string>
+    <string name="settings_app_icon_summary">切換桌面啟動圖示，目前：%1$s。部分啟動器可能需要稍候重新整理</string>
+    <string name="settings_app_icon_default">原版</string>
+    <string name="settings_app_icon_anime">二次元版</string>
     <string name="settings_preferences">應用程式偏好設定</string>
     <string name="settings_preferences_summary">外觀、首頁與個人化設定</string>
     <string name="settings_customize">個人化</string>
