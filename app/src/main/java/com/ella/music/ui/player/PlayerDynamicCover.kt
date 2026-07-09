@@ -37,7 +37,8 @@ internal data class DynamicCoverSource(
     val uri: Uri,
     val failureKey: String,
     val kind: DynamicCoverKind = DynamicCoverKind.Video,
-    val aspectRatio: Float? = null
+    val aspectRatio: Float? = null,
+    val preferLandscapeBackground: Boolean = false
 )
 
 internal fun Song.dynamicCoverResolutionKey(): String =
@@ -153,11 +154,9 @@ internal fun Song.dynamicCoverSource(
             customRootPaths = customRootPaths,
             includeExternalFiles = includeExternalFiles
         )?.let { file ->
-            val uri = Uri.fromFile(file)
-            return DynamicCoverSource(
-                uri = uri,
-                failureKey = "file:${file.absolutePath}:${file.lastModified()}:${file.length()}",
-                aspectRatio = context.readDynamicCoverAspectRatio(uri)
+            return file.toDynamicCoverSource(
+                context = context,
+                songCandidates = dynamicCoverSongCandidates()
             )
         }
         dynamicCoverDocumentSource(
@@ -311,6 +310,8 @@ private fun Song.dynamicCoverVideoFile(
         .map { it.toSafeDynamicCoverName() }
         .filter { it.isNotBlank() }
         .distinct()
+    val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
+    val musicVideoSongCandidates = buildLandscapeMusicVideoNameCandidates(songCandidates)
     val albumNameCandidates = listOf(
         albumName,
         albumKey,
@@ -323,7 +324,7 @@ private fun Song.dynamicCoverVideoFile(
     val folderCandidates = songFolder
         ?.takeIf { it.exists() && it.isDirectory }
         ?.let { folder ->
-            (songNameCandidates + safeSongNameCandidates).distinct().map { File(folder, "$it.mp4") } + listOf(
+            (musicVideoSongCandidates + songCandidates).distinct().map { File(folder, "$it.mp4") } + listOf(
                 File(folder, "cover.mp4"),
                 File(folder, "${folder.name}.mp4"),
                 File(folder, "$albumName.mp4"),
@@ -342,14 +343,14 @@ private fun Song.dynamicCoverVideoFile(
     val libraryCandidates = roots.flatMap { root ->
         buildList {
             add(File(root, "cover.mp4"))
-            addAll((songNameCandidates + safeSongNameCandidates).distinct().map { name ->
+            addAll((musicVideoSongCandidates + songCandidates).distinct().map { name ->
                 File(root, "$name.mp4")
             })
             addAll(albumNameCandidates.map { name ->
                 File(root, "$name.mp4")
             })
             listOf("Song", "song").forEach { songDir ->
-                addAll((songNameCandidates + safeSongNameCandidates).distinct().map { name ->
+                addAll((musicVideoSongCandidates + songCandidates).distinct().map { name ->
                     File(root, "$songDir/$name.mp4")
                 })
             }
@@ -365,7 +366,7 @@ private fun Song.dynamicCoverVideoFile(
 
     candidates.firstOrNull { it.exists() && it.isFile && it.length() > 0L }?.let { return it }
 
-    val fuzzySongTokens = (songNameCandidates + safeSongNameCandidates)
+    val fuzzySongTokens = (songCandidates + musicVideoSongCandidates)
         .mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
     val fuzzyAlbumTokens = albumNameCandidates
         .mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
@@ -460,7 +461,8 @@ private fun Song.dynamicCoverDocumentSource(
         .filter { it.isNotBlank() }
         .distinct()
     val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
-    val fuzzySongTokens = songCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+    val musicVideoSongCandidates = buildLandscapeMusicVideoNameCandidates(songCandidates)
+    val fuzzySongTokens = (songCandidates + musicVideoSongCandidates).mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
     val fuzzyAlbumTokens = albumNameCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
 
     return customRootPaths
@@ -481,11 +483,12 @@ private fun Song.dynamicCoverDocumentSource(
             searchRoots.firstNotNullOfOrNull { directory ->
                 val exactNames = buildList {
                     add("cover.mp4")
+                    addAll(musicVideoSongCandidates.map { "$it.mp4" })
                     addAll(songCandidates.map { "$it.mp4" })
                     addAll(albumNameCandidates.map { "$it.mp4" })
                 }
                 exactNames.firstNotNullOfOrNull { name ->
-                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(context, rawUri)
+                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(context, rawUri, songCandidates)
                 } ?: directory.listFiles().firstOrNull { file ->
                     file.isFile &&
                         file.length() > 0L &&
@@ -493,7 +496,7 @@ private fun Song.dynamicCoverDocumentSource(
                         file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
                             token in fuzzySongTokens || token in fuzzyAlbumTokens
                         }
-                }?.toDynamicCoverSource(context, rawUri)
+                }?.toDynamicCoverSource(context, rawUri, songCandidates)
             }
         }
         .firstOrNull()
@@ -505,11 +508,32 @@ private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFil
 private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
     listFiles().firstOrNull { it.isFile && it.length() > 0L && it.name.equals(name, ignoreCase = true) }
 
-private fun DocumentFile.toDynamicCoverSource(context: Context, rootUri: String): DynamicCoverSource =
+private fun File.toDynamicCoverSource(
+    context: Context,
+    songCandidates: Collection<String>
+): DynamicCoverSource {
+    val uri = Uri.fromFile(this)
+    return DynamicCoverSource(
+        uri = uri,
+        failureKey = "file:${absolutePath}:${lastModified()}:${length()}",
+        aspectRatio = context.readDynamicCoverAspectRatio(uri),
+        preferLandscapeBackground = isLandscapeMusicVideoFileName(nameWithoutExtension, songCandidates)
+    )
+}
+
+private fun DocumentFile.toDynamicCoverSource(
+    context: Context,
+    rootUri: String,
+    songCandidates: Collection<String>
+): DynamicCoverSource =
     DynamicCoverSource(
         uri = uri,
         failureKey = "tree:$rootUri:${uri}:${length()}",
-        aspectRatio = context.readDynamicCoverAspectRatio(uri)
+        aspectRatio = context.readDynamicCoverAspectRatio(uri),
+        preferLandscapeBackground = isLandscapeMusicVideoFileName(
+            name.orEmpty().substringBeforeLast('.'),
+            songCandidates
+        )
     )
 
 private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
@@ -542,6 +566,52 @@ private fun String.toSafeDynamicCoverName(): String {
         .replace("""[\\/:*?"<>|]""".toRegex(), "_")
         .replace("\\s+".toRegex(), " ")
         .ifBlank { "Unknown" }
+}
+
+private val LANDSCAPE_MUSIC_VIDEO_SUFFIX_REGEX =
+    Regex("""(?:[\s_\-–—]+mv)$""", RegexOption.IGNORE_CASE)
+
+internal fun buildLandscapeMusicVideoNameCandidates(baseNames: Collection<String>): List<String> =
+    baseNames
+        .map(String::trim)
+        .filter { it.isNotBlank() }
+        .flatMap { name -> listOf("${name}_MV", "${name}-MV") }
+        .distinct()
+
+internal fun isLandscapeMusicVideoFileName(
+    nameWithoutExtension: String,
+    songCandidates: Collection<String>
+): Boolean {
+    if (!nameWithoutExtension.hasLandscapeMusicVideoSuffix()) return false
+    val baseToken = nameWithoutExtension.removeLandscapeMusicVideoSuffix().toDynamicCoverMatchToken()
+    val songTokens = songCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+    return baseToken.isNotBlank() && baseToken in songTokens
+}
+
+private fun String.hasLandscapeMusicVideoSuffix(): Boolean =
+    LANDSCAPE_MUSIC_VIDEO_SUFFIX_REGEX.containsMatchIn(trim())
+
+private fun String.removeLandscapeMusicVideoSuffix(): String =
+    trim().replace(LANDSCAPE_MUSIC_VIDEO_SUFFIX_REGEX, "")
+
+private fun Song.dynamicCoverSongCandidates(): List<String> {
+    val artistSongName = listOf(artist, title)
+        .filter { it.isNotBlank() }
+        .joinToString(" - ")
+    val artistSongCompactName = listOf(artist, title)
+        .filter { it.isNotBlank() }
+        .joinToString("-")
+    return listOf(
+        File(path).nameWithoutExtension,
+        title,
+        artistSongCompactName,
+        artistSongName
+    )
+        .filter { it.isNotBlank() }
+        .distinct()
+        .let { raw ->
+            (raw + raw.map { it.toSafeDynamicCoverName() }.filter { it.isNotBlank() }).distinct()
+        }
 }
 
 private fun String.toDynamicCoverMatchToken(): String =

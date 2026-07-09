@@ -160,6 +160,7 @@ internal fun LandscapeCoverPlaybackOverlay(
     ) {
         LandscapeCoverModeBackground(
             palette = palette,
+            dynamicCoverSource = dynamicCoverSource,
             embeddedCover = embeddedCover,
             paletteBitmap = paletteBitmap,
             currentPosition = currentPosition,
@@ -169,6 +170,8 @@ internal fun LandscapeCoverPlaybackOverlay(
             visualizerEnabled = visualizerEnabled,
             visualizerOpacity = visualizerOpacity,
             customBackgroundUri = "",
+            customBackgroundOpacity = 1f,
+            customBackgroundDim = 0.26f,
             beautifulLyricsBackground = beautifulLyricsBackground,
             modifier = Modifier.fillMaxSize()
         )

@@ -289,6 +289,8 @@
     <string name="settings_open_player_on_play_summary">Automatically open the player after starting local, WebDAV, or online songs</string>
     <string name="settings_show_play_next_in_lists">Show Play Next in song lists</string>
     <string name="settings_show_play_next_in_lists_summary">Show the quick action beside duration in song lists; turning it off keeps the action in the song menu</string>
+    <string name="settings_exclude_search_results_from_playlist">Do not use search results as a playlist</string>
+    <string name="settings_exclude_search_results_from_playlist_summary">When enabled, tapping a song in search plays only that song instead of loading the whole result set into the current playlist</string>
 
     <string name="share_song">Share song</string>
     <string name="share_no_available_app">No sharing apps available</string>

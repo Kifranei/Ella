@@ -30,6 +30,7 @@ import kotlin.math.abs
 @Composable
 internal fun LandscapeCoverModeBackground(
     palette: PlayerPalette,
+    dynamicCoverSource: DynamicCoverSource? = null,
     embeddedCover: Bitmap? = null,
     paletteBitmap: Bitmap? = null,
     currentPosition: Long,
@@ -45,7 +46,21 @@ internal fun LandscapeCoverModeBackground(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.background(palette.middle)) {
-        if (customBackgroundUri.isNotBlank()) {
+        if (dynamicCoverSource?.preferLandscapeBackground == true) {
+            DynamicCoverVideo(
+                source = dynamicCoverSource,
+                isPlaying = isPlaying,
+                onPlaybackError = {},
+                modifier = Modifier.fillMaxSize(),
+                cornerRadiusDp = 0f,
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.24f))
+            )
+        } else if (customBackgroundUri.isNotBlank()) {
             PlayerCustomBackground(
                 uri = customBackgroundUri,
                 imageAlpha = customBackgroundOpacity,
@@ -140,22 +155,24 @@ internal fun LandscapeCoverStack(
                     cornerRadius = if (isCenter) 14.dp else 10.dp,
                     alpha = if (isCenter) 0.34f else 0.18f
                 )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(if (isCenter) 14.dp else 10.dp))
-                        .background(Color.White.copy(alpha = 0.10f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isCenter && dynamicCoverSource != null) {
-                        DynamicCoverVideo(
-                            source = dynamicCoverSource,
-                            isPlaying = isPlaying,
-                            onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
-                            modifier = Modifier.fillMaxSize(),
-                            cornerRadiusDp = if (isCenter) 14f else 10f
-                        )
-                    } else {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(if (isCenter) 14.dp else 10.dp))
+                    .background(Color.White.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                val foregroundDynamicCoverSource = dynamicCoverSource
+                    ?.takeUnless { it.preferLandscapeBackground }
+                if (isCenter && foregroundDynamicCoverSource != null) {
+                    DynamicCoverVideo(
+                        source = foregroundDynamicCoverSource,
+                        isPlaying = isPlaying,
+                        onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
+                        modifier = Modifier.fillMaxSize(),
+                        cornerRadiusDp = if (isCenter) 14f else 10f
+                    )
+                } else {
                         LandscapeStackCoverImage(
                             song = itemSong,
                             embeddedCover = embeddedCover.takeIf { isCenter && isCurrentSongItem },

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -40,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,9 +70,11 @@ import com.ella.music.ui.components.FloatingSelectionControls
 import com.ella.music.ui.components.LibraryFloatingControlsBottomPadding
 import com.ella.music.ui.components.LibraryFloatingControlsEndPadding
 import com.ella.music.ui.components.LibrarySecondaryFloatingControlsBottomPadding
+import com.ella.music.ui.components.LocateCurrentSongFloatingButton
 import com.ella.music.ui.components.rememberSongDeleteRequester
 import com.ella.music.ui.components.SafeCoverImage
 import com.ella.music.ui.components.ScanRefreshIconButton
+import com.ella.music.ui.components.SelectionCheck
 import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
@@ -109,6 +114,8 @@ fun FolderPlaylistsScreen(
     showBackButton: Boolean = true
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
@@ -283,7 +290,7 @@ fun FolderPlaylistsScreen(
     ) {
         EllaSmallTopAppBar(
             title = if (selectionMode) {
-                stringResource(R.string.folder_playlist_selected_playlists, selectedPlaylistIds.size)
+                stringResource(R.string.library_selected_fraction, selectedPlaylistIds.size, filteredPlaylists.size)
             } else {
                 stringResource(R.string.folder_playlist_title)
             },
@@ -391,7 +398,7 @@ fun FolderPlaylistsScreen(
             ) {
                 Text(
                     text = if (selectionMode) {
-                        stringResource(R.string.folder_playlist_selected_playlists, selectedPlaylistIds.size)
+                        stringResource(R.string.library_selected_fraction, selectedPlaylistIds.size, filteredPlaylists.size)
                     } else {
                         stringResource(R.string.folder_playlist_list_summary_sorted, filteredPlaylists.size, stringResource(sortMode.labelRes))
                     },
@@ -701,12 +708,15 @@ fun FolderPlaylistDetailScreen(
     onNavigateToArtist: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
     val songs by mainViewModel.songs.collectAsState()
     val playlists by mainViewModel.settingsManager.folderPlaylists.collectAsState(initial = emptyList())
     val openPlayerOnPlay by mainViewModel.settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val currentSong by playerViewModel.currentSong.collectAsState()
+    val locateCurrentSongRequest by playerViewModel.locateCurrentSongRequest.collectAsState()
     val favoriteSongKeys by playerViewModel.favoriteSongKeys.collectAsState()
     val playlist = remember(playlists, playlistId) {
         playlists.firstOrNull { it.id == playlistId || it.name == playlistId }
@@ -776,6 +786,27 @@ fun FolderPlaylistDetailScreen(
                 entry.displayName.contains(detailQuery, ignoreCase = true) ||
                     entry.path.contains(detailQuery, ignoreCase = true)
             }
+        }
+    }
+    val songsListState = rememberLazyListState()
+    val foldersListState = rememberLazyListState()
+    val displayedSongIndexByKey = remember(displayedSongs) {
+        buildMap {
+            displayedSongs.forEachIndexed { index, song ->
+                put(song.playlistIdentityKey(), index + 1)
+            }
+        }
+    }
+    val currentSongItemIndex = remember(
+        displayedSongIndexByKey,
+        currentSong?.playlistIdentityKey(),
+        selectionMode,
+        selectedTab
+    ) {
+        if (selectionMode || selectedTab != FolderPlaylistTab.Songs) {
+            -1
+        } else {
+            currentSong?.playlistIdentityKey()?.let(displayedSongIndexByKey::get) ?: -1
         }
     }
     val currentSortLabel = stringResource(
@@ -1044,7 +1075,11 @@ fun FolderPlaylistDetailScreen(
             EllaSearchBar(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
-                onSearch = { searchExpanded = false },
+                onSearch = {
+                    keyboardController?.hide()
+                    focusManager.clearFocus()
+                    searchExpanded = false
+                },
                 placeholder = when (selectedTab) {
                     FolderPlaylistTab.Songs -> stringResource(R.string.folder_detail_search_placeholder)
                     FolderPlaylistTab.Folders -> stringResource(R.string.folder_search_placeholder)
@@ -1084,6 +1119,7 @@ fun FolderPlaylistDetailScreen(
         when (selectedTab) {
             FolderPlaylistTab.Songs -> {
                 LazyColumn(
+                    state = songsListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
@@ -1140,6 +1176,7 @@ fun FolderPlaylistDetailScreen(
             }
             FolderPlaylistTab.Folders -> {
                 LazyColumn(
+                    state = foldersListState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 130.dp)
                 ) {
@@ -1155,20 +1192,38 @@ fun FolderPlaylistDetailScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            cornerRadius = 12.dp,
-                            onClick = {
-                                if (selectionMode) {
-                                    toggleKey(entry.path)
-                                } else {
-                                    onNavigateToFolder(entry.path)
-                                }
-                            }
+                                .padding(vertical = 4.dp)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (selectionMode) {
+                                            toggleKey(entry.path)
+                                        } else {
+                                            onNavigateToFolder(entry.path)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        selectionMode = true
+                                        if (entry.path !in selectedFolderPaths) toggleKey(entry.path)
+                                    }
+                                ),
+                            cornerRadius = 12.dp
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                modifier = Modifier
+                                    .background(
+                                        if (entry.path in selectedFolderPaths) MiuixTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                        else Color.Transparent
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (selectionMode) {
+                                    SelectionCheck(
+                                        selected = entry.path in selectedFolderPaths,
+                                        checkColor = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.size(12.dp))
+                                }
                                 Box(
                                     modifier = Modifier
                                         .size(48.dp)
@@ -1198,14 +1253,14 @@ fun FolderPlaylistDetailScreen(
                                         fontWeight = FontWeight.Medium,
                                         fontSize = 15.sp,
                                         color = MiuixTheme.colorScheme.onSurface,
-                                        maxLines = 1,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "${entry.summaryForSort(folderSortMode, context)} · ${entry.path}",
+                                        text = entry.detailSummaryForSort(folderSortMode, context),
                                         fontSize = 12.sp,
                                         color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                        maxLines = 1,
+                                        maxLines = 2,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
@@ -1224,6 +1279,15 @@ fun FolderPlaylistDetailScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = LibraryFloatingControlsEndPadding, bottom = LibrarySecondaryFloatingControlsBottomPadding)
+            )
+            LocateCurrentSongFloatingButton(
+                listState = songsListState,
+                currentItemIndex = currentSongItemIndex,
+                locateRequest = locateCurrentSongRequest,
+                enabled = selectedTab == FolderPlaylistTab.Songs && !selectionMode,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
             )
             FloatingSelectionControls(
                 visible = selectionMode && displayedKeysForTab.isNotEmpty(),
@@ -1694,14 +1758,14 @@ private fun FolderPlaylistEditorSheet(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MiuixTheme.colorScheme.onSurface,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = folder,
                                 fontSize = 12.sp,
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -1774,6 +1838,17 @@ private fun FolderPlaylistFolderEntry.summaryForSort(
             context.getString(R.string.album_count, albumCount),
             duration.formatPlaybackDuration()
         ).joinToString(" · ")
+    }
+
+private fun FolderPlaylistFolderEntry.detailSummaryForSort(
+    mode: FolderPlaylistFolderSortMode,
+    context: android.content.Context
+): String =
+    when (mode) {
+        FolderPlaylistFolderSortMode.Custom,
+        FolderPlaylistFolderSortMode.CustomDesc,
+        FolderPlaylistFolderSortMode.Name -> "${context.getString(R.string.song_count, songCount)} · $path"
+        else -> "${summaryForSort(mode, context)} · $path"
     }
 
 private fun Long.formatFolderPlaylistDateTime(context: android.content.Context): String {

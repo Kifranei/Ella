@@ -45,6 +45,7 @@ internal fun LandscapeLyricsOverlay(
     embeddedCover: Bitmap?,
     paletteBitmap: Bitmap?,
     annotation: String,
+    dynamicCoverSource: DynamicCoverSource?,
     lyrics: List<LyricLine>,
     currentLyricIndex: Int,
     currentPosition: Long,
@@ -99,7 +100,21 @@ internal fun LandscapeLyricsOverlay(
     BackHandler(onBack = onShowCoverPlayer)
 
     Box(modifier = modifier.background(palette.middle)) {
-        if (beautifulLyricsBackground) {
+        if (dynamicCoverSource?.preferLandscapeBackground == true) {
+            DynamicCoverVideo(
+                source = dynamicCoverSource,
+                isPlaying = isPlaying,
+                onPlaybackError = {},
+                modifier = Modifier.fillMaxSize(),
+                cornerRadiusDp = 0f,
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.28f))
+            )
+        } else if (beautifulLyricsBackground) {
             BeautifulLyricsDynamicBackground(
                 palette = palette,
                 coverBitmap = embeddedCover ?: paletteBitmap,

@@ -186,6 +186,7 @@ internal fun LandscapeCoverPlayerPage(
     val lyricSecondaryTextSize = secondaryTextSizeSp
     val lyricAnchorOffset = if (ultraWideLandscape) -0.03f else -0.08f
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
 
     if (compactPhoneLandscape) {
         CompactPhoneLandscapeCoverPlayerPage(
@@ -251,6 +252,7 @@ internal fun LandscapeCoverPlayerPage(
         if (drawBackground) {
             LandscapeCoverModeBackground(
                 palette = palette,
+                dynamicCoverSource = dynamicCoverSource,
                 embeddedCover = embeddedCover,
                 paletteBitmap = paletteBitmap,
                 currentPosition = currentPosition,
@@ -396,11 +398,11 @@ internal fun LandscapeCoverPlayerPage(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (dynamicCoverSource != null) {
+                        if (foregroundDynamicCoverSource != null) {
                             DynamicCoverVideo(
-                                source = dynamicCoverSource,
+                                source = foregroundDynamicCoverSource,
                                 isPlaying = isPlaying,
-                                onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
+                                onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 14f
                             )
@@ -413,7 +415,7 @@ internal fun LandscapeCoverPlayerPage(
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
-                        if (dynamicCoverSource != null && showHiResLogo) {
+                        if (showHiResLogo) {
                             HiResLogoBadge(
                                 logoUri = hiResLogoUri,
                                 modifier = Modifier
@@ -580,6 +582,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     val swipeThresholdPx = with(LocalDensity.current) { 84.dp.toPx() }
     val swipeScope = rememberCoroutineScope()
     val dragOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+    val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
 
     fun Modifier.coverSwipeModifier(): Modifier {
         return if (coverSwipeEnabled) {
@@ -613,6 +616,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
         if (drawBackground) {
             LandscapeCoverModeBackground(
                 palette = palette,
+                dynamicCoverSource = dynamicCoverSource,
                 embeddedCover = embeddedCover,
                 paletteBitmap = paletteBitmap,
                 currentPosition = currentPosition,
@@ -643,11 +647,11 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                     .coverSwipeModifier(),
                 contentAlignment = Alignment.Center
             ) {
-                if (dynamicCoverSource != null) {
+                if (foregroundDynamicCoverSource != null) {
                     DynamicCoverVideo(
-                        source = dynamicCoverSource,
+                        source = foregroundDynamicCoverSource,
                         isPlaying = isPlaying,
-                        onPlaybackError = { onDynamicCoverFailed(dynamicCoverSource.failureKey) },
+                        onPlaybackError = { onDynamicCoverFailed(foregroundDynamicCoverSource.failureKey) },
                         modifier = Modifier.fillMaxSize(),
                         cornerRadiusDp = 14f
                     )

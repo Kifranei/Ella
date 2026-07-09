@@ -29,6 +29,7 @@ internal fun LibrarySearchResultsPane(
     libraryCacheLoaded: Boolean,
     currentSong: Song?,
     showPlayNextInLists: Boolean,
+    excludeSearchResultsFromPlaylist: Boolean,
     filter: SearchFilter,
     trimmedQuery: String,
     duplicatesOnlyActive: Boolean,
@@ -119,10 +120,18 @@ internal fun LibrarySearchResultsPane(
                                 if (selectionMode) {
                                     onToggleSongSelection(result.song)
                                 } else {
-                                    val playbackSongs = songResults.map { it.song }
-                                    val index = playbackSongs.indexOfFirst {
-                                        it.id == result.song.id && it.path == result.song.path
-                                    }.coerceAtLeast(0)
+                                    val playbackSongs = if (excludeSearchResultsFromPlaylist) {
+                                        listOf(result.song)
+                                    } else {
+                                        songResults.map { it.song }
+                                    }
+                                    val index = if (excludeSearchResultsFromPlaylist) {
+                                        0
+                                    } else {
+                                        playbackSongs.indexOfFirst {
+                                            it.id == result.song.id && it.path == result.song.path
+                                        }.coerceAtLeast(0)
+                                    }
                                     playerViewModel.setPlaylist(playbackSongs, index)
                                     onCommitSearch()
                                     onNavigateToPlayer()

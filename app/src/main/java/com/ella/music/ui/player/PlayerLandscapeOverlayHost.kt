@@ -173,6 +173,7 @@ internal fun PlayerLandscapeOverlayHost(
             embeddedCover = embeddedCover,
             paletteBitmap = paletteBitmap,
             annotation = annotation,
+            dynamicCoverSource = landscapeDynamicCoverSource,
             lyrics = lyrics,
             currentLyricIndex = currentLyricIndex,
             currentPosition = currentPosition,

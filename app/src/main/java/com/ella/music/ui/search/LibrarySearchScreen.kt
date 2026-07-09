@@ -19,6 +19,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.Song
@@ -49,6 +51,8 @@ fun LibrarySearchScreen(
     onNavigateToPlayer: () -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val settingsManager = mainViewModel.settingsManager
     val songs by mainViewModel.songs.collectAsState()
     val albums by mainViewModel.albums.collectAsState()
@@ -58,6 +62,7 @@ fun LibrarySearchScreen(
     val requestDeleteSongs = rememberSongDeleteRequester(mainViewModel)
     val lyricSourceMode by settingsManager.lyricSourceMode.collectAsState(initial = SettingsManager.LYRIC_SOURCE_AUTO)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
     val showAlbumArtists by settingsManager.showAlbumArtists.collectAsState(initial = true)
     val fullTagSearchEnabled by settingsManager.fullTagSearchEnabled.collectAsState(initial = true)
     val scanExcludeFolders by settingsManager.scanExcludeFolders.collectAsState(initial = "")
@@ -567,6 +572,7 @@ fun LibrarySearchScreen(
             libraryCacheLoaded = libraryCacheLoaded,
             currentSong = currentSong,
             showPlayNextInLists = showPlayNextInLists,
+            excludeSearchResultsFromPlaylist = excludeSearchResultsFromPlaylist,
             filter = filter,
             trimmedQuery = trimmedQuery,
             duplicatesOnlyActive = duplicatesOnlyActive,
@@ -585,6 +591,9 @@ fun LibrarySearchScreen(
                 query = item
                 filter = SearchFilter.All
                 duplicatesOnly = false
+                commitSearch(item)
+                keyboardController?.hide()
+                focusManager.clearFocus()
             },
             onDeleteHistory = { item ->
                 history = history - item

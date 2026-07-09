@@ -268,6 +268,8 @@
     <string name="settings_open_player_on_play_summary">Ouvrir automatiquement le lecteur après le démarrage de titres locaux, WebDAV ou en ligne</string>
     <string name="settings_show_play_next_in_lists">Afficher Lire ensuite dans les listes de titres</string>
     <string name="settings_show_play_next_in_lists_summary">Afficher l’action rapide à côté de la durée dans les listes de titres ; si désactivé, l’action reste dans le menu du titre</string>
+    <string name="settings_exclude_search_results_from_playlist">Ne pas utiliser les résultats de recherche comme playlist</string>
+    <string name="settings_exclude_search_results_from_playlist_summary">Une fois activé, appuyer sur un titre depuis la recherche ne lit que ce titre et n’ajoute plus tous les résultats à la playlist en cours</string>
 
     <string name="share_song">Partager le titre</string>
     <string name="share_no_available_app">Aucune application de partage disponible</string>

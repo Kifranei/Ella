@@ -268,6 +268,8 @@
     <string name="settings_open_player_on_play_summary">ローカル、WebDAV、オンライン曲の再生を開始すると、自動でプレーヤー画面を開きます</string>
     <string name="settings_show_play_next_in_lists">曲リストに「次に再生」を表示</string>
     <string name="settings_show_play_next_in_lists_summary">曲リストの再生時間の横にクイックボタンを表示します。オフでも曲メニューから操作できます</string>
+    <string name="settings_exclude_search_results_from_playlist">検索結果をプレイリストとして扱わない</string>
+    <string name="settings_exclude_search_results_from_playlist_summary">有効にすると、検索結果から再生した曲は現在の曲だけを再生し、検索結果全体を現在のプレイリストに入れません</string>
 
     <string name="share_song">曲を共有</string>
     <string name="share_no_available_app">共有できるアプリがありません</string>

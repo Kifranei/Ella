@@ -712,15 +712,27 @@ class MusicRepository(private val context: Context) {
         val replayGainDb = getReplayGain(song)
         val metadataPath = song.effectiveLocalPathForMetadata()
         val wavMetadata = WavMetadataReader.read(metadataPath)
+        val estimatedBitRate = song.estimatedBitRate()
         audioTagRepository.readQualityInfoBlocking(metadataPath)?.let { quality ->
+            val bitRate = quality.bitRate.takeIf { it > 0 }
+                ?: wavMetadata?.bitRate?.takeIf { it > 0 }
+                ?: estimatedBitRate
+            val sampleRate = quality.sampleRate.takeIf { it > 0 } ?: wavMetadata?.sampleRate ?: 0
+            val bitDepth = quality.bitDepth.takeIf { it > 0 } ?: wavMetadata?.bitDepth ?: 0
+            val channels = quality.channels.takeIf { it > 0 } ?: wavMetadata?.channels ?: 0
             val info = AudioInfo(
-                format = song.audioFormatLabel(quality.mimeType),
-                bitRate = quality.bitRate.takeIf { it > 0 }
-                    ?: wavMetadata?.bitRate?.takeIf { it > 0 }
-                    ?: song.estimatedBitRate(),
-                sampleRate = quality.sampleRate.takeIf { it > 0 } ?: wavMetadata?.sampleRate ?: 0,
-                bitDepth = quality.bitDepth.takeIf { it > 0 } ?: wavMetadata?.bitDepth ?: 0,
-                channels = quality.channels.takeIf { it > 0 } ?: wavMetadata?.channels ?: 0,
+                format = song.audioFormatLabel(
+                    mime = quality.mimeType,
+                    bitRate = bitRate,
+                    sampleRate = sampleRate,
+                    bitDepth = bitDepth,
+                    channels = channels,
+                    estimatedBitRate = estimatedBitRate
+                ),
+                bitRate = bitRate,
+                sampleRate = sampleRate,
+                bitDepth = bitDepth,
+                channels = channels,
                 replayGainDb = replayGainDb
             )
             audioInfoCache[cacheKey] = info
@@ -728,8 +740,15 @@ class MusicRepository(private val context: Context) {
         }
         wavMetadata?.takeIf { it.hasQuality }?.let { quality ->
             val info = AudioInfo(
-                format = song.audioFormatLabel("audio/wav"),
-                bitRate = quality.bitRate.takeIf { it > 0 } ?: song.estimatedBitRate(),
+                format = song.audioFormatLabel(
+                    mime = "audio/wav",
+                    bitRate = quality.bitRate.takeIf { it > 0 } ?: estimatedBitRate,
+                    sampleRate = quality.sampleRate,
+                    bitDepth = quality.bitDepth,
+                    channels = quality.channels,
+                    estimatedBitRate = estimatedBitRate
+                ),
+                bitRate = quality.bitRate.takeIf { it > 0 } ?: estimatedBitRate,
                 sampleRate = quality.sampleRate,
                 bitDepth = quality.bitDepth,
                 channels = quality.channels,
@@ -753,18 +772,27 @@ class MusicRepository(private val context: Context) {
                 }
 
                 val format = audioFormat
-                val formatLabel = song.audioFormatLabel(format?.getString(MediaFormat.KEY_MIME))
                 val extractedBitRate = format?.getIntOrZero(MediaFormat.KEY_BIT_RATE) ?: 0
-                val bitRate = extractedBitRate.takeIf { it > 0 } ?: song.estimatedBitRate()
+                val bitRate = extractedBitRate.takeIf { it > 0 } ?: estimatedBitRate
+                val sampleRate = (format?.getIntOrZero(MediaFormat.KEY_SAMPLE_RATE) ?: 0)
+                    .takeIf { it > 0 } ?: wavMetadata?.sampleRate ?: 0
+                val bitDepth = (format?.getIntOrZero("bits-per-sample") ?: 0)
+                    .takeIf { it > 0 } ?: wavMetadata?.bitDepth ?: 0
+                val channels = (format?.getIntOrZero(MediaFormat.KEY_CHANNEL_COUNT) ?: 0)
+                    .takeIf { it > 0 } ?: wavMetadata?.channels ?: 0
                 AudioInfo(
-                    format = formatLabel,
+                    format = song.audioFormatLabel(
+                        mime = format?.getString(MediaFormat.KEY_MIME),
+                        bitRate = bitRate,
+                        sampleRate = sampleRate,
+                        bitDepth = bitDepth,
+                        channels = channels,
+                        estimatedBitRate = estimatedBitRate
+                    ),
                     bitRate = bitRate,
-                    sampleRate = (format?.getIntOrZero(MediaFormat.KEY_SAMPLE_RATE) ?: 0)
-                        .takeIf { it > 0 } ?: wavMetadata?.sampleRate ?: 0,
-                    bitDepth = (format?.getIntOrZero("bits-per-sample") ?: 0)
-                        .takeIf { it > 0 } ?: wavMetadata?.bitDepth ?: 0,
-                    channels = (format?.getIntOrZero(MediaFormat.KEY_CHANNEL_COUNT) ?: 0)
-                        .takeIf { it > 0 } ?: wavMetadata?.channels ?: 0,
+                    sampleRate = sampleRate,
+                    bitDepth = bitDepth,
+                    channels = channels,
                     replayGainDb = replayGainDb
                 )
             } finally {
@@ -772,7 +800,13 @@ class MusicRepository(private val context: Context) {
             }
         }.getOrElse {
             Log.w("MusicRepo", "Failed to read audio info for ${song.path}", it)
-            AudioInfo(format = song.audioFormatLabel(null), replayGainDb = replayGainDb)
+            AudioInfo(
+                format = song.audioFormatLabel(
+                    mime = null,
+                    estimatedBitRate = estimatedBitRate
+                ),
+                replayGainDb = replayGainDb
+            )
         }
         audioInfoCache[cacheKey] = info
         return info
@@ -1360,37 +1394,6 @@ class MusicRepository(private val context: Context) {
 
     private fun MediaFormat.getIntOrZero(key: String): Int {
         return if (containsKey(key)) runCatching { getInteger(key) }.getOrDefault(0) else 0
-    }
-
-    private fun Song.audioFormatLabel(mime: String?): String {
-        val source = listOf(mime, mimeType, album, fileName, path)
-            .mapNotNull { it?.takeIf(String::isNotBlank) }
-            .joinToString(" ")
-            .lowercase()
-        val extensionSource = fileName.takeIf { it.substringAfterLast('.', "").isNotBlank() }
-            ?: path.substringBefore('?').substringBefore('#')
-        val extension = extensionSource.substringAfterLast('.', "").lowercase()
-        return when {
-            "flac" in source || extension == "flac" -> "FLAC"
-            "mpeg" in source || "mp3" in source || extension == "mp3" -> "MP3"
-            "wav" in source || extension == "wav" -> "WAV"
-            "eac3" in source || "e-ac-3" in source || "ec-3" in source || extension == "ec3" || extension == "eac3" -> "EC3"
-            "ac4" in source || "ac-4" in source || extension == "ac4" -> when (com.ella.music.data.dolbyAtmosVariant(source)) {
-                "A-JOC" -> "AC4 A-JOC"
-                "Immersive Stereo" -> "AC4 Immersive Stereo"
-                else -> "AC4"
-            }
-            "ac3" in source || "ac-3" in source || extension == "ac3" -> "AC3"
-            "aac" in source || extension == "aac" -> "AAC"
-            "alac" in source || "audio/alac" in source -> "ALAC"
-            extension == "m4a" && estimatedBitRate() >= 700_000 -> "ALAC"
-            extension == "m4a" -> "AAC"
-            "mp4" in source || "m4a" in source || extension == "m4a" || extension == "mp4" -> "M4A"
-            "ogg" in source || extension == "ogg" -> "OGG"
-            "opus" in source || extension == "opus" -> "OPUS"
-            extension.isNotBlank() -> extension.uppercase()
-            else -> "Audio"
-        }
     }
 
     private suspend fun saveLibraryCache(songs: List<Song>, albums: List<Album>) = withContext(Dispatchers.IO) {

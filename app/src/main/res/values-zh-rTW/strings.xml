@@ -268,6 +268,8 @@
     <string name="settings_open_player_on_play_summary">本機、WebDAV 與線上歌曲開始播放後，自動開啟播放頁</string>
     <string name="settings_show_play_next_in_lists">在列表中顯示「下一首播放」</string>
     <string name="settings_show_play_next_in_lists_summary">在歌曲列表的時長左側顯示快速按鈕；關閉後仍可從歌曲選單操作</string>
+    <string name="settings_exclude_search_results_from_playlist">不將搜尋結果作為播放列表</string>
+    <string name="settings_exclude_search_results_from_playlist_summary">開啟後，從搜尋結果點歌時只播放目前歌曲，不再把本次結果集寫入目前播放列表</string>
 
     <string name="share_song">分享歌曲</string>
     <string name="share_no_available_app">沒有可用的分享應用程式</string>

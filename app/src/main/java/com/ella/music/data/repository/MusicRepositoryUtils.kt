@@ -361,32 +361,52 @@ internal fun String.isAllowedByLocalFolderFilters(
     }
 }
 
-internal fun Song.audioFormatLabel(mime: String?, estimatedBitRate: () -> Int): String {
-    val source = listOf(mime, mimeType, album, fileName, path)
+internal fun Song.audioFormatLabel(
+    mime: String?,
+    bitRate: Int = 0,
+    sampleRate: Int = 0,
+    bitDepth: Int = 0,
+    channels: Int = 0,
+    estimatedBitRate: Int = 0
+): String {
+    val declaredSource = listOf(mime, mimeType)
         .mapNotNull { it?.takeIf(String::isNotBlank) }
         .joinToString(" ")
         .lowercase()
-    val extensionSource = fileName.takeIf { it.substringAfterLast('.', "").isNotBlank() }
-        ?: path.substringBefore('?').substringBefore('#')
+    val fallbackName = path.substringBefore('?').substringBefore('#').substringAfterLast('/')
+    val fileNameSource = fileName.ifBlank { fallbackName }.lowercase()
+    val extensionSource = fileName.takeIf { it.substringAfterLast('.', "").isNotBlank() } ?: fallbackName
     val extension = extensionSource.substringAfterLast('.', "").lowercase()
+    val hintSource = listOf(declaredSource, fileNameSource)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+    val effectiveBitRate = bitRate.takeIf { it > 0 } ?: estimatedBitRate
+    val isM4aContainer = extension == "m4a" || extension == "mp4" ||
+        "audio/mp4" in declaredSource ||
+        "audio/x-m4a" in declaredSource ||
+        "mp4a" in declaredSource
+    val losslessM4a = isM4aContainer && (
+        bitDepth >= 16 ||
+            (sampleRate >= 44_100 && effectiveBitRate >= 450_000 && (channels == 0 || channels <= 2)) ||
+            (sampleRate >= 44_100 && effectiveBitRate >= 850_000)
+        )
     return when {
-        "flac" in source || extension == "flac" -> "FLAC"
-        "mpeg" in source || "mp3" in source || extension == "mp3" -> "MP3"
-        "wav" in source || extension == "wav" -> "WAV"
-        "eac3" in source || "e-ac-3" in source || "ec-3" in source || extension == "ec3" || extension == "eac3" -> "EC3"
-        "ac4" in source || "ac-4" in source || extension == "ac4" -> when (dolbyAtmosVariant(source)) {
+        "flac" in hintSource || extension == "flac" -> "FLAC"
+        "wav" in hintSource || extension == "wav" -> "WAV"
+        "eac3" in hintSource || "e-ac-3" in hintSource || "ec-3" in hintSource || extension == "ec3" || extension == "eac3" -> "EC3"
+        "ac4" in hintSource || "ac-4" in hintSource || extension == "ac4" -> when (dolbyAtmosVariant(hintSource)) {
             "A-JOC" -> "AC4 A-JOC"
             "Immersive Stereo" -> "AC4 Immersive Stereo"
             else -> "AC4"
         }
-        "ac3" in source || "ac-3" in source || extension == "ac3" -> "AC3"
-        "aac" in source || extension == "aac" -> "AAC"
-        "alac" in source || "audio/alac" in source -> "ALAC"
-        extension == "m4a" && estimatedBitRate() >= 700_000 -> "ALAC"
+        "ac3" in hintSource || "ac-3" in hintSource || extension == "ac3" -> "AC3"
+        "alac" in hintSource || "apple lossless" in hintSource || losslessM4a -> "ALAC"
+        "mpeg" in declaredSource || "mp3" in declaredSource || extension == "mp3" -> "MP3"
+        "aac" in hintSource || extension == "aac" -> "AAC"
         extension == "m4a" -> "AAC"
-        "mp4" in source || "m4a" in source || extension == "m4a" || extension == "mp4" -> "M4A"
-        "ogg" in source || extension == "ogg" -> "OGG"
-        "opus" in source || extension == "opus" -> "OPUS"
+        "mp4" in hintSource || extension == "mp4" -> "M4A"
+        "ogg" in hintSource || extension == "ogg" -> "OGG"
+        "opus" in hintSource || extension == "opus" -> "OPUS"
         extension.isNotBlank() -> extension.uppercase()
         else -> "Audio"
     }

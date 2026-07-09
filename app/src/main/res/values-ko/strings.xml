@@ -268,6 +268,8 @@
     <string name="settings_open_player_on_play_summary">로컬, WebDAV 또는 온라인 곡을 시작한 후 자동으로 플레이어 열기</string>
     <string name="settings_show_play_next_in_lists">곡 목록에 다음 재생 표시</string>
     <string name="settings_show_play_next_in_lists_summary">곡 목록의 길이 옆에 빠른 동작을 표시합니다. 끄면 이 동작은 곡 메뉴에만 남습니다.</string>
+    <string name="settings_exclude_search_results_from_playlist">검색 결과를 재생목록으로 사용하지 않기</string>
+    <string name="settings_exclude_search_results_from_playlist_summary">켜면 검색 결과에서 곡을 눌러도 현재 곡만 재생하고, 이번 검색 결과 전체를 현재 재생목록에 넣지 않습니다</string>
 
     <string name="share_song">곡 공유</string>
     <string name="share_no_available_app">사용 가능한 공유 앱이 없습니다</string>

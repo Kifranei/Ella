@@ -94,6 +94,7 @@ internal fun SettingsAppearanceSection(
     )
     val playlistSpecialEntriesVisible by settingsManager.playlistSpecialEntriesVisible.collectAsState(initial = false)
     val showPlayNextInLists by settingsManager.showPlayNextInLists.collectAsState(initial = false)
+    val excludeSearchResultsFromPlaylist by settingsManager.excludeSearchResultsFromPlaylist.collectAsState(initial = false)
     val autoShowSearchKeyboard by settingsManager.autoShowSearchKeyboard.collectAsState(initial = true)
     val openPlayerOnPlay by settingsManager.openPlayerOnPlay.collectAsState(initial = false)
     val categoryGridColumns by settingsManager.categoryGridColumns.collectAsState(initial = 2)
@@ -548,6 +549,14 @@ internal fun SettingsAppearanceSection(
                 checked = showPlayNextInLists,
                 onCheckedChange = {
                     scope.launch { settingsManager.setShowPlayNextInLists(it) }
+                }
+            )
+            SwitchPreference(
+                title = stringResource(R.string.settings_exclude_search_results_from_playlist),
+                summary = stringResource(R.string.settings_exclude_search_results_from_playlist_summary),
+                checked = excludeSearchResultsFromPlaylist,
+                onCheckedChange = {
+                    scope.launch { settingsManager.setExcludeSearchResultsFromPlaylist(it) }
                 }
             )
             SwitchPreference(
