@@ -189,7 +189,9 @@
     <string name="settings_app_icon">应用图标</string>
     <string name="settings_app_icon_summary">切换桌面启动图标，当前：%1$s。部分启动器可能需要稍候刷新</string>
     <string name="settings_app_icon_default">原版</string>
-    <string name="settings_app_icon_anime">二次元版</string>
+    <string name="settings_app_icon_anime">少女</string>
+    <string name="settings_app_icon_black_hair">黑发少女</string>
+    <string name="settings_app_icon_loli">萝莉</string>
     <string name="settings_preferences">应用偏好</string>
     <string name="settings_preferences_summary">外观、主页和个性化设置</string>
     <string name="settings_customize">个性化</string>

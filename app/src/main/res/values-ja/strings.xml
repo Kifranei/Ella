@@ -173,7 +173,9 @@
     <string name="settings_app_icon">アプリアイコン</string>
     <string name="settings_app_icon_summary">ホーム画面の起動アイコンを切り替えます。現在：%1$s。一部のランチャーでは反映に少し時間がかかる場合があります</string>
     <string name="settings_app_icon_default">デフォルト</string>
-    <string name="settings_app_icon_anime">アニメ</string>
+    <string name="settings_app_icon_anime">少女</string>
+    <string name="settings_app_icon_black_hair">黒髪の少女</string>
+    <string name="settings_app_icon_loli">幼い少女</string>
     <string name="settings_preferences">アプリ設定</string>
     <string name="settings_preferences_summary">外観、ホーム、パーソナライズ</string>
     <string name="settings_customize">パーソナライズ</string>

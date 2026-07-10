@@ -173,7 +173,9 @@
     <string name="settings_app_icon">Icône de l’application</string>
     <string name="settings_app_icon_summary">Change l’icône du lanceur. Actuel : %1$s. Certains lanceurs peuvent mettre un moment à se rafraîchir</string>
     <string name="settings_app_icon_default">Par défaut</string>
-    <string name="settings_app_icon_anime">Anime</string>
+    <string name="settings_app_icon_anime">Fille</string>
+    <string name="settings_app_icon_black_hair">Fille aux cheveux noirs</string>
+    <string name="settings_app_icon_loli">Petite fille</string>
     <string name="settings_preferences">Préférences de l’application</string>
     <string name="settings_preferences_summary">Apparence, accueil et personnalisation</string>
     <string name="settings_customize">Personnalisation</string>

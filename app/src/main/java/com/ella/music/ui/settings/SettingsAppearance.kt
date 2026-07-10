@@ -162,7 +162,9 @@ internal fun SettingsAppearanceSection(
     }
     val appIconOptions = listOf(
         SettingsManager.APP_ICON_STYLE_DEFAULT to stringResource(R.string.settings_app_icon_default),
-        SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime)
+        SettingsManager.APP_ICON_STYLE_ANIME to stringResource(R.string.settings_app_icon_anime),
+        SettingsManager.APP_ICON_STYLE_BLACK_HAIR to stringResource(R.string.settings_app_icon_black_hair),
+        SettingsManager.APP_ICON_STYLE_LOLI to stringResource(R.string.settings_app_icon_loli)
     )
     val selectedAppIconIndex = appIconOptions.indexOfFirst { it.first == appIconStyle }
         .takeIf { it >= 0 }

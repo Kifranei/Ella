@@ -418,6 +418,8 @@ class SettingsManager(private val context: Context) {
         const val APP_LANGUAGE_RU = "ru"
         const val APP_ICON_STYLE_DEFAULT = "default"
         const val APP_ICON_STYLE_ANIME = "anime"
+        const val APP_ICON_STYLE_BLACK_HAIR = "black_hair"
+        const val APP_ICON_STYLE_LOLI = "loli"
         const val BOTTOM_DOCK_ITEM_HOME = "home"
         const val BOTTOM_DOCK_ITEM_LIBRARY = "library"
         // Search stays as a fixed action pill outside the configurable dock tabs.

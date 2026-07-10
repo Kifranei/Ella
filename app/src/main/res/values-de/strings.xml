@@ -173,7 +173,9 @@
     <string name="settings_app_icon">App-Symbol</string>
     <string name="settings_app_icon_summary">Wechselt das Launcher-Symbol. Aktuell: %1$s. Manche Launcher aktualisieren sich erst nach kurzer Zeit</string>
     <string name="settings_app_icon_default">Standard</string>
-    <string name="settings_app_icon_anime">Anime</string>
+    <string name="settings_app_icon_anime">Mädchen</string>
+    <string name="settings_app_icon_black_hair">Schwarzhaariges Mädchen</string>
+    <string name="settings_app_icon_loli">Kleines Mädchen</string>
     <string name="settings_preferences">App-Einstellungen</string>
     <string name="settings_preferences_summary">Darstellung, Startseite und Personalisierung</string>
     <string name="settings_customize">Personalisierung</string>
