@@ -1255,6 +1255,11 @@ class MusicRepository(private val context: Context) {
         Unit
     }
 
+    /** Rebuilds album identities after a grouping rule changes without scanning media again. */
+    fun rebuildAlbumAggregation() {
+        _albums.value = _songs.value.toAlbums()
+    }
+
     fun clearCache() {
         lyricsManager.clearCache()
         coverArtManager.clearCache()

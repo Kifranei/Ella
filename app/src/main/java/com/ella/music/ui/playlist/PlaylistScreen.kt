@@ -628,15 +628,25 @@ fun PlaylistScreen(
                         state = reorderableLazyListState,
                         key = playlist.id
                     ) { isDragging ->
-                        val dragHandleModifier = Modifier.longPressDraggableHandle(
-                            onDragStarted = { draggedPlaylistId = playlist.id },
-                            onDragStopped = {
-                                draggedPlaylistId = null
-                                val orderedIds = manualCustomPlaylists.map { it.id }
-                                scope.launch { mainViewModel.settingsManager.setPlaylistCustomOrder(orderedIds) }
-                                mainViewModel.reorderPlaylists(orderedIds)
-                            }
-                        )
+                        val dragHandleModifier = Modifier
+                            .draggableHandle(
+                                onDragStarted = { draggedPlaylistId = playlist.id },
+                                onDragStopped = {
+                                    draggedPlaylistId = null
+                                    val orderedIds = manualCustomPlaylists.map { it.id }
+                                    scope.launch { mainViewModel.settingsManager.setPlaylistCustomOrder(orderedIds) }
+                                    mainViewModel.reorderPlaylists(orderedIds)
+                                }
+                            )
+                            .longPressDraggableHandle(
+                                onDragStarted = { draggedPlaylistId = playlist.id },
+                                onDragStopped = {
+                                    draggedPlaylistId = null
+                                    val orderedIds = manualCustomPlaylists.map { it.id }
+                                    scope.launch { mainViewModel.settingsManager.setPlaylistCustomOrder(orderedIds) }
+                                    mainViewModel.reorderPlaylists(orderedIds)
+                                }
+                            )
                         PlaylistRow(
                             playlist = playlist,
                             coverModel = playlistCoverModels[playlist.id],

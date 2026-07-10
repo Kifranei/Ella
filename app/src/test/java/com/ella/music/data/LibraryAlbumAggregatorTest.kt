@@ -4,9 +4,26 @@ import com.ella.music.data.model.Album
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class LibraryAlbumAggregatorTest {
+    @Test
+    fun albumIdentityRespectsTagIgnoreCaseWhenAlbumArtistIsMissing() {
+        val previous = NameSplitConfigStore.tagIgnoreCase
+        val upper = song(id = 1, album = "CLOSER", albumArtist = "")
+        val title = song(id = 2, album = "Closer", albumArtist = "")
+        try {
+            NameSplitConfigStore.tagIgnoreCase = false
+            assertNotEquals(upper.albumIdentityId(), title.albumIdentityId())
+
+            NameSplitConfigStore.tagIgnoreCase = true
+            assertEquals(upper.albumIdentityId(), title.albumIdentityId())
+        } finally {
+            NameSplitConfigStore.tagIgnoreCase = previous
+        }
+    }
+
     @Test
     fun literalUnknownAlbumNameIsPreserved() {
         val albums = LibraryAlbumAggregator.toAlbums(

@@ -1,6 +1,7 @@
 package com.ella.music.data.model
 
 import com.ella.music.data.LibraryNormalizer
+import com.ella.music.data.NameSplitConfigStore
 
 data class Song(
     val id: Long,
@@ -47,5 +48,5 @@ fun Song.albumIdentityId(): Long {
 private fun String.normalizedAlbumIdentityPart(): String =
     trim()
         .ifBlank { "unknown" }
-        .lowercase()
+        .let { value -> if (NameSplitConfigStore.tagIgnoreCase) value.lowercase() else value }
         .replace(Regex("\\s+"), " ")

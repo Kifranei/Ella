@@ -106,6 +106,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launchNameSplitConfigObservers(settingsManager) {
             metadataCategoryItemsCache.clear()
+            repository.rebuildAlbumAggregation()
         }
     }
 
