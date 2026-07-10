@@ -403,6 +403,21 @@
     <string name="album_sort_artist">Nom de l’artiste</string>
     <string name="album_sort_track">Ordre des pistes</string>
     <string name="album_copyright">Copyright</string>
+    <string name="album_publisher">Éditeur</string>
+    <string name="settings_backup_webdav_auto_title">Sauvegarde automatique</string>
+    <string name="settings_backup_webdav_auto_summary">Téléverse une sauvegarde complète à l’intervalle choisi pendant l’exécution</string>
+    <string name="settings_backup_webdav_interval_title">Intervalle de sauvegarde</string>
+    <string name="settings_backup_webdav_interval_summary">Le délai redémarre après une sauvegarde réussie</string>
+    <string name="settings_backup_webdav_interval_value">%1$d heures</string>
+    <string name="remote_server_secondary_url_label">Adresse du serveur de secours</string>
+    <string name="remote_server_stream_bitrate_label">Débit maximal de lecture (kbps, 0 = original)</string>
+    <string name="remote_server_download_bitrate_label">Débit maximal de téléchargement (kbps, 0 = original)</string>
+    <string name="remote_server_cover_size_label">Taille de pochette demandée (64–2048 px)</string>
+    <string name="remote_playlist_write_title">Autoriser les modifications distantes</string>
+    <string name="remote_playlist_write_summary">Lecture seule par défaut ; autorise création, renommage et modification des titres</string>
+    <string name="remote_playlist_write_locked">L’écriture des playlists distantes est verrouillée</string>
+    <string name="player_remote_stream_quality">Qualité du streaming : %1$s</string>
+    <string name="player_remote_stream_original">Qualité originale</string>
     <string name="album_release_date">Date de sortie</string>
     <string name="album_participating_artists">Artistes participants</string>
     <string name="album_stat_songs">Titres</string>

@@ -225,7 +225,7 @@ internal fun PlayerDetailPage(
 
             if (song?.album.orEmpty().isNotBlank()) {
                 item {
-                    val albumArtist = song?.albumArtist?.ifBlank { song.artist }.orEmpty()
+                    val albumArtist = song?.albumArtist.orEmpty()
                     PlayerDetailGroupCard(title = stringResource(R.string.player_detail_album)) {
                         PlayerDetailGroupedActionRow(
                             title = song?.album.orEmpty(),
@@ -348,9 +348,18 @@ private fun PlayerDetailStats.personSummary(): String = stringResource(
 )
 
 @Composable
-private fun PlayerDetailStats.albumSummary(albumArtist: String): String = stringResource(
-    R.string.player_detail_album_summary,
-    songCount,
-    totalDuration.formatPlaybackDuration(),
-    albumArtist.ifBlank { stringResource(R.string.player_unknown_artist) }
-)
+private fun PlayerDetailStats.albumSummary(albumArtist: String): String =
+    if (albumArtist.isBlank()) {
+        stringResource(
+            R.string.player_detail_song_count_duration,
+            songCount,
+            totalDuration.formatPlaybackDuration()
+        )
+    } else {
+        stringResource(
+            R.string.player_detail_album_summary,
+            songCount,
+            totalDuration.formatPlaybackDuration(),
+            albumArtist
+        )
+    }

@@ -628,7 +628,7 @@ fun PlaylistScreen(
                         state = reorderableLazyListState,
                         key = playlist.id
                     ) { isDragging ->
-                        val dragHandleModifier = Modifier.draggableHandle(
+                        val dragHandleModifier = Modifier.longPressDraggableHandle(
                             onDragStarted = { draggedPlaylistId = playlist.id },
                             onDragStopped = {
                                 draggedPlaylistId = null

@@ -403,6 +403,21 @@
     <string name="album_sort_artist">Künstlername</string>
     <string name="album_sort_track">Titelreihenfolge</string>
     <string name="album_copyright">Copyright</string>
+    <string name="album_publisher">Herausgeber</string>
+    <string name="settings_backup_webdav_auto_title">Automatische Sicherung</string>
+    <string name="settings_backup_webdav_auto_summary">Vollständige Sicherung im gewählten Intervall hochladen, solange die App läuft</string>
+    <string name="settings_backup_webdav_interval_title">Sicherungsintervall</string>
+    <string name="settings_backup_webdav_interval_summary">Der Zeitraum beginnt nach erfolgreicher Sicherung erneut</string>
+    <string name="settings_backup_webdav_interval_value">%1$d Stunden</string>
+    <string name="remote_server_secondary_url_label">Ausweichserver-Adresse</string>
+    <string name="remote_server_stream_bitrate_label">Max. Wiedergabe-Bitrate (kbps, 0 = Original)</string>
+    <string name="remote_server_download_bitrate_label">Max. Download-Bitrate (kbps, 0 = Original)</string>
+    <string name="remote_server_cover_size_label">Cover-Anfragegröße (64–2048 px)</string>
+    <string name="remote_playlist_write_title">Änderungen an Remote-Playlists erlauben</string>
+    <string name="remote_playlist_write_summary">Standardmäßig schreibgeschützt; Erstellen, Umbenennen und Titeländerungen erlauben</string>
+    <string name="remote_playlist_write_locked">Schreiben in Remote-Playlists ist gesperrt</string>
+    <string name="player_remote_stream_quality">Streaming-Qualität: %1$s</string>
+    <string name="player_remote_stream_original">Originalqualität</string>
     <string name="album_release_date">Veröffentlichungsdatum</string>
     <string name="album_participating_artists">Mitwirkende Künstler</string>
     <string name="album_stat_songs">Titel</string>

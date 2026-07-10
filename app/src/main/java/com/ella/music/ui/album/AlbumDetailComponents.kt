@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -56,11 +57,12 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun AlbumCopyrightFooter(
     copyright: String,
-    genres: List<String>,
-    artists: List<String>,
-    composers: List<String>,
-    lyricists: List<String>,
-    year: String?,
+    producer: String,
+    year: AlbumMetadataDisplayItem?,
+    genres: List<AlbumMetadataDisplayItem>,
+    artists: List<AlbumMetadataDisplayItem>,
+    composers: List<AlbumMetadataDisplayItem>,
+    lyricists: List<AlbumMetadataDisplayItem>,
     onGenreClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onComposerClick: (String) -> Unit,
@@ -71,139 +73,164 @@ internal fun AlbumCopyrightFooter(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         copyright.lines().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { values ->
-            AlbumMetadataGroupCard(
+            AlbumTextInfoSection(
                 title = stringResource(R.string.album_copyright),
                 values = values
             )
         }
-        if (!year.isNullOrBlank() || genres.isNotEmpty()) {
-            AlbumMetadataDualCard(
-                year = year.orEmpty(),
-                genres = genres,
-                onYearClick = onYearClick,
-                onGenreClick = onGenreClick
+        producer.lines().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { values ->
+            AlbumTextInfoSection(
+                title = stringResource(R.string.album_publisher),
+                values = values
             )
         }
-        AlbumMetadataGroupCard(
+        year?.let { item ->
+            AlbumMetadataSection(
+                title = stringResource(R.string.category_year),
+                items = listOf(item),
+                circularCover = false,
+                onItemClick = { onYearClick(item.name) }
+            )
+        }
+        AlbumMetadataSection(
+            title = stringResource(R.string.category_genre),
+            items = genres,
+            circularCover = false,
+            onItemClick = onGenreClick
+        )
+        AlbumMetadataSection(
             title = stringResource(R.string.player_detail_artist),
-            values = artists,
-            onValueClick = onArtistClick
+            items = artists,
+            circularCover = true,
+            onItemClick = onArtistClick
         )
-        AlbumMetadataGroupCard(
+        AlbumMetadataSection(
             title = stringResource(R.string.player_detail_composer),
-            values = composers,
-            onValueClick = onComposerClick
+            items = composers,
+            circularCover = true,
+            onItemClick = onComposerClick
         )
-        AlbumMetadataGroupCard(
+        AlbumMetadataSection(
             title = stringResource(R.string.player_detail_lyricist),
-            values = lyricists,
-            onValueClick = onLyricistClick
+            items = lyricists,
+            circularCover = true,
+            onItemClick = onLyricistClick
         )
     }
 }
 
+internal data class AlbumMetadataDisplayItem(
+    val name: String,
+    val songCount: Int,
+    val duration: Long,
+    val albumCount: Int,
+    val coverModel: Any?
+)
+
 @Composable
-private fun AlbumMetadataGroupCard(
+private fun AlbumTextInfoSection(
     title: String,
-    values: List<String>,
-    onValueClick: ((String) -> Unit)? = null
+    values: List<String>
 ) {
     if (values.isEmpty()) return
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-            .padding(vertical = 14.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(
             text = title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.primary
         )
         values.forEach { value ->
             Text(
                 text = value,
                 fontSize = 15.sp,
                 lineHeight = 21.sp,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable(enabled = onValueClick != null) { onValueClick?.invoke(value) }
-                    .padding(horizontal = 18.dp, vertical = 7.dp)
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
             )
         }
     }
 }
 
 @Composable
-private fun AlbumMetadataDualCard(
-    year: String,
-    genres: List<String>,
-    onYearClick: (String) -> Unit,
-    onGenreClick: (String) -> Unit
+private fun AlbumMetadataSection(
+    title: String,
+    items: List<AlbumMetadataDisplayItem>,
+    circularCover: Boolean,
+    onItemClick: (String) -> Unit
+) {
+    if (items.isEmpty()) return
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = MiuixTheme.colorScheme.primary
+        )
+        items.forEach { item ->
+            AlbumMetadataRow(
+                item = item,
+                circularCover = circularCover,
+                onClick = { onItemClick(item.name) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumMetadataRow(
+    item: AlbumMetadataDisplayItem,
+    circularCover: Boolean,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
-            .padding(horizontal = 18.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        if (year.isNotBlank()) {
-            AlbumMetadataDualItem(
-                title = stringResource(R.string.category_year),
-                value = year,
-                onClick = { onYearClick(year) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        if (genres.isNotEmpty()) {
-            val primaryGenre = genres.first()
-            AlbumMetadataDualItem(
-                title = stringResource(R.string.category_genre),
-                value = genres.joinToString(" · "),
-                onClick = { onGenreClick(primaryGenre) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun AlbumMetadataDualItem(
-    title: String,
-    value: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(2.dp)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(
-            text = title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = MiuixTheme.colorScheme.onSurface
+        SafeCoverImage(
+            model = item.coverModel,
+            contentDescription = item.name,
+            modifier = Modifier
+                .size(52.dp)
+                .clip(if (circularCover) CircleShape else RoundedCornerShape(12.dp)),
+            sizePx = 256
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = value,
-            fontSize = 15.sp,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = stringResource(
+                    R.string.player_detail_person_summary,
+                    item.songCount,
+                    item.duration.formatPlaybackDuration(),
+                    item.albumCount
+                ),
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

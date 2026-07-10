@@ -60,6 +60,7 @@ import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.formatPlaybackDuration
+import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.splitGenreNames
@@ -200,6 +201,28 @@ fun AlbumDetailScreen(
                 .joinToString("\n")
         }
     }
+    val albumProducer by produceState<String>(initialValue = "", albumId, albumSongs) {
+        value = withContext(Dispatchers.IO) {
+            albumSongs
+                .asSequence()
+                .mapNotNull { song ->
+                    mainViewModel.getFullAudioTagInfo(song)
+                        ?.customTags
+                        ?.entries
+                        ?.firstOrNull { (key, _) ->
+                            key.equals("PRODUCER", ignoreCase = true) ||
+                                key.equals("PRODUCERS", ignoreCase = true)
+                        }
+                        ?.value
+                }
+                .flatten()
+                .map(String::trim)
+                .filter(String::isNotBlank)
+                .distinctBy { it.lowercase(Locale.ROOT) }
+                .take(3)
+                .joinToString("\n")
+        }
+    }
     val albumRecordedYear by produceState<String?>(initialValue = null, albumId, albumSongs) {
         value = withContext(Dispatchers.IO) {
             albumSongs
@@ -227,6 +250,56 @@ fun AlbumDetailScreen(
         albumSongs
             .flatMap { splitArtistNames(it.lyricist) }
             .distinctBy { it.lowercase(Locale.ROOT) }
+    }
+    val yearDisplayItem = remember(albumRecordedYear, albumSongs) {
+        albumRecordedYear?.let { year ->
+            buildAlbumMetadataDisplayItem(
+                name = year,
+                songs = mainViewModel.getSongsForMetadataCategory("year", year),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull()
+            )
+        }
+    }
+    val genreDisplayItems = remember(albumGenres, albumSongs) {
+        albumGenres.map { genre ->
+            buildAlbumMetadataDisplayItem(
+                name = genre,
+                songs = mainViewModel.getSongsForMetadataCategory("genre", genre),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull()
+            )
+        }
+    }
+    val artistDisplayItems = remember(participatingArtists, albumSongs) {
+        participatingArtists.map { artist ->
+            buildAlbumMetadataDisplayItem(
+                name = artist,
+                songs = mainViewModel.getSongsForArtist(artist),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull()
+            )
+        }
+    }
+    val composerDisplayItems = remember(participatingComposers, albumSongs) {
+        participatingComposers.map { composer ->
+            buildAlbumMetadataDisplayItem(
+                name = composer,
+                songs = mainViewModel.getSongsForMetadataCategory("composer", composer),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull()
+            )
+        }
+    }
+    val lyricistDisplayItems = remember(participatingLyricists, albumSongs) {
+        participatingLyricists.map { lyricist ->
+            buildAlbumMetadataDisplayItem(
+                name = lyricist,
+                songs = mainViewModel.getSongsForMetadataCategory("lyricist", lyricist),
+                mainViewModel = mainViewModel,
+                fallbackSong = albumSongs.firstOrNull()
+            )
+        }
     }
     val listState = rememberLazyListState()
     val albumSongHeaderCount = 2
@@ -473,6 +546,7 @@ fun AlbumDetailScreen(
             }
             if (
                 albumCopyright.isNotBlank() ||
+                albumProducer.isNotBlank() ||
                 albumGenres.isNotEmpty() ||
                 participatingArtists.isNotEmpty() ||
                 participatingComposers.isNotEmpty() ||
@@ -482,11 +556,12 @@ fun AlbumDetailScreen(
                 item(key = "album-extra-info") {
                     AlbumCopyrightFooter(
                         copyright = albumCopyright,
-                        genres = albumGenres,
-                        artists = participatingArtists,
-                        composers = participatingComposers,
-                        lyricists = participatingLyricists,
-                        year = albumRecordedYear,
+                        producer = albumProducer,
+                        genres = genreDisplayItems,
+                        artists = artistDisplayItems,
+                        composers = composerDisplayItems,
+                        lyricists = lyricistDisplayItems,
+                        year = yearDisplayItem,
                         onGenreClick = { genre -> onNavigateToMetadataCategory("genre", genre) },
                         onArtistClick = onNavigateToArtist,
                         onComposerClick = { composer -> onNavigateToMetadataCategory("composer", composer) },
@@ -862,3 +937,20 @@ private fun Map<String, List<String>>.firstRecordedDateValue(): String? {
 
 private fun String.normalizedTagName(): String =
     uppercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+
+private fun buildAlbumMetadataDisplayItem(
+    name: String,
+    songs: List<Song>,
+    mainViewModel: MainViewModel,
+    fallbackSong: Song?
+): AlbumMetadataDisplayItem {
+    val representativeSong = songs.firstOrNull() ?: fallbackSong
+    return AlbumMetadataDisplayItem(
+        name = name,
+        songCount = songs.size,
+        duration = songs.sumOf { it.duration },
+        albumCount = songs.map { it.albumIdentityId() }.distinct().size,
+        coverModel = representativeSong?.coverUrl?.takeIf(String::isNotBlank)
+            ?: representativeSong?.albumId?.let(mainViewModel::getAlbumArtUri)
+    )
+}
