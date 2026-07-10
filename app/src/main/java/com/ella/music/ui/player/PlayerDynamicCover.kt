@@ -40,7 +40,8 @@ internal data class DynamicCoverSource(
     val failureKey: String,
     val kind: DynamicCoverKind = DynamicCoverKind.Video,
     val aspectRatio: Float? = null,
-    val preferLandscapeBackground: Boolean = false
+    val preferLandscapeBackground: Boolean = false,
+    val playbackOwnerKey: String = ""
 )
 
 internal fun Song.dynamicCoverResolutionKey(): String =
@@ -80,11 +81,17 @@ internal fun DynamicCoverVideo(
     }
 
     val context = LocalContext.current
-    val initialPositionMs = remember(source.failureKey) {
-        DynamicCoverPlaybackMemory.restore(source.failureKey)
+    val playbackMemoryKey = remember(source.failureKey, source.playbackOwnerKey) {
+        DynamicCoverPlaybackMemory.activate(
+            ownerKey = source.playbackOwnerKey.ifBlank { source.failureKey },
+            sourceKey = source.failureKey
+        )
+    }
+    val initialPositionMs = remember(playbackMemoryKey) {
+        DynamicCoverPlaybackMemory.restore(playbackMemoryKey)
     }
 
-    val exoPlayer = remember(source.failureKey) {
+    val exoPlayer = remember(playbackMemoryKey) {
         ExoPlayer.Builder(context).build().apply {
             repeatMode = Media3Player.REPEAT_MODE_ALL
             volume = 0f
@@ -104,7 +111,7 @@ internal fun DynamicCoverVideo(
         exoPlayer.addListener(listener)
 
         onDispose {
-            DynamicCoverPlaybackMemory.save(source.failureKey, exoPlayer.currentPosition)
+            DynamicCoverPlaybackMemory.save(playbackMemoryKey, exoPlayer.currentPosition)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -159,24 +166,25 @@ internal fun Song.dynamicCoverSource(
     includeExternalFiles: Boolean = true,
     customRootPaths: List<String> = emptyList()
 ): DynamicCoverSource? {
-    if (includeExternalFiles) {
+    val resolvedSource = if (includeExternalFiles) {
         dynamicCoverVideoFile(
             context = context,
             customRootPaths = customRootPaths,
             includeExternalFiles = includeExternalFiles
         )?.let { file ->
-            return file.toDynamicCoverSource(
+            file.toDynamicCoverSource(
                 context = context,
                 songCandidates = dynamicCoverSongCandidates()
             )
-        }
-        dynamicCoverDocumentSource(
+        } ?: dynamicCoverDocumentSource(
             context = context,
             customRootPaths = customRootPaths
-        )?.let { return it }
+        ) ?: legacyEmbeddedAnimatedImageSource(context)
+            ?: embeddedDynamicVideoSource(context)
+    } else {
+        legacyEmbeddedAnimatedImageSource(context) ?: embeddedDynamicVideoSource(context)
     }
-    legacyEmbeddedAnimatedImageSource(context)?.let { return it }
-    return embeddedDynamicVideoSource(context)
+    return resolvedSource?.copy(playbackOwnerKey = dynamicCoverResolutionKey())
 }
 
 private fun Song.embeddedDynamicVideoSource(context: Context): DynamicCoverSource? {
@@ -516,6 +524,16 @@ private fun Song.dynamicCoverDocumentSource(
 /** Keeps an ambient video's loop position while Compose swaps player pages. */
 private object DynamicCoverPlaybackMemory {
     private val positions = ConcurrentHashMap<String, Long>()
+    private var activeOwnerKey: String? = null
+
+    @Synchronized
+    fun activate(ownerKey: String, sourceKey: String): String {
+        if (activeOwnerKey != ownerKey) {
+            positions.clear()
+            activeOwnerKey = ownerKey
+        }
+        return "$ownerKey|$sourceKey"
+    }
 
     fun restore(key: String): Long = positions[key]?.coerceAtLeast(0L) ?: 0L
 

@@ -18,6 +18,7 @@ import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.ella.music.data.AppLogStore
 import com.ella.music.data.SettingsManager
@@ -274,8 +275,7 @@ class ExoPlayerManager(private val context: Context) {
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (reorderingPlaylistForShuffle) return
-                // Metadata-only patches (bluetooth/notification lyrics, notification artwork,
-                // base session metadata) replace the current item's MediaMetadata via
+                // Artwork and base-session patches replace the current item's MediaMetadata via
                 // replaceMediaItem without changing the actual playback queue. These trigger
                 // onTimelineChanged with SOURCE_UPDATE, but the real playback state (isPlaying,
                 // position, queue, current song) is unchanged. Skip the full refresh to avoid
@@ -1096,57 +1096,36 @@ class ExoPlayerManager(private val context: Context) {
         )
         when (decision.action) {
             MediaNotificationLyricPatchAction.Defer -> return false
-            MediaNotificationLyricPatchAction.Skip -> {
-                if (lyricText != null ||
-                    (currentItem.mediaMetadata.title == song.title &&
-                        currentItem.mediaMetadata.artist == song.artist)
-                ) {
-                    return true
-                }
-            }
+            MediaNotificationLyricPatchAction.Skip -> return true
             MediaNotificationLyricPatchAction.Patch,
             MediaNotificationLyricPatchAction.RestoreSongMetadata -> Unit
         }
 
-        val displayTitle = lyricText ?: song.title
-        val displayArtist = if (lyricText != null) {
-            lyricSecondaryText ?: "${song.title} · ${song.artist}"
-        } else {
-            song.artist
-        }
-
-        if (currentItem.mediaMetadata.title == displayTitle &&
-            currentItem.mediaMetadata.artist == displayArtist
-        ) {
-            bluetoothMetadataPatchState = if (lyricText == null) {
-                MediaNotificationLyricPatchPolicy.onCleared()
-            } else {
-                MediaNotificationLyricPatchPolicy.onPatched(songKey, payload, SystemClock.elapsedRealtime())
+        val commandArgs = Bundle().apply {
+            putString(PlaybackService.EXTRA_NOTIFICATION_LYRIC_SONG_KEY, songKey)
+            lyricText?.let { putString(PlaybackService.EXTRA_NOTIFICATION_LYRIC_TEXT, it) }
+            lyricSecondaryText?.let {
+                putString(PlaybackService.EXTRA_NOTIFICATION_LYRIC_SECONDARY_TEXT, it)
             }
-            return true
         }
-
-        val cachedArtwork = notificationArtworkCache.get(song.notificationArtworkKey())
-        val metadata = song.mediaMetadata(
-            titleOverride = displayTitle,
-            artistOverride = displayArtist,
-            artworkData = cachedArtwork,
-            includeArtworkUri = cachedArtwork != null
-        ).withPatchedExtrasFrom(currentItem, PATCH_REASON_BLUETOOTH_LYRIC)
-
-        val newItem = currentItem.buildUpon()
-            .setMediaMetadata(metadata)
-            .build()
-
         runCatching {
-            controller.replaceMediaItem(index, newItem)
-            bluetoothMetadataPatchState = if (lyricText == null) {
-                MediaNotificationLyricPatchPolicy.onCleared()
-            } else {
-                MediaNotificationLyricPatchPolicy.onPatched(songKey, payload, SystemClock.elapsedRealtime())
-            }
-            Log.d(TIMING_TAG, "media notification lyric metadata ${if (lyricText == null) "restored" else "patched"} mediaId=${song.id}")
+            controller.sendCustomCommand(
+                SessionCommand(PlaybackService.ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY),
+                commandArgs
+            )
+        }.onFailure { error ->
+            Log.w(TIMING_TAG, "media notification lyric presentation update failed", error)
+            return false
         }
+        bluetoothMetadataPatchState = if (lyricText == null) {
+            MediaNotificationLyricPatchPolicy.onCleared()
+        } else {
+            MediaNotificationLyricPatchPolicy.onPatched(songKey, payload, SystemClock.elapsedRealtime())
+        }
+        Log.d(
+            TIMING_TAG,
+            "media notification lyric presentation ${if (lyricText == null) "cleared" else "updated"} mediaId=${song.id}"
+        )
         return true
     }
 

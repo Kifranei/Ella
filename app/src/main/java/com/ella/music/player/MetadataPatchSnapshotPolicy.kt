@@ -43,13 +43,9 @@ internal fun shouldIgnoreDisplayOnlyTimelineUpdate(
     itemSong: Song?,
     currentSong: Song?
 ): Boolean {
-    // A metadata-only patch (bluetooth / notification lyric, notification artwork, base session
-    // metadata) swaps the current item's MediaMetadata via replaceMediaItem without changing the
-    // real playback queue. Depending on the Media3 version this surfaces as onTimelineChanged with
-    // either SOURCE_UPDATE or PLAYLIST_CHANGED — the earlier guard only handled SOURCE_UPDATE, so
-    // notification-lyric patches (which arrive as PLAYLIST_CHANGED) still triggered a full
-    // refreshStateFromController on every line change, flickering the lyric page. Ignore the patch
-    // regardless of which reason it arrives as.
+    // Artwork and base-session metadata may still swap the current item's MediaMetadata without
+    // changing the real playback queue. Depending on the Media3 version this surfaces as either
+    // SOURCE_UPDATE or PLAYLIST_CHANGED, so ignore both presentation-only variants.
     if (isMetadataOnlyPatch &&
         (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE ||
             reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED)

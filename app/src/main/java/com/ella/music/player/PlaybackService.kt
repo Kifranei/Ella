@@ -55,10 +55,7 @@ import com.ella.music.dsp.TenBandEqualizer
 import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.SettableFuture
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -70,7 +67,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import android.os.Bundle
 import org.json.JSONObject
 import java.util.Locale
@@ -104,6 +100,11 @@ class PlaybackService : MediaLibraryService() {
             "io.github.andrealtb.lockscreenlyrics.action.TOGGLE_TRANSLATION"
         const val ACTION_TOGGLE_FAVORITE = "com.ella.music.action.TOGGLE_FAVORITE"
         const val ACTION_TOGGLE_SHUFFLE = "com.ella.music.action.TOGGLE_SHUFFLE"
+        const val ACTION_UPDATE_NOTIFICATION_LYRIC =
+            "com.ella.music.action.UPDATE_NOTIFICATION_LYRIC"
+        const val EXTRA_NOTIFICATION_LYRIC_SONG_KEY = "notification_lyric_song_key"
+        const val EXTRA_NOTIFICATION_LYRIC_TEXT = "notification_lyric_text"
+        const val EXTRA_NOTIFICATION_LYRIC_SECONDARY_TEXT = "notification_lyric_secondary_text"
         const val ACTION_SKIP_PREVIOUS = "com.ella.music.action.SKIP_PREVIOUS"
         const val ACTION_PLAY_PAUSE = "com.ella.music.action.PLAY_PAUSE"
         const val ACTION_SKIP_NEXT = "com.ella.music.action.SKIP_NEXT"
@@ -129,6 +130,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private var mediaSession: MediaLibrarySession? = null
+    private var sessionPresentationPlayer: SessionPresentationPlayer? = null
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
     private lateinit var settingsManager: SettingsManager
     private lateinit var musicRepository: MusicRepository
@@ -163,7 +165,8 @@ class PlaybackService : MediaLibraryService() {
             musicRepository,
             serviceScope,
             playerProvider = { mediaSession?.player },
-            onCurrentLyricInfoApplied = {
+            onLyricInfoChanged = { song, lyricInfoJson ->
+                sessionPresentationPlayer?.setOplusLyric(song?.playbackStackKey(), lyricInfoJson)
                 updateMediaButtonPreferences()
                 notificationProvider.refresh()
             }
@@ -357,6 +360,7 @@ class PlaybackService : MediaLibraryService() {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TIMING_TAG, "service media transition reason=$reason mediaId=${mediaItem?.mediaId}")
+                sessionPresentationPlayer?.clearNotificationLyric()
                 updateMediaButtonPreferences()
                 oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
                 publishExternalPlaybackSnapshot(player)
@@ -391,13 +395,17 @@ class PlaybackService : MediaLibraryService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        mediaSession = MediaLibrarySession.Builder(
-            this,
+        val presentationPlayer = SessionPresentationPlayer(
             RepeatOneLockingPlayer(
                 player = player,
                 previousButtonActionProvider = { previousButtonAction },
                 onExternalPlaybackChanged = ::scheduleExternalPlaybackRefresh
-            ),
+            )
+        )
+        sessionPresentationPlayer = presentationPlayer
+        mediaSession = MediaLibrarySession.Builder(
+            this,
+            presentationPlayer,
             EllaLibrarySessionCallback(this)
         )
             .setSessionActivity(pendingIntent)
@@ -443,6 +451,7 @@ class PlaybackService : MediaLibraryService() {
             release()
         }
         mediaSession = null
+        sessionPresentationPlayer = null
         usbAudioController.clearUsbRouting()
         PlaybackAudioSession.clear()
         serviceScope.cancel()
@@ -595,6 +604,21 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    private fun updateNotificationLyricPresentation(args: Bundle): Boolean {
+        val presentationPlayer = sessionPresentationPlayer ?: return false
+        val currentSong = presentationPlayer.currentMediaItem?.toSongFromMediaItemExtras() ?: return false
+        val songKey = args.getString(EXTRA_NOTIFICATION_LYRIC_SONG_KEY).orEmpty()
+        if (songKey != currentSong.playbackStackKey()) return false
+
+        presentationPlayer.setNotificationLyric(
+            songKey = songKey,
+            title = args.getString(EXTRA_NOTIFICATION_LYRIC_TEXT),
+            secondaryText = args.getString(EXTRA_NOTIFICATION_LYRIC_SECONDARY_TEXT)
+        )
+        notificationProvider.refresh()
+        return true
+    }
+
     @OptIn(UnstableApi::class)
     private fun updateMediaButtonPreferences() {
         val session = mediaSession ?: return
@@ -663,7 +687,7 @@ class PlaybackService : MediaLibraryService() {
     }
 
     private fun Player.shouldPublishOplusTranslationAction(): Boolean {
-        val lyricInfoJson = currentMediaItem?.mediaMetadata?.extras
+        val lyricInfoJson = mediaMetadata.extras
             ?.getString(OPlusLyricHandler.OPLUS_LYRIC_INFO_KEY)
         return OPlusTranslationActionPolicy.shouldPublish(
             colorOsLyricEnabled = colorOsLockScreenLyricEnabled,
@@ -834,6 +858,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(SessionCommand(ACTION_TOGGLE_TRANSLATION, Bundle.EMPTY))
                 .add(SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
                 .add(SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY))
+                .add(SessionCommand(ACTION_UPDATE_NOTIFICATION_LYRIC, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
@@ -846,51 +871,17 @@ class PlaybackService : MediaLibraryService() {
             customCommand: SessionCommand,
             args: Bundle
         ): ListenableFuture<SessionResult> {
-            val handled = service.handleNotificationCustomAction(customCommand.customAction)
+            val handled = if (customCommand.customAction == ACTION_UPDATE_NOTIFICATION_LYRIC) {
+                service.updateNotificationLyricPresentation(args)
+            } else {
+                service.handleNotificationCustomAction(customCommand.customAction)
+            }
             val result = if (handled) {
                 SessionResult(SessionResult.RESULT_SUCCESS)
             } else {
                 SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED)
             }
             return Futures.immediateFuture(result)
-        }
-
-        override fun onSetMediaItems(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: List<MediaItem>,
-            startIndex: Int,
-            startPositionMs: Long
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val result = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            val job = service.serviceScope.launch(Dispatchers.IO) {
-                val preparedItems = try {
-                    withTimeoutOrNull(1_500L) {
-                        service.oplusLyricHandler.prepareInitialOplusLyricInfo(mediaItems, startIndex)
-                    } ?: mediaItems
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Throwable) {
-                    Log.w(TAG, "Failed to attach OPlus lyricInfo before initial publish", error)
-                    mediaItems
-                }
-                result.set(
-                    MediaSession.MediaItemsWithStartPosition(
-                        preparedItems,
-                        startIndex,
-                        startPositionMs
-                    )
-                )
-            }
-            job.invokeOnCompletion { cause ->
-                if (cause == null || result.isDone) return@invokeOnCompletion
-                if (cause is CancellationException) {
-                    result.cancel(false)
-                } else {
-                    result.setException(cause)
-                }
-            }
-            return result
         }
 
         override fun onGetLibraryRoot(
