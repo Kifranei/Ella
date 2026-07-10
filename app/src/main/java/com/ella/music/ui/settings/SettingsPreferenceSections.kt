@@ -67,6 +67,7 @@ internal fun SettingsLibrarySourceSection(
     highlightKey: String? = null,
     onOpenScanFolders: (() -> Unit)?,
     onOpenNavidromeConfig: (() -> Unit)? = null,
+    onOpenOpenSubsonicConfig: (() -> Unit)? = null,
     onOpenEmbyConfig: (() -> Unit)? = null,
     onOpenWebDavConfig: (() -> Unit)? = null,
     mainViewModel: com.ella.music.viewmodel.MainViewModel? = null
@@ -78,6 +79,7 @@ internal fun SettingsLibrarySourceSection(
     val librarySourceOptions = listOf(
         SettingsManager.LIBRARY_SOURCE_LOCAL to stringResource(R.string.settings_library_source_local),
         SettingsManager.LIBRARY_SOURCE_NAVIDROME to stringResource(R.string.remote_source_navidrome),
+        SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC to stringResource(R.string.remote_source_opensubsonic),
         SettingsManager.LIBRARY_SOURCE_EMBY to stringResource(R.string.remote_source_emby),
         SettingsManager.LIBRARY_SOURCE_WEBDAV to stringResource(R.string.webdav_library_title)
     )
@@ -116,6 +118,11 @@ internal fun SettingsLibrarySourceSection(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_navidrome)),
                 summary = stringResource(R.string.remote_server_manage_summary),
                 onClick = { onOpenNavidromeConfig?.invoke() }
+            )
+            ArrowPreference(
+                title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_opensubsonic)),
+                summary = stringResource(R.string.remote_server_manage_summary),
+                onClick = { onOpenOpenSubsonicConfig?.invoke() }
             )
             ArrowPreference(
                 title = stringResource(R.string.remote_server_manage_title, stringResource(R.string.remote_source_emby)),

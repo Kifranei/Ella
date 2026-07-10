@@ -158,6 +158,7 @@ sealed class Screen(val route: String) {
     data object LxOnline : Screen("lx_online")
     data object LxSourceSettings : Screen("lx_source_settings")
     data object NavidromeServerSettings : Screen("navidrome_server_settings")
+    data object OpenSubsonicServerSettings : Screen("opensubsonic_server_settings")
     data object EmbyServerSettings : Screen("emby_server_settings")
     data object Analytics : Screen("analytics")
     data object AiChat : Screen("ai_chat")
@@ -661,6 +662,7 @@ fun AppNavigation(
                 highlightKey = backStackEntry.arguments?.getString("highlight").orEmpty(),
                 onNavigateToScanFolders = { navController.navigate(Screen.ScanSettings.createRoute()) },
                 onNavigateToNavidromeConfig = { navController.navigate(Screen.NavidromeServerSettings.route) },
+                onNavigateToOpenSubsonicConfig = { navController.navigate(Screen.OpenSubsonicServerSettings.route) },
                 onNavigateToEmbyConfig = { navController.navigate(Screen.EmbyServerSettings.route) },
                 onNavigateToWebDavConfig = { navController.navigate(Screen.WebDav.route) },
                 mainViewModel = mainViewModel
@@ -670,6 +672,13 @@ fun AppNavigation(
         composable(Screen.NavidromeServerSettings.route) {
             RemoteServerSettingsScreen(
                 provider = RemoteMusicProvider.Navidrome,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.OpenSubsonicServerSettings.route) {
+            RemoteServerSettingsScreen(
+                provider = RemoteMusicProvider.OpenSubsonic,
                 onBack = { navController.popBackStack() }
             )
         }

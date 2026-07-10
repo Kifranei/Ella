@@ -1154,10 +1154,15 @@
     <string name="player_no_album_info">No album info</string>
     <string name="player_detail_composer">Composer</string>
     <string name="player_detail_lyricist">Lyricist</string>
+    <string name="player_detail_year">Year</string>
+    <string name="player_detail_genre">Genre</string>
     <string name="player_netease_section">NetEase</string>
-    <string name="player_netease_song_page">NetEase song page</string>
-    <string name="player_netease_artist_page">NetEase artist page</string>
-    <string name="player_netease_album_page">NetEase album page</string>
+    <string name="player_netease_song_page">Song page</string>
+    <string name="player_netease_artist_page">Artist page</string>
+    <string name="player_netease_album_page">Album page</string>
+    <string name="player_detail_person_summary">%1$d songs · %2$s · %3$d albums</string>
+    <string name="player_detail_album_summary">%1$d songs · %2$s · %3$s</string>
+    <string name="player_detail_song_count">%1$d songs</string>
     <string name="player_no_info">No available info</string>
     <string name="player_added_to_playlists">Added to %1$d playlists</string>
     <string name="player_added_to_playlist_named">Added to %1$s</string>
@@ -1243,6 +1248,7 @@
     <string name="playlist_edit_info">Edit info ></string>
     <string name="playlist_play_all">Play all</string>
     <string name="playlist_song_count_duration">%1$d songs · %2$s</string>
+    <string name="playlist_drag_selection_count">Items: %1$d</string>
     <string name="song_more_actions_title">Song actions</string>
     <string name="song_more_add_to_playlist_failed">Failed to add to playlist</string>
     <string name="song_more_add_to_queue_failed">Failed to add to queue</string>
@@ -1614,6 +1620,8 @@
     <string name="remote_source_section">Remote music libraries</string>
     <string name="remote_source_navidrome">Navidrome</string>
     <string name="remote_source_navidrome_summary">Subsonic music library</string>
+    <string name="remote_source_opensubsonic">OpenSubsonic</string>
+    <string name="remote_playlist_favorites">%1$s Favorites</string>
     <string name="remote_source_emby">Emby</string>
     <string name="remote_source_emby_summary">Emby media library</string>
     <string name="remote_source_password_or_token">Password or Subsonic token</string>

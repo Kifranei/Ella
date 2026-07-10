@@ -1028,9 +1028,9 @@
     <string name="player_detail_composer">Композитор</string>
     <string name="player_detail_lyricist">автор текста</string>
     <string name="player_netease_section">NetEase</string>
-    <string name="player_netease_song_page">Страница песни NetEase</string>
-    <string name="player_netease_artist_page">Страница исполнителя NetEase</string>
-    <string name="player_netease_album_page">Страница альбома NetEase</string>
+    <string name="player_netease_song_page">Страница песни</string>
+    <string name="player_netease_artist_page">Страница исполнителя</string>
+    <string name="player_netease_album_page">Страница альбома</string>
     <string name="player_no_info">Нет доступной информации</string>
     <string name="player_added_to_playlists">Добавлено в плейлисты %1$d.</string>
     <string name="player_added_to_playlist_named">Добавлено в %1$s</string>

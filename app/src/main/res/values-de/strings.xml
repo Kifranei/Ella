@@ -1030,9 +1030,9 @@
     <string name="player_detail_composer">Komponist</string>
     <string name="player_detail_lyricist">Texter</string>
     <string name="player_netease_section">NetEase</string>
-    <string name="player_netease_song_page">NetEase-Titelseite</string>
-    <string name="player_netease_artist_page">NetEase-Künstlerseite</string>
-    <string name="player_netease_album_page">NetEase-Albumseite</string>
+    <string name="player_netease_song_page">Titelseite</string>
+    <string name="player_netease_artist_page">Künstlerseite</string>
+    <string name="player_netease_album_page">Albumseite</string>
     <string name="player_no_info">Keine verfügbaren Infos</string>
     <string name="player_added_to_playlists">Zu %1$d Playlists hinzugefügt</string>
     <string name="player_added_to_playlist_named">Zu %1$s hinzugefügt</string>

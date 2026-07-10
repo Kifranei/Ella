@@ -25,10 +25,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.NeteaseKeyInfo
+import com.ella.music.data.matchesGenreName
 import com.ella.music.data.splitArtistNames
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.model.formatPlaybackDuration
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
@@ -38,6 +40,8 @@ internal fun PlayerDetailPage(
     paletteBitmap: Bitmap?,
     tagInfo: SongTagInfo?,
     neteaseInfo: NeteaseKeyInfo?,
+    librarySongs: List<Song>,
+    albumArtForAlbum: (Long) -> Any?,
     palette: PlayerPalette,
     currentPositionMs: Long,
     isPlaying: Boolean,
@@ -78,6 +82,51 @@ internal fun PlayerDetailPage(
             .mapNotNull { it.trim().takeIf(String::isNotBlank) }
             .distinct()
             .joinToString(" · ")
+    }
+    val effectiveLibrarySongs = remember(librarySongs, song) {
+        librarySongs.ifEmpty { song?.let(::listOf).orEmpty() }
+    }
+    val artistDetails = remember(artistNames, effectiveLibrarySongs) {
+        artistNames.map { name ->
+            PlayerDetailEntity(
+                name = name,
+                songs = effectiveLibrarySongs.filter { candidate ->
+                    splitArtistNames(candidate.artist).any { it.equals(name, ignoreCase = true) }
+                }
+            )
+        }
+    }
+    val composerDetails = remember(composerNames, effectiveLibrarySongs) {
+        composerNames.map { name ->
+            PlayerDetailEntity(
+                name = name,
+                songs = effectiveLibrarySongs.filter { candidate ->
+                    splitArtistNames(candidate.composer).any { it.equals(name, ignoreCase = true) }
+                }
+            )
+        }
+    }
+    val lyricistDetails = remember(lyricistNames, effectiveLibrarySongs) {
+        lyricistNames.map { name ->
+            PlayerDetailEntity(
+                name = name,
+                songs = effectiveLibrarySongs.filter { candidate ->
+                    splitArtistNames(candidate.lyricist).any { it.equals(name, ignoreCase = true) }
+                }
+            )
+        }
+    }
+    val albumSongs = remember(song?.albumIdentityId(), effectiveLibrarySongs) {
+        val albumId = song?.albumIdentityId() ?: 0L
+        effectiveLibrarySongs.filter { it.albumIdentityId() == albumId }
+    }
+    val year = song?.year.orEmpty().trim()
+    val genre = song?.genre.orEmpty().trim()
+    val yearSongCount = remember(year, effectiveLibrarySongs) {
+        effectiveLibrarySongs.count { it.year.trim().equals(year, ignoreCase = true) }
+    }
+    val genreSongCount = remember(genre, effectiveLibrarySongs) {
+        effectiveLibrarySongs.count { it.genre.matchesGenreName(genre) }
     }
 
     if (showNeteaseArtistPicker) {
@@ -127,6 +176,13 @@ internal fun PlayerDetailPage(
                 )
                 Spacer(modifier = Modifier.height(14.dp))
                 Text(
+                    text = stringResource(R.string.player_detail_song),
+                    color = LocalPlayerContentColor.current.copy(alpha = 0.68f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
                     text = song?.title.orEmpty().ifBlank { stringResource(R.string.player_unknown_song) },
                     color = LocalPlayerContentColor.current.copy(alpha = 0.96f),
                     fontSize = 22.sp,
@@ -143,108 +199,148 @@ internal fun PlayerDetailPage(
                 Spacer(modifier = Modifier.height(18.dp))
             }
 
-            if (artistNames.isNotEmpty()) {
-                artistNames.forEach { name ->
-                    item(key = "artist_$name") {
-                        PlayerDetailActionRow(
-                            title = stringResource(R.string.player_detail_artist_label),
-                            summary = name,
-                            onClick = { onArtist(name) }
-                        )
-                    }
-                }
-            } else {
-                val artistText = song?.artist.orEmpty()
-                if (artistText.isNotBlank()) {
-                    item {
-                        PlayerDetailActionRow(
-                            title = stringResource(R.string.player_detail_artist_label),
-                            summary = artistText,
-                            onClick = { onArtist(artistText) }
-                        )
+            if (artistDetails.isNotEmpty()) {
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_artist_label)) {
+                        artistDetails.forEach { detail ->
+                            val representativeSong = detail.songs.firstOrNull()
+                            PlayerDetailGroupedActionRow(
+                                title = detail.name,
+                                summary = detail.songs.stats().personSummary(),
+                                coverModel = representativeSong?.coverUrl?.takeIf { it.isNotBlank() }
+                                    ?: representativeSong?.albumId?.let(albumArtForAlbum),
+                                circularCover = true,
+                                onClick = { onArtist(detail.name) }
+                            )
+                        }
                     }
                 }
             }
 
-            item {
-                PlayerDetailActionRow(
-                    title = stringResource(R.string.player_detail_album),
-                    summary = song?.album.orEmpty().ifBlank { stringResource(R.string.player_no_album_info) },
-                    enabled = (song?.albumIdentityId() ?: 0L) > 0L,
-                    onClick = onAlbum
-                )
+            if (song?.album.orEmpty().isNotBlank()) {
+                item {
+                    val albumArtist = song?.albumArtist?.ifBlank { song.artist }.orEmpty()
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_album)) {
+                        PlayerDetailGroupedActionRow(
+                            title = song?.album.orEmpty(),
+                            summary = albumSongs.stats().albumSummary(albumArtist),
+                            coverModel = song?.coverUrl?.takeIf { it.isNotBlank() }
+                                ?: song?.albumId?.let(albumArtForAlbum),
+                            onClick = onAlbum
+                        )
+                    }
+                }
             }
 
-            composerNames.forEach { composer ->
-                item(key = "composer_$composer") {
-                    PlayerDetailActionRow(
-                        title = stringResource(R.string.player_detail_composer),
-                        summary = composer,
-                        enabled = composer.isNotBlank(),
-                        onClick = { onComposer(composer) }
+            if (year.isNotBlank() || genre.isNotBlank()) {
+                item {
+                    PlayerDetailDualInfoCard(
+                        year = year,
+                        yearSongCount = yearSongCount,
+                        genre = genre,
+                        genreSongCount = genreSongCount
                     )
                 }
             }
 
-            lyricistNames.forEach { lyricist ->
-                item(key = "lyricist_$lyricist") {
-                    PlayerDetailActionRow(
-                        title = stringResource(R.string.player_detail_lyricist),
-                        summary = lyricist,
-                        enabled = lyricist.isNotBlank(),
-                        onClick = { onLyricist(lyricist) }
-                    )
+            if (composerDetails.isNotEmpty()) {
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_composer)) {
+                        composerDetails.forEach { detail ->
+                            PlayerDetailGroupedActionRow(
+                                title = detail.name,
+                                summary = detail.songs.stats().personSummary(),
+                                onClick = { onComposer(detail.name) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (lyricistDetails.isNotEmpty()) {
+                item {
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_detail_lyricist)) {
+                        lyricistDetails.forEach { detail ->
+                            PlayerDetailGroupedActionRow(
+                                title = detail.name,
+                                summary = detail.songs.stats().personSummary(),
+                                onClick = { onLyricist(detail.name) }
+                            )
+                        }
+                    }
                 }
             }
 
             if (neteaseInfo?.hasDecodedContent == true) {
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.player_netease_section),
-                        color = LocalPlayerContentColor.current.copy(alpha = 0.72f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                if (neteaseInfo.musicId.isNotBlank()) {
-                    item {
-                        PlayerDetailActionRow(
-                            title = stringResource(R.string.player_netease_song_page),
-                            summary = neteaseInfo.musicName.ifBlank { neteaseInfo.musicId },
-                            onClick = onNeteaseSong
-                        )
-                    }
-                }
-                neteaseInfo.artists
-                    .joinToString(" / ") { it.name.ifBlank { it.id } }
-                    .takeIf { it.isNotBlank() }
-                    ?.let { artistSummary ->
-                        item(key = "netease_artists") {
-                            PlayerDetailActionRow(
-                                title = stringResource(R.string.player_netease_artist_page),
-                                summary = artistSummary,
-                                enabled = neteaseArtists.isNotEmpty(),
-                                onClick = {
-                                    if (neteaseArtists.size == 1) {
-                                        onNeteaseArtist(neteaseArtists.first().id)
-                                    } else {
-                                        showNeteaseArtistPicker = true
-                                    }
-                                }
+                    PlayerDetailGroupCard(title = stringResource(R.string.player_netease_section)) {
+                        if (neteaseInfo.musicId.isNotBlank()) {
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.player_netease_song_page),
+                                summary = neteaseInfo.musicName.ifBlank { neteaseInfo.musicId },
+                                onClick = onNeteaseSong
                             )
                         }
-                    }
-                if (neteaseInfo.albumId.isNotBlank()) {
-                    item {
-                        PlayerDetailActionRow(
-                            title = stringResource(R.string.player_netease_album_page),
-                            summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
-                            onClick = onNeteaseAlbum
-                        )
+                        neteaseInfo.artists
+                            .joinToString(" / ") { it.name.ifBlank { it.id } }
+                            .takeIf { it.isNotBlank() }
+                            ?.let { artistSummary ->
+                                PlayerDetailGroupedActionRow(
+                                    title = stringResource(R.string.player_netease_artist_page),
+                                    summary = artistSummary,
+                                    enabled = neteaseArtists.isNotEmpty(),
+                                    onClick = {
+                                        if (neteaseArtists.size == 1) {
+                                            onNeteaseArtist(neteaseArtists.first().id)
+                                        } else {
+                                            showNeteaseArtistPicker = true
+                                        }
+                                    }
+                                )
+                            }
+                        if (neteaseInfo.albumId.isNotBlank()) {
+                            PlayerDetailGroupedActionRow(
+                                title = stringResource(R.string.player_netease_album_page),
+                                summary = neteaseInfo.albumName.ifBlank { neteaseInfo.albumId },
+                                onClick = onNeteaseAlbum
+                            )
+                        }
                     }
                 }
             }
         }
     }
 }
+
+private data class PlayerDetailEntity(
+    val name: String,
+    val songs: List<Song>
+)
+
+private data class PlayerDetailStats(
+    val songCount: Int,
+    val totalDuration: Long,
+    val albumCount: Int
+)
+
+private fun List<Song>.stats(): PlayerDetailStats = PlayerDetailStats(
+    songCount = size,
+    totalDuration = sumOf { it.duration },
+    albumCount = map { it.albumIdentityId() }.distinct().count()
+)
+
+@Composable
+private fun PlayerDetailStats.personSummary(): String = stringResource(
+    R.string.player_detail_person_summary,
+    songCount,
+    totalDuration.formatPlaybackDuration(),
+    albumCount
+)
+
+@Composable
+private fun PlayerDetailStats.albumSummary(albumArtist: String): String = stringResource(
+    R.string.player_detail_album_summary,
+    songCount,
+    totalDuration.formatPlaybackDuration(),
+    albumArtist.ifBlank { stringResource(R.string.player_unknown_artist) }
+)

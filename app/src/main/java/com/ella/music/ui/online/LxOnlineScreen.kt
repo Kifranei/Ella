@@ -49,6 +49,7 @@ import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.data.remote.RemoteOnlineSong
+import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.EllaMiuixChip
@@ -96,6 +97,9 @@ fun LxOnlineScreen(
     val navidromeConfig by settingsManager.navidromeConfig.collectAsState(
         initial = RemoteMusicSourceConfig(RemoteMusicProvider.Navidrome, "")
     )
+    val openSubsonicConfig by settingsManager.openSubsonicConfig.collectAsState(
+        initial = RemoteMusicSourceConfig(RemoteMusicProvider.OpenSubsonic, "")
+    )
     val embyConfig by settingsManager.embyConfig.collectAsState(
         initial = RemoteMusicSourceConfig(RemoteMusicProvider.Emby, "")
     )
@@ -126,6 +130,7 @@ fun LxOnlineScreen(
 
     val remoteConfig = when (selectedProvider) {
         RemoteMusicProvider.Navidrome -> navidromeConfig
+        RemoteMusicProvider.OpenSubsonic -> openSubsonicConfig
         RemoteMusicProvider.Emby -> embyConfig
         RemoteMusicProvider.Lx -> null
     }
@@ -152,6 +157,7 @@ fun LxOnlineScreen(
                 val config = remoteConfig ?: error(context.getString(R.string.remote_source_configure_first))
                 remoteResults = when (selectedProvider) {
                     RemoteMusicProvider.Navidrome -> navidromeService.search(state.searchQuery, config)
+                    RemoteMusicProvider.OpenSubsonic -> navidromeService.search(state.searchQuery, config)
                     RemoteMusicProvider.Emby -> embyService.search(state.searchQuery, config)
                     RemoteMusicProvider.Lx -> emptyList()
                 }
@@ -186,10 +192,13 @@ fun LxOnlineScreen(
 
     suspend fun resolveActionSong(song: Song): Song {
         remoteActionItem?.takeIf { it.song.id == song.id }?.let { item ->
-            return when (item.provider) {
-                RemoteMusicProvider.Navidrome -> navidromeService.resolvePlayableSong(item)
+            return if (item.provider.isSubsonicLike) {
+                navidromeService.resolvePlayableSong(item)
+            } else when (item.provider) {
                 RemoteMusicProvider.Emby -> embyService.resolvePlayableSong(item)
                 RemoteMusicProvider.Lx -> item.song
+                RemoteMusicProvider.Navidrome,
+                RemoteMusicProvider.OpenSubsonic -> error("Unexpected Subsonic-like provider branch")
             }
         }
         val item = actionItem?.takeIf { it.song.id == song.id }
@@ -199,10 +208,13 @@ fun LxOnlineScreen(
     }
 
     suspend fun resolveActionRemoteSong(item: RemoteOnlineSong): Song {
-        return when (item.provider) {
-            RemoteMusicProvider.Navidrome -> navidromeService.resolvePlayableSong(item)
+        return if (item.provider.isSubsonicLike) {
+            navidromeService.resolvePlayableSong(item)
+        } else when (item.provider) {
             RemoteMusicProvider.Emby -> embyService.resolvePlayableSong(item)
             RemoteMusicProvider.Lx -> item.song
+            RemoteMusicProvider.Navidrome,
+            RemoteMusicProvider.OpenSubsonic -> error("Unexpected Subsonic-like provider branch")
         }
     }
 
@@ -248,11 +260,13 @@ fun LxOnlineScreen(
                     title = when (selectedProvider) {
                         RemoteMusicProvider.Lx -> selectedSource?.name ?: stringResource(R.string.lx_online_no_source_selected)
                         RemoteMusicProvider.Navidrome -> stringResource(R.string.remote_source_navidrome)
+                        RemoteMusicProvider.OpenSubsonic -> stringResource(R.string.remote_source_opensubsonic)
                         RemoteMusicProvider.Emby -> stringResource(R.string.remote_source_emby)
                     },
                     summary = when (selectedProvider) {
                         RemoteMusicProvider.Lx -> selectedSource?.url ?: stringResource(R.string.lx_online_no_source_hint)
                         RemoteMusicProvider.Navidrome -> navidromeConfig.baseUrl.ifBlank { stringResource(R.string.remote_source_not_configured) }
+                        RemoteMusicProvider.OpenSubsonic -> openSubsonicConfig.baseUrl.ifBlank { stringResource(R.string.remote_source_not_configured) }
                         RemoteMusicProvider.Emby -> embyConfig.serverName.ifBlank { embyConfig.baseUrl }.ifBlank { stringResource(R.string.remote_source_not_configured) }
                     },
                 )
@@ -333,10 +347,13 @@ fun LxOnlineScreen(
                                 val resolver: suspend (Song) -> Song = { song ->
                                     val target = visible.firstOrNull { it.song.id == song.id }
                                         ?: error(context.getString(R.string.lx_online_song_expired))
-                                    when (target.provider) {
-                                        RemoteMusicProvider.Navidrome -> navidromeService.resolvePlayableSong(target)
+                                    if (target.provider.isSubsonicLike) {
+                                        navidromeService.resolvePlayableSong(target)
+                                    } else when (target.provider) {
                                         RemoteMusicProvider.Emby -> embyService.resolvePlayableSong(target)
                                         RemoteMusicProvider.Lx -> target.song
+                                        RemoteMusicProvider.Navidrome,
+                                        RemoteMusicProvider.OpenSubsonic -> error("Unexpected Subsonic-like provider branch")
                                     }
                                 }
                                 scope.launch {
@@ -470,6 +487,7 @@ private fun RemoteMusicProvider.displayName(context: Context): String =
     when (this) {
         RemoteMusicProvider.Lx -> "LX Music"
         RemoteMusicProvider.Navidrome -> context.getString(R.string.remote_source_navidrome)
+        RemoteMusicProvider.OpenSubsonic -> context.getString(R.string.remote_source_opensubsonic)
         RemoteMusicProvider.Emby -> context.getString(R.string.remote_source_emby)
     }
 

@@ -1030,9 +1030,9 @@
     <string name="player_detail_composer">작곡가</string>
     <string name="player_detail_lyricist">작사가</string>
     <string name="player_netease_section">NetEase</string>
-    <string name="player_netease_song_page">NetEase 곡 페이지</string>
-    <string name="player_netease_artist_page">NetEase 아티스트 페이지</string>
-    <string name="player_netease_album_page">NetEase 앨범 페이지</string>
+    <string name="player_netease_song_page">곡 페이지</string>
+    <string name="player_netease_artist_page">아티스트 페이지</string>
+    <string name="player_netease_album_page">앨범 페이지</string>
     <string name="player_no_info">사용 가능한 정보가 없습니다</string>
     <string name="player_added_to_playlists">%1$d 재생목록에 추가됨</string>
     <string name="player_added_to_playlist_named">%1$s에 추가됨</string>

@@ -162,6 +162,7 @@ class MusicRepository(private val context: Context) {
     private val replayGainCache = ConcurrentHashMap<String, Float>()
     private val replayGainMissingCache = ConcurrentHashMap.newKeySet<String>()
     private val libraryCacheFile = File(context.filesDir, "music_library_cache.json")
+    private val localScanBaselineFile = File(context.filesDir, "music_local_scan_baseline.json")
 
     suspend fun scanMusic(
         minDurationMs: Long = 0,
@@ -172,7 +173,7 @@ class MusicRepository(private val context: Context) {
         deepMetadataEnabled: Boolean = true
     ): MusicScanSummary {
         val mode = if (includeFolders.isEmpty()) "media_library" else "custom_folders"
-        val previousSongs = _songs.value.takeIf { it.isNotEmpty() } ?: readCachedSongs()
+        val previousSongs = readLocalScanBaselineSongs()
         AppLogStore.info(
             context,
             "MusicScanner",
@@ -199,14 +200,17 @@ class MusicRepository(private val context: Context) {
                 minDurationMs = minDurationMs,
                 includeFolders = includeFolders,
                 excludeFolders = excludeFolders,
+                previousSummarySongs = previousSongs,
                 deepMetadataEnabled = deepMetadataEnabled
             )
         }
         val scannedSongs = scanResult.songs
         val clearedRatingSnapshots = snapshotManager.clearMissingFileSnapshots(scannedSongs.map { it.path }.toSet())
+        val albums = scannedSongs.toAlbums()
         _songs.value = scannedSongs
-        _albums.value = scannedSongs.toAlbums()
-        saveLibraryCache(scannedSongs, _albums.value)
+        _albums.value = albums
+        saveLibraryCache(scannedSongs, albums)
+        saveLocalScanBaseline(scannedSongs, albums)
         AppLogStore.info(
             context,
             "MusicScanner",
@@ -279,6 +283,7 @@ class MusicRepository(private val context: Context) {
         val normalizedFolders = folders.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (normalizedFolders.isEmpty()) return@withContext MusicScanSummary(total = _songs.value.size)
 
+        val previousSummarySongs = readLocalScanBaselineSongs()
         val existingSongs = _songs.value
         val existingByPath = existingSongs.associateBy { it.path }
         val existingPaths = existingByPath.keys
@@ -292,15 +297,12 @@ class MusicRepository(private val context: Context) {
         ) { count -> scanProgressState.update(count) }
 
         val scannedByPath = scannedSongs.associateBy { it.path }
-        var updatedCount = 0
-        var addedCount = 0
 
         // Build the merged library: keep all existing songs, but replace/update those whose path
         // falls within the scanned folders, and add any brand-new songs found.
         val merged = existingSongs.mapTo(ArrayList(existingSongs.size)) { existing ->
             val scanned = scannedByPath[existing.path]
             if (scanned != null) {
-                if (scanned != existing) updatedCount++
                 scanned
             } else {
                 existing
@@ -310,26 +312,36 @@ class MusicRepository(private val context: Context) {
         val newPathSongs = scannedSongs.filter { it.path !in existingPaths }
         if (newPathSongs.isNotEmpty()) {
             merged.addAll(newPathSongs)
-            addedCount = newPathSongs.size
         }
 
         val clearedRatingSnapshots = snapshotManager.clearMissingFileSnapshots(merged.map { it.path }.toSet())
+        val normalizedFolderFilters = normalizedFolders.mapNotNull { it.normalizedLocalFolderPath() }
+        val previousFolderSongs = previousSummarySongs.filter { song ->
+            song.path.isAllowedByLocalFolderFilters(normalizedFolderFilters, excludeFolders = emptyList())
+        }
+        val currentFolderSongs = merged.filter { song ->
+            song.path.isAllowedByLocalFolderFilters(normalizedFolderFilters, excludeFolders = emptyList())
+        }
+        val summary = buildLibraryDeltaSummary(previousFolderSongs, currentFolderSongs).copy(total = merged.size)
+        val albums = merged.toAlbums()
         _songs.value = merged
-        _albums.value = merged.toAlbums()
-        saveLibraryCache(merged, _albums.value)
+        _albums.value = albums
+        saveLibraryCache(merged, albums)
+        saveLocalScanBaseline(merged, albums)
         AppLogStore.info(
             context,
             "MusicScanner",
-            "Folder refresh finished: folders=${normalizedFolders.size} scanned=${scannedSongs.size} added=$addedCount updated=$updatedCount total=${merged.size}",
+            "Folder refresh finished: folders=${normalizedFolders.size} scanned=${scannedSongs.size} added=${summary.added} updated=${summary.updated} total=${merged.size}",
             AppLogType.LIBRARY
         )
-        MusicScanSummary(total = merged.size, added = addedCount, updated = updatedCount)
+        summary
     }
 
     private suspend fun synchronizeLibrary(
         minDurationMs: Long,
         includeFolders: List<String>,
         excludeFolders: List<String>,
+        previousSummarySongs: List<Song>,
         deepMetadataEnabled: Boolean = true
     ): LibraryScanResult = withContext(Dispatchers.IO) {
         val cachedSongs = _songs.value.takeIf { it.isNotEmpty() } ?: readCachedSongs()
@@ -342,8 +354,6 @@ class MusicRepository(private val context: Context) {
         val currentKeys = currentItems.map { it.librarySyncKey() }.toSet()
         val currentPaths = currentItems.map { it.path }.toSet()
         val mergedSongs = ArrayList<Song>(currentItems.size)
-        var addedCount = 0
-        var updatedCount = 0
         var reusedCount = 0
         var failedCount = 0
 
@@ -385,16 +395,6 @@ class MusicRepository(private val context: Context) {
                     cached?.let(::clearMetadataCache)
                     clearMetadataCache(scanned)
                     mergedSongs += scanned
-                    if (cached == null) {
-                        addedCount++
-                    } else {
-                        val librarySnapshotChanged =
-                            cached.toLibrarySyncInfo() != scanned.toLibrarySyncInfo() ||
-                                cached.toScanSummaryInfo() != scanned.toScanSummaryInfo()
-                        if (librarySnapshotChanged) {
-                            updatedCount++
-                        }
-                    }
                 } else if (cached != null) {
                     mergedSongs += cached
                 }
@@ -419,27 +419,22 @@ class MusicRepository(private val context: Context) {
             song.librarySyncKey() !in currentKeys && song.path !in currentPaths
         }
         deletedSongs.forEach(::clearMetadataCache)
-        val deletedCount = deletedSongs.size
+        val summary = buildLibraryDeltaSummary(previousSummarySongs, mergedSongs)
+            .copy(total = mergedSongs.size, failed = failedCount)
 
         AppLogStore.info(
             context,
             "MusicScanner",
-            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount",
+            "Incremental scan finished total=${currentItems.size} added=${summary.added} updated=${summary.updated} reused=$reusedCount deleted=${summary.deleted} failed=$failedCount",
             AppLogType.LIBRARY
         )
         Log.d(
             "MusicScanner",
-            "Incremental scan finished total=${currentItems.size} added=$addedCount updated=$updatedCount reused=$reusedCount deleted=$deletedCount failed=$failedCount"
+            "Incremental scan finished total=${currentItems.size} added=${summary.added} updated=${summary.updated} reused=$reusedCount deleted=${summary.deleted} failed=$failedCount"
         )
         LibraryScanResult(
             songs = mergedSongs,
-            summary = MusicScanSummary(
-                total = mergedSongs.size,
-                added = addedCount,
-                updated = updatedCount,
-                deleted = deletedCount,
-                failed = failedCount
-            )
+            summary = summary
         )
     }
 
@@ -530,8 +525,12 @@ class MusicRepository(private val context: Context) {
 
         runCatching {
             val songs = readLibraryCacheSongs(libraryCacheFile)
+            val albums = songs.toAlbums()
             _songs.value = songs
-            _albums.value = songs.toAlbums()
+            _albums.value = albums
+            if (!localScanBaselineFile.exists()) {
+                saveLocalScanBaseline(songs, albums)
+            }
         }.onFailure {
             Log.w("MusicRepo", "Failed to load music library cache", it)
         }
@@ -571,6 +570,11 @@ class MusicRepository(private val context: Context) {
             when (source) {
                 SettingsManager.LIBRARY_SOURCE_NAVIDROME -> {
                     val config = settingsManager.navidromeConfig.first()
+                    if (!config.isConfigured) return@runCatching null
+                    NavidromeService(context).listSongs(config).map { it.song }
+                }
+                SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC -> {
+                    val config = settingsManager.openSubsonicConfig.first()
                     if (!config.isConfigured) return@runCatching null
                     NavidromeService(context).listSongs(config).map { it.song }
                 }
@@ -664,7 +668,7 @@ class MusicRepository(private val context: Context) {
                 .put("albums", albumsToLibraryCacheJsonArray(albums))
             file.writeText(root.toString())
         }.onFailure {
-            Log.w("MusicRepo", "Failed to save remote library cache", it)
+            Log.w("MusicRepo", "Failed to save library cache snapshot", it)
         }
     }
 
@@ -676,6 +680,21 @@ class MusicRepository(private val context: Context) {
             Log.w("MusicRepo", "Failed to read music library cache for sync", it)
             emptyList()
         }
+    }
+
+    private fun readLocalScanBaselineSongs(): List<Song> {
+        val baselineFile = if (localScanBaselineFile.exists()) localScanBaselineFile else libraryCacheFile
+        if (!baselineFile.exists()) return emptyList()
+        return runCatching {
+            readLibraryCacheSongs(baselineFile)
+        }.getOrElse {
+            Log.w("MusicRepo", "Failed to read local scan baseline", it)
+            emptyList()
+        }
+    }
+
+    private fun saveLocalScanBaseline(songs: List<Song>, albums: List<Album>) {
+        saveLibraryCacheTo(localScanBaselineFile, songs, albums)
     }
 
     suspend fun getLyrics(

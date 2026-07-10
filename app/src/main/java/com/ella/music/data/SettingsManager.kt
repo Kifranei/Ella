@@ -222,6 +222,8 @@ class SettingsManager(private val context: Context) {
         val KEY_EMBY_SERVER_NAME = stringPreferencesKey("emby_server_name")
         val KEY_NAVIDROME_SERVERS = stringPreferencesKey("navidrome_servers")
         val KEY_NAVIDROME_ACTIVE_ID = stringPreferencesKey("navidrome_active_id")
+        val KEY_OPENSUBSONIC_SERVERS = stringPreferencesKey("opensubsonic_servers")
+        val KEY_OPENSUBSONIC_ACTIVE_ID = stringPreferencesKey("opensubsonic_active_id")
         val KEY_EMBY_SERVERS = stringPreferencesKey("emby_servers")
         val KEY_EMBY_ACTIVE_ID = stringPreferencesKey("emby_active_id")
         const val LEGACY_NAVIDROME_SERVER_ID = "navidrome-legacy"
@@ -389,11 +391,13 @@ class SettingsManager(private val context: Context) {
         // local storage, or streamed from a configured Navidrome / Emby / WebDAV server.
         const val LIBRARY_SOURCE_LOCAL = "local"
         const val LIBRARY_SOURCE_NAVIDROME = "navidrome"
+        const val LIBRARY_SOURCE_OPENSUBSONIC = "opensubsonic"
         const val LIBRARY_SOURCE_EMBY = "emby"
         const val LIBRARY_SOURCE_WEBDAV = "webdav"
 
         fun normalizeLibrarySource(source: String): String = when (source) {
             LIBRARY_SOURCE_NAVIDROME -> LIBRARY_SOURCE_NAVIDROME
+            LIBRARY_SOURCE_OPENSUBSONIC -> LIBRARY_SOURCE_OPENSUBSONIC
             LIBRARY_SOURCE_EMBY -> LIBRARY_SOURCE_EMBY
             LIBRARY_SOURCE_WEBDAV -> LIBRARY_SOURCE_WEBDAV
             else -> LIBRARY_SOURCE_LOCAL
@@ -985,13 +989,20 @@ class SettingsManager(private val context: Context) {
         )
     }
 
+    private fun readOpenSubsonicServers(prefs: Preferences): List<SavedRemoteServer> =
+        prefs[KEY_OPENSUBSONIC_SERVERS].orEmpty().toSavedRemoteServers(RemoteMusicProvider.OpenSubsonic)
+
     private fun activeServer(servers: List<SavedRemoteServer>, activeId: String?): SavedRemoteServer? =
         servers.firstOrNull { it.id == activeId } ?: servers.firstOrNull()
 
     val navidromeServers: Flow<List<SavedRemoteServer>> = context.dataStore.data.map { readNavidromeServers(it) }
+    val openSubsonicServers: Flow<List<SavedRemoteServer>> = context.dataStore.data.map { readOpenSubsonicServers(it) }
     val embyServers: Flow<List<SavedRemoteServer>> = context.dataStore.data.map { readEmbyServers(it) }
     val navidromeActiveServerId: Flow<String> = context.dataStore.data.map { prefs ->
         activeServer(readNavidromeServers(prefs), prefs[KEY_NAVIDROME_ACTIVE_ID])?.id.orEmpty()
+    }
+    val openSubsonicActiveServerId: Flow<String> = context.dataStore.data.map { prefs ->
+        activeServer(readOpenSubsonicServers(prefs), prefs[KEY_OPENSUBSONIC_ACTIVE_ID])?.id.orEmpty()
     }
     val embyActiveServerId: Flow<String> = context.dataStore.data.map { prefs ->
         activeServer(readEmbyServers(prefs), prefs[KEY_EMBY_ACTIVE_ID])?.id.orEmpty()
@@ -999,6 +1010,10 @@ class SettingsManager(private val context: Context) {
     val navidromeConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map { prefs ->
         activeServer(readNavidromeServers(prefs), prefs[KEY_NAVIDROME_ACTIVE_ID])?.config
             ?: RemoteMusicSourceConfig(provider = RemoteMusicProvider.Navidrome, baseUrl = "")
+    }
+    val openSubsonicConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map { prefs ->
+        activeServer(readOpenSubsonicServers(prefs), prefs[KEY_OPENSUBSONIC_ACTIVE_ID])?.config
+            ?: RemoteMusicSourceConfig(provider = RemoteMusicProvider.OpenSubsonic, baseUrl = "")
     }
     val embyConfig: Flow<RemoteMusicSourceConfig> = context.dataStore.data.map { prefs ->
         activeServer(readEmbyServers(prefs), prefs[KEY_EMBY_ACTIVE_ID])?.config
@@ -1883,6 +1898,34 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setActiveNavidromeServer(id: String) {
         context.dataStore.edit { it[KEY_NAVIDROME_ACTIVE_ID] = id }
+    }
+
+    suspend fun upsertOpenSubsonicServer(server: SavedRemoteServer) {
+        context.dataStore.edit { prefs ->
+            val current = readOpenSubsonicServers(prefs)
+            val next = if (current.any { it.id == server.id }) {
+                current.map { if (it.id == server.id) server else it }
+            } else {
+                current + server
+            }
+            prefs[KEY_OPENSUBSONIC_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_OPENSUBSONIC_ACTIVE_ID].isNullOrBlank()) prefs[KEY_OPENSUBSONIC_ACTIVE_ID] = server.id
+        }
+    }
+
+    suspend fun deleteOpenSubsonicServer(id: String) {
+        context.dataStore.edit { prefs ->
+            val next = readOpenSubsonicServers(prefs).filterNot { it.id == id }
+            prefs[KEY_OPENSUBSONIC_SERVERS] = next.toRemoteServersJson()
+            if (prefs[KEY_OPENSUBSONIC_ACTIVE_ID] == id) {
+                val fallback = next.firstOrNull()?.id
+                if (fallback == null) prefs.remove(KEY_OPENSUBSONIC_ACTIVE_ID) else prefs[KEY_OPENSUBSONIC_ACTIVE_ID] = fallback
+            }
+        }
+    }
+
+    suspend fun setActiveOpenSubsonicServer(id: String) {
+        context.dataStore.edit { it[KEY_OPENSUBSONIC_ACTIVE_ID] = id }
     }
 
     suspend fun upsertEmbyServer(server: SavedRemoteServer) {

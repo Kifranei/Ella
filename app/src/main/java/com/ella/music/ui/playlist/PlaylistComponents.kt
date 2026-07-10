@@ -102,6 +102,7 @@ internal fun PlaylistRow(
     accent: Boolean = false,
     selectionMode: Boolean = false,
     selected: Boolean = false,
+    draggedSelectionCount: Int? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
@@ -125,107 +126,123 @@ internal fun PlaylistRow(
             }
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (selectionMode) {
-                SelectionCheck(
-                    selected = selected,
-                    size = 22.dp,
-                    checkColor = Color.White
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-            }
-            Box(
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        color = if (accent) MiuixTheme.colorScheme.primary.copy(alpha = 0.18f)
-                        else MiuixTheme.colorScheme.surfaceContainer,
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (coverModel != null) {
-                    SafeCoverImage(
-                        model = coverModel,
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        sizePx = 160
+                if (selectionMode) {
+                    SelectionCheck(
+                        selected = selected,
+                        size = 22.dp,
+                        checkColor = Color.White
                     )
+                    Spacer(modifier = Modifier.width(12.dp))
                 }
-                if (coverModel == null) {
-                    Icon(
-                        imageVector = when {
-                            playlist.isFavorites -> MiuixIcons.Regular.FavoritesFill
-                            playlist.isFiveStarRating -> FiveStarPlaylistIcon
-                            else -> MiuixIcons.Regular.Playlist
-                        },
-                        contentDescription = null,
-                        tint = if (accent) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(25.dp)
-                    )
-                } else if (playlist.isFavorites || playlist.isFiveStarRating) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(5.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color.Black.copy(alpha = 0.42f))
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (playlist.isFavorites) MiuixIcons.Regular.FavoritesFill else FiveStarPlaylistIcon,
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            color = if (accent) MiuixTheme.colorScheme.primary.copy(alpha = 0.18f)
+                            else MiuixTheme.colorScheme.surfaceContainer,
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (coverModel != null) {
+                        SafeCoverImage(
+                            model = coverModel,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            sizePx = 160
                         )
                     }
+                    if (coverModel == null) {
+                        Icon(
+                            imageVector = when {
+                                playlist.isFavorites -> MiuixIcons.Regular.FavoritesFill
+                                playlist.isFiveStarRating -> FiveStarPlaylistIcon
+                                else -> MiuixIcons.Regular.Playlist
+                            },
+                            contentDescription = null,
+                            tint = if (accent) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(25.dp)
+                        )
+                    } else if (playlist.isFavorites || playlist.isFiveStarRating) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(5.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(Color.Black.copy(alpha = 0.42f))
+                                .padding(horizontal = 6.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (playlist.isFavorites) MiuixIcons.Regular.FavoritesFill else FiveStarPlaylistIcon,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = playlist.name,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MiuixTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.playlist_song_count_duration,
+                            countOverride ?: playlist.songs.size,
+                            (durationOverride ?: playlist.songs.sumOf { it.duration }).formatPlaylistDuration()
+                        ),
+                        fontSize = 13.sp,
+                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+                    )
+                }
+                if (onMore != null) {
+                    IconButton(onClick = onMore) {
+                        com.ella.music.ui.player.MoreIcon(
+                            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else if (onDelete != null) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = MiuixIcons.Regular.Delete,
+                            contentDescription = stringResource(R.string.common_delete),
+                            tint = Color(0xFFE5484D),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                } else if (trailingContent != null) {
+                    trailingContent()
                 }
             }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            draggedSelectionCount?.let { count ->
                 Text(
-                    text = playlist.name,
-                    fontSize = 17.sp,
+                    text = stringResource(R.string.playlist_drag_selection_count, count),
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MiuixTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = MiuixTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(MiuixTheme.colorScheme.primary)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
-                Text(
-                    text = stringResource(
-                        R.string.playlist_song_count_duration,
-                        countOverride ?: playlist.songs.size,
-                        (durationOverride ?: playlist.songs.sumOf { it.duration }).formatPlaylistDuration()
-                    ),
-                    fontSize = 13.sp,
-                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-                )
-            }
-            if (onMore != null) {
-                IconButton(onClick = onMore) {
-                    com.ella.music.ui.player.MoreIcon(
-                        color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            } else if (onDelete != null) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = MiuixIcons.Regular.Delete,
-                        contentDescription = stringResource(R.string.common_delete),
-                        tint = Color(0xFFE5484D),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            } else if (trailingContent != null) {
-                trailingContent()
             }
         }
     }

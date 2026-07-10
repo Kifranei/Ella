@@ -58,20 +58,23 @@ fun AddToPlaylistSheet(
     val scope = rememberCoroutineScope()
     val settingsManager = remember(context) { SettingsManager.getInstance(context) }
     val savedAppendToEnd by settingsManager.addToPlaylistAppendToEnd.collectAsState(initial = false)
-    var selectedIds by remember(playlists) { mutableStateOf(emptySet<String>()) }
+    // Server playlists are shown as read-only snapshots. Keep this picker limited to writable
+    // local playlists so a tap never looks successful while changing nothing remotely.
+    val writablePlaylists = remember(playlists) { playlists.filterNot { it.isRemote } }
+    var selectedIds by remember(writablePlaylists) { mutableStateOf(emptySet<String>()) }
     var query by remember { mutableStateOf("") }
     var multiSelect by remember { mutableStateOf(false) }
     var appendToEnd by remember(savedAppendToEnd) { mutableStateOf(savedAppendToEnd) }
     var sortMode by remember { mutableStateOf(AddPlaylistSortMode.Custom) }
-    val sortedPlaylists = remember(playlists, sortMode) {
-        playlists.sortedForAddToPlaylist(sortMode)
+    val sortedPlaylists = remember(writablePlaylists, sortMode) {
+        writablePlaylists.sortedForAddToPlaylist(sortMode)
     }
     val visiblePlaylists = remember(sortedPlaylists, query) {
         query.trim().takeIf { it.isNotBlank() }?.let { q ->
             sortedPlaylists.filter { it.name.contains(q, ignoreCase = true) }
         } ?: sortedPlaylists
     }
-    val selectedPlaylists = playlists.filter { it.id in selectedIds }
+    val selectedPlaylists = writablePlaylists.filter { it.id in selectedIds }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -143,7 +146,7 @@ fun AddToPlaylistSheet(
             )
         }
         SongMenuItem(stringResource(R.string.song_more_create_playlist), onCreatePlaylist)
-        if (playlists.isEmpty()) {
+        if (writablePlaylists.isEmpty()) {
             Text(
                 text = stringResource(R.string.song_more_no_custom_playlists),
                 fontSize = 14.sp,

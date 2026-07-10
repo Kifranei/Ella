@@ -1050,9 +1050,9 @@
     <string name="player_detail_composer">作曲家</string>
     <string name="player_detail_lyricist">作詞家</string>
     <string name="player_netease_section">網易雲音樂</string>
-    <string name="player_netease_song_page">網易雲音樂歌曲頁</string>
-    <string name="player_netease_artist_page">網易雲音樂藝人頁</string>
-    <string name="player_netease_album_page">網易雲音樂專輯頁</string>
+    <string name="player_netease_song_page">歌曲頁</string>
+    <string name="player_netease_artist_page">藝人頁</string>
+    <string name="player_netease_album_page">專輯頁</string>
     <string name="player_no_info">無可用資訊</string>
     <string name="player_added_to_playlists">已加入 %1$d 個播放清單</string>
     <string name="player_added_to_playlist_named">已新增到 %1$s</string>

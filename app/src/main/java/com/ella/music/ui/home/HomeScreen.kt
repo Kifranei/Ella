@@ -100,6 +100,7 @@ import com.ella.music.ui.components.SideIndexListEndPadding
 import com.ella.music.ui.components.SongItem
 import com.ella.music.ui.components.SongMoreActionHost
 import com.ella.music.ui.components.SongSelectionActionRow
+import com.ella.music.ui.components.ShuffleAllFloatingButton
 import com.ella.music.ui.components.ScanRefreshIconButton
 import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
@@ -837,6 +838,17 @@ fun LibraryScreen(
                             .fillMaxHeight()
                     )
                 }
+
+                ShuffleAllFloatingButton(
+                    visible = !selectionMode && sortedSongs.isNotEmpty(),
+                    onClick = {
+                        playerViewModel.setPlaylist(sortedSongs.shuffled(), 0)
+                        if (openPlayerOnPlay) onNavigateToPlayer()
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 22.dp, bottom = 232.dp)
+                )
 
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showLocateCurrentSongButton,

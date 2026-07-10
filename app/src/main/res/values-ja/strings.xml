@@ -1030,9 +1030,9 @@
     <string name="player_detail_composer">作曲家</string>
     <string name="player_detail_lyricist">作詞家</string>
     <string name="player_netease_section">ネットイース</string>
-    <string name="player_netease_song_page">ネットイース曲ページ</string>
-    <string name="player_netease_artist_page">ネットイースアーティストページ</string>
-    <string name="player_netease_album_page">ネットイースアルバムページ</string>
+    <string name="player_netease_song_page">曲ページ</string>
+    <string name="player_netease_artist_page">アーティストページ</string>
+    <string name="player_netease_album_page">アルバムページ</string>
     <string name="player_no_info">利用可能な情報がありません</string>
     <string name="player_added_to_playlists">%1$d 個のプレイリストに追加しました</string>
     <string name="player_added_to_playlist_named">%1$s に追加しました</string>

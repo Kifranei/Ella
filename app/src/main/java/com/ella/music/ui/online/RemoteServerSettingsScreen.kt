@@ -37,6 +37,7 @@ import com.ella.music.data.remote.NavidromeService
 import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.data.remote.SavedRemoteServer
+import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.ui.components.ConfirmDangerDialog
 import com.ella.music.ui.components.EllaMiuixAction
 import com.ella.music.ui.components.EllaMiuixActionRow
@@ -57,7 +58,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
- * Manage multiple saved servers for a remote music [provider] (Navidrome / Emby): add, edit,
+ * Manage multiple saved servers for a remote music [provider] (Navidrome / OpenSubsonic / Emby): add, edit,
  * delete, and pick the active one. The active server backs [SettingsManager.navidromeConfig] /
  * [SettingsManager.embyConfig] used by the rest of the app.
  */
@@ -69,16 +70,24 @@ fun RemoteServerSettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val isNavidrome = provider == RemoteMusicProvider.Navidrome
-    val providerName = if (isNavidrome) {
-        stringResource(R.string.remote_source_navidrome)
-    } else {
-        stringResource(R.string.remote_source_emby)
+    val providerName = when (provider) {
+        RemoteMusicProvider.Navidrome -> stringResource(R.string.remote_source_navidrome)
+        RemoteMusicProvider.OpenSubsonic -> stringResource(R.string.remote_source_opensubsonic)
+        RemoteMusicProvider.Emby -> stringResource(R.string.remote_source_emby)
+        RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
     }
-    val servers by (if (isNavidrome) settingsManager.navidromeServers else settingsManager.embyServers)
-        .collectAsState(initial = emptyList())
-    val activeId by (if (isNavidrome) settingsManager.navidromeActiveServerId else settingsManager.embyActiveServerId)
-        .collectAsState(initial = "")
+    val servers by when (provider) {
+        RemoteMusicProvider.Navidrome -> settingsManager.navidromeServers
+        RemoteMusicProvider.OpenSubsonic -> settingsManager.openSubsonicServers
+        RemoteMusicProvider.Emby -> settingsManager.embyServers
+        RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+    }.collectAsState(initial = emptyList())
+    val activeId by when (provider) {
+        RemoteMusicProvider.Navidrome -> settingsManager.navidromeActiveServerId
+        RemoteMusicProvider.OpenSubsonic -> settingsManager.openSubsonicActiveServerId
+        RemoteMusicProvider.Emby -> settingsManager.embyActiveServerId
+        RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+    }.collectAsState(initial = "")
 
     var editorServer by remember { mutableStateOf<SavedRemoteServer?>(null) }
     var showEditor by remember { mutableStateOf(false) }
@@ -133,8 +142,12 @@ fun RemoteServerSettingsScreen(
                     cardColor = cardColor,
                     onSetActive = {
                         scope.launch {
-                            if (isNavidrome) settingsManager.setActiveNavidromeServer(server.id)
-                            else settingsManager.setActiveEmbyServer(server.id)
+                            when (provider) {
+                                RemoteMusicProvider.Navidrome -> settingsManager.setActiveNavidromeServer(server.id)
+                                RemoteMusicProvider.OpenSubsonic -> settingsManager.setActiveOpenSubsonicServer(server.id)
+                                RemoteMusicProvider.Emby -> settingsManager.setActiveEmbyServer(server.id)
+                                RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+                            }
                         }
                     },
                     onEdit = {
@@ -178,8 +191,12 @@ fun RemoteServerSettingsScreen(
             onDismiss = { pendingDelete = null },
             onConfirm = {
                 scope.launch {
-                    if (isNavidrome) settingsManager.deleteNavidromeServer(server.id)
-                    else settingsManager.deleteEmbyServer(server.id)
+                    when (provider) {
+                        RemoteMusicProvider.Navidrome -> settingsManager.deleteNavidromeServer(server.id)
+                        RemoteMusicProvider.OpenSubsonic -> settingsManager.deleteOpenSubsonicServer(server.id)
+                        RemoteMusicProvider.Emby -> settingsManager.deleteEmbyServer(server.id)
+                        RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+                    }
                 }
                 pendingDelete = null
             }
@@ -256,9 +273,14 @@ private fun RemoteServerEditorSheet(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val navidromeService = remember(context) { NavidromeService(context) }
     val embyService = remember(context) { EmbyService(context) }
-    val isNavidrome = provider == RemoteMusicProvider.Navidrome
+    val isSubsonicLike = provider.isSubsonicLike
     val providerName = stringResource(
-        if (isNavidrome) R.string.remote_source_navidrome else R.string.remote_source_emby
+        when (provider) {
+            RemoteMusicProvider.Navidrome -> R.string.remote_source_navidrome
+            RemoteMusicProvider.OpenSubsonic -> R.string.remote_source_opensubsonic
+            RemoteMusicProvider.Emby -> R.string.remote_source_emby
+            RemoteMusicProvider.Lx -> error("Unsupported remote server provider: ${provider.id}")
+        }
     )
 
     var name by remember(existing) { mutableStateOf(existing?.name.orEmpty()) }
@@ -305,12 +327,16 @@ private fun RemoteServerEditorSheet(
                                     trimmedUrl.substringAfter("://").substringBefore('/').ifBlank { trimmedUrl }
                                 }
                                 runCatching {
-                                    if (isNavidrome) {
+                                    if (isSubsonicLike) {
                                         val config = RemoteMusicSourceConfig(provider, trimmedUrl, user.trim(), password)
                                         navidromeService.test(config)
-                                        settingsManager.upsertNavidromeServer(
-                                            SavedRemoteServer(id = id, name = displayName, config = config)
-                                        )
+                                        val server = SavedRemoteServer(id = id, name = displayName, config = config)
+                                        when (provider) {
+                                            RemoteMusicProvider.Navidrome -> settingsManager.upsertNavidromeServer(server)
+                                            RemoteMusicProvider.OpenSubsonic -> settingsManager.upsertOpenSubsonicServer(server)
+                                            RemoteMusicProvider.Emby,
+                                            RemoteMusicProvider.Lx -> error("Unsupported Subsonic-like provider: ${provider.id}")
+                                        }
                                     } else {
                                         val login = embyService.login(trimmedUrl, user.trim(), password)
                                         val config = RemoteMusicSourceConfig(
@@ -321,9 +347,14 @@ private fun RemoteServerEditorSheet(
                                             userId = login.userId,
                                             serverName = login.serverName
                                         )
-                                        settingsManager.upsertEmbyServer(
-                                            SavedRemoteServer(id = id, name = displayName, config = config)
-                                        )
+                                        when (provider) {
+                                            RemoteMusicProvider.Emby -> settingsManager.upsertEmbyServer(
+                                                SavedRemoteServer(id = id, name = displayName, config = config)
+                                            )
+                                            RemoteMusicProvider.Lx,
+                                            RemoteMusicProvider.Navidrome,
+                                            RemoteMusicProvider.OpenSubsonic -> error("Unsupported provider for Emby login path: ${provider.id}")
+                                        }
                                     }
                                 }.onSuccess {
                                     Toast.makeText(

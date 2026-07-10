@@ -15,6 +15,19 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.absoluteValue
 
+data class SubsonicPlaylistSnapshot(
+    val id: String,
+    val name: String,
+    val songs: List<Song>,
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
+)
+
+data class SubsonicLibraryCollections(
+    val favoriteSongs: List<Song>,
+    val playlists: List<SubsonicPlaylistSnapshot>
+)
+
 class NavidromeService(private val context: Context) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
@@ -90,6 +103,64 @@ class NavidromeService(private val context: Context) {
         count: Int
     ): List<RemoteOnlineSong> = withContext(Dispatchers.IO) {
         fetchAllSongsPage(config, offset.coerceAtLeast(0), count.coerceAtLeast(1))
+    }
+
+    /** Reads the server-owned playlists and starred songs through the Subsonic REST API. */
+    suspend fun loadCollections(config: RemoteMusicSourceConfig): SubsonicLibraryCollections =
+        withContext(Dispatchers.IO) {
+            val favoriteSongs = runCatching { fetchStarredSongs(config) }.getOrDefault(emptyList())
+            val playlists = runCatching { fetchPlaylists(config) }.getOrDefault(emptyList())
+            SubsonicLibraryCollections(favoriteSongs = favoriteSongs, playlists = playlists)
+        }
+
+    suspend fun setFavorite(config: RemoteMusicSourceConfig, songId: String, favorite: Boolean) =
+        withContext(Dispatchers.IO) {
+            require(songId.isNotBlank()) { "Missing remote song id" }
+            request(config, if (favorite) "star" else "unstar", mapOf("id" to songId))
+        }
+
+    private fun fetchStarredSongs(config: RemoteMusicSourceConfig): List<Song> {
+        // OpenSubsonic servers may expose either the newer getStarred2 payload or the legacy
+        // getStarred endpoint, so use the latter only as a compatibility fallback.
+        val root = runCatching { request(config, "getStarred2") }
+            .getOrElse { request(config, "getStarred") }
+        val response = root.optJSONObject("subsonic-response")
+        val starred = response?.optJSONObject("starred2") ?: response?.optJSONObject("starred")
+        val entries = starred?.optJSONArray("song") ?: return emptyList()
+        return List(entries.length()) { index ->
+            songFromJson(entries.getJSONObject(index), config).song
+        }
+    }
+
+    private fun fetchPlaylists(config: RemoteMusicSourceConfig): List<SubsonicPlaylistSnapshot> {
+        val root = request(config, "getPlaylists")
+        val headers = root.optJSONObject("subsonic-response")
+            ?.optJSONObject("playlists")
+            ?.optJSONArray("playlist")
+            ?: return emptyList()
+        return List(headers.length()) { index ->
+            headers.getJSONObject(index)
+        }.mapNotNull { header ->
+            val playlistId = header.optString("id").trim()
+            if (playlistId.isBlank()) return@mapNotNull null
+            val detail = request(config, "getPlaylist", mapOf("id" to playlistId))
+                .optJSONObject("subsonic-response")
+                ?.optJSONObject("playlist")
+                ?: return@mapNotNull null
+            val entries = detail.optJSONArray("entry") ?: detail.optJSONArray("song")
+            val songs = if (entries == null) {
+                emptyList()
+            } else {
+                List(entries.length()) { entryIndex ->
+                    songFromJson(entries.getJSONObject(entryIndex), config).song
+                }
+            }
+            SubsonicPlaylistSnapshot(
+                id = playlistId,
+                name = detail.optString("name").ifBlank { header.optString("name") }.ifBlank { playlistId },
+                songs = songs
+            )
+        }
     }
 
     private fun fetchAllSongsPage(
@@ -186,13 +257,15 @@ class NavidromeService(private val context: Context) {
     }
 
     fun resolvePlayableSong(item: RemoteOnlineSong): Song =
-        item.song.copy(path = item.streamUrl, coverUrl = item.coverUrl, onlineSource = RemoteMusicProvider.Navidrome.id)
+        item.song.copy(path = item.streamUrl, coverUrl = item.coverUrl, onlineSource = item.provider.id)
 
     private fun songFromJson(item: JSONObject, config: RemoteMusicSourceConfig): RemoteOnlineSong {
         val id = item.optString("id")
         val title = item.optString("title").ifBlank { context.getString(R.string.common_unknown) }
         val artist = item.optString("artist").ifBlank { context.getString(R.string.player_unknown_artist) }
-        val album = item.optString("album").ifBlank { "Navidrome" }
+        val album = item.optString("album").ifBlank {
+            if (config.provider == RemoteMusicProvider.OpenSubsonic) "OpenSubsonic" else "Navidrome"
+        }
         val durationMs = item.optLong("duration", 0L).coerceAtLeast(0L) * 1000L
         val suffix = item.optString("suffix").ifBlank { "mp3" }
         val stream = endpoint(config, "stream", mapOf("id" to id))
@@ -207,7 +280,7 @@ class NavidromeService(private val context: Context) {
         }
         return RemoteOnlineSong(
             song = Song(
-                id = stableId("navidrome:$id"),
+                id = stableId("${config.provider.id}:$id"),
                 title = title,
                 artist = artist,
                 album = album,
@@ -224,10 +297,10 @@ class NavidromeService(private val context: Context) {
                 genre = genre,
                 year = year,
                 coverUrl = cover,
-                onlineSource = RemoteMusicProvider.Navidrome.id,
+                onlineSource = config.provider.id,
                 onlineId = id
             ),
-            provider = RemoteMusicProvider.Navidrome,
+            provider = config.provider,
             remoteId = id,
             streamUrl = stream,
             coverUrl = cover

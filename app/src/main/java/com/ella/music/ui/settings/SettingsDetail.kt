@@ -56,6 +56,7 @@ fun SettingsDetailScreen(
     highlightKey: String? = null,
     onNavigateToScanFolders: (() -> Unit)? = null,
     onNavigateToNavidromeConfig: (() -> Unit)? = null,
+    onNavigateToOpenSubsonicConfig: (() -> Unit)? = null,
     onNavigateToEmbyConfig: (() -> Unit)? = null,
     onNavigateToWebDavConfig: (() -> Unit)? = null,
     onNavigateToLyricPluginSources: () -> Unit = {},
@@ -223,6 +224,7 @@ fun SettingsDetailScreen(
                         highlightKey = highlightKey,
                         onOpenScanFolders = onNavigateToScanFolders,
                         onOpenNavidromeConfig = onNavigateToNavidromeConfig,
+                        onOpenOpenSubsonicConfig = onNavigateToOpenSubsonicConfig,
                         onOpenEmbyConfig = onNavigateToEmbyConfig,
                         onOpenWebDavConfig = onNavigateToWebDavConfig,
                         mainViewModel = mainViewModel

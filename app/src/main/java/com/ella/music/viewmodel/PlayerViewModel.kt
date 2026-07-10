@@ -14,6 +14,7 @@ import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.parser.EllaLyricsParser
+import com.ella.music.data.remote.OpenSubsonicCollectionsStore
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.player.DesktopLyricBridge
@@ -66,6 +67,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val superLyricBridge = SuperLyricBridge()
     val lyricGetterBridge = LyricGetterBridge(application)
     private val playlistStore = PlaylistStore.getInstance(application)
+    private val openSubsonicCollectionsStore = OpenSubsonicCollectionsStore.getInstance(application)
     private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
     private val playbackStatsTracker = PlayerPlaybackStatsTracker(playbackStatsStore)
     private val lazyOnlineQueueController = PlayerLazyOnlineQueueController(viewModelScope, playerManager)
@@ -80,14 +82,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val playbackPitch: StateFlow<Float> = playerManager.playbackPitch
     val playlist: StateFlow<List<Song>> = playerManager.playlistFlow
     val userPlaylists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
-    val favoriteSongKeys: StateFlow<Set<String>> = playlistStore.playlists
-        .map { playlists ->
+    val favoriteSongKeys: StateFlow<Set<String>> = combine(
+        playlistStore.playlists.map { playlists ->
             playlists
                 .firstOrNull { it.isFavorites }
                 ?.songs
                 ?.mapTo(mutableSetOf()) { it.key }
                 ?: emptySet()
-        }
+        },
+        openSubsonicCollectionsStore.favoriteSongKeys
+    ) { localFavorites, remoteFavorites ->
+        localFavorites + remoteFavorites
+    }
         .stateIn(viewModelScope, SharingStarted.Eagerly, playlistStore.favoriteSongKeys())
 
     private val _rawLyrics = MutableStateFlow<List<LyricLine>>(emptyList())
@@ -1374,7 +1380,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleCurrentSongFavorite() {
         val song = currentSong.value ?: return
-        viewModelScope.launch { playlistStore.toggleFavorite(song) }
+        viewModelScope.launch {
+            if (openSubsonicCollectionsStore.isManagedFavorite(song)) {
+                runCatching { openSubsonicCollectionsStore.toggleFavorite(song) }
+            } else {
+                playlistStore.toggleFavorite(song)
+            }
+        }
     }
 
     fun isFavorite(song: Song?): Boolean =

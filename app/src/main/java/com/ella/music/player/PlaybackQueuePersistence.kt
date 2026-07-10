@@ -160,13 +160,32 @@ private data class ParsedQueueWindow(
 
 private fun JsonReader.readPlaybackQueueSongWindow(targetIndex: Int): ParsedQueueWindow {
     val safeTarget = targetIndex.coerceAtLeast(0)
-    val start = (safeTarget - MAX_PERSISTED_PLAYBACK_QUEUE / 2).coerceAtLeast(0)
-    val endExclusive = start + MAX_PERSISTED_PLAYBACK_QUEUE
-    val songs = ArrayList<Song>(MAX_PERSISTED_PLAYBACK_QUEUE)
+    if (safeTarget >= LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
+        val start = (safeTarget - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE / 2).coerceAtLeast(0)
+        val endExclusive = start + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE
+        val songs = ArrayList<Song>(LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE)
+        var index = 0
+        beginArray()
+        while (hasNext()) {
+            if (index in start until endExclusive) {
+                readPlaybackQueueSongOrNull()?.let(songs::add)
+            } else {
+                skipValue()
+            }
+            index++
+        }
+        endArray()
+        return ParsedQueueWindow(songs, start)
+    }
+
+    // Keep the whole queue for normal libraries. Read just enough extra entries to form a safe
+    // window if the stored payload turns out to exceed the large-library threshold.
+    val prefixLimit = LARGE_LIBRARY_SAFE_MODE_THRESHOLD + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE / 2
+    val songs = ArrayList<Song>(prefixLimit)
     var index = 0
     beginArray()
     while (hasNext()) {
-        if (index in start until endExclusive) {
+        if (index < prefixLimit) {
             readPlaybackQueueSongOrNull()?.let(songs::add)
         } else {
             skipValue()
@@ -174,7 +193,15 @@ private fun JsonReader.readPlaybackQueueSongWindow(targetIndex: Int): ParsedQueu
         index++
     }
     endArray()
-    return ParsedQueueWindow(songs, start)
+    if (index <= LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
+        return ParsedQueueWindow(songs, indexOffset = 0)
+    }
+    val start = (safeTarget - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE / 2)
+        .coerceIn(0, (index - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE).coerceAtLeast(0))
+    return ParsedQueueWindow(
+        songs = songs.subList(start, minOf(start + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE, songs.size)).toList(),
+        indexOffset = start
+    )
 }
 
 private fun JsonReader.readPlaybackQueueSongOrNull(): Song? {
@@ -319,5 +346,3 @@ private fun JsonReader.nextBooleanSafe(default: Boolean = false): Boolean =
             default
         }
     }
-
-private const val MAX_PERSISTED_PLAYBACK_QUEUE = 1000

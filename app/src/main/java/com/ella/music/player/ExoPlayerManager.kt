@@ -368,13 +368,14 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     /**
-     * Cap the queue handed to the media session so it never overflows the Binder transaction limit
-     * on pathologically large libraries; play a window centered on the chosen song instead.
+     * Keep normal multi-thousand-song queues intact. Only very large libraries are reduced to a
+     * small controller window to stay below the MediaSession Binder transaction limit.
      */
     private fun List<Song>.windowedForController(index: Int): Pair<List<Song>, Int> {
-        if (size <= MAX_CONTROLLER_QUEUE) return this to index
-        val from = (index - MAX_CONTROLLER_QUEUE / 2).coerceIn(0, size - MAX_CONTROLLER_QUEUE)
-        return subList(from, from + MAX_CONTROLLER_QUEUE).toList() to (index - from)
+        if (size <= LARGE_LIBRARY_SAFE_MODE_THRESHOLD) return this to index
+        val from = (index - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE / 2)
+            .coerceIn(0, size - LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE)
+        return subList(from, from + LARGE_LIBRARY_SAFE_MODE_QUEUE_SIZE).toList() to (index - from)
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
@@ -407,9 +408,8 @@ class ExoPlayerManager(private val context: Context) {
         artworkAppliedSongKey = null
         clearBluetoothMetadataPatchState()
         rememberCurrentSongResumePosition()
-        // The whole queue is shipped to the playback service over Binder (~1MB transaction limit);
-        // a 60k-song library overflows it and crashes with TransactionTooLargeException. For
-        // pathologically large queues, play a window around the chosen song instead of everything.
+        // The whole queue is shipped to the playback service over Binder (~1MB transaction limit).
+        // Libraries above the safe-mode threshold are reduced to a window around the chosen song.
         val prepared = preparePlaybackQueue(songs, requestedIndex, honorShuffle)
         val queueSongs = prepared.songs
         val safeIndex = prepared.startIndex
@@ -473,8 +473,8 @@ class ExoPlayerManager(private val context: Context) {
             .shuffled(Random(shuffleSeed))
         val shuffledQueue = listOf(currentSong) + shuffledSongs
 
-        // Keep the original-order controller window so turning shuffle off never tries to send a
-        // huge source library through the media-session Binder transaction.
+        // Keep the original-order controller queue so turning shuffle off never tries to send a
+        // pathologically large source library through the media-session Binder transaction.
         val (sourceWindow, _) = songs.windowedForController(requestedIndex)
         val (queueSongs, safeIndex) = shuffledQueue.windowedForController(0)
         return PreparedPlaybackQueue(queueSongs, safeIndex, sourceWindow)
@@ -521,22 +521,17 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun addToPlaylist(song: Song) {
-        virtualPlaylistCurrentIndex = null
-        clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
-        resetPlayNextForwardStack()
-        AppLogStore.debug(context, "PlayerQueue", "add title=${song.title}")
-        val item = songToMediaItem(song)
-        playlist.add(song)
-        _playlist.value = playlist.toList()
-        mediaController?.addMediaItem(item)
-        if ((mediaController?.mediaItemCount ?: 0) == 1) {
-            mediaController?.prepare()
-        }
-        savePlaybackQueue(force = true)
+        addToPlaylist(listOf(song))
     }
 
     fun addToPlaylist(songs: List<Song>) {
         if (songs.isEmpty()) return
+        val combined = playlist + songs
+        if (combined.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
+            val currentIndex = currentQueueIndex(mediaController).coerceAtLeast(0).coerceIn(combined.indices)
+            setPlaylist(combined, currentIndex, honorShuffle = false)
+            return
+        }
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
@@ -556,10 +551,16 @@ class ExoPlayerManager(private val context: Context) {
 
     fun playNext(songs: List<Song>) {
         if (songs.isEmpty()) return
-        virtualPlaylistCurrentIndex = null
-        clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         val controller = mediaController
         val insertIndex = playNextInsertIndex(controller, songs.size)
+        if (playlist.size + songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
+            val combined = playlist.toMutableList().apply { addAll(insertIndex, songs) }
+            val currentIndex = currentQueueIndex(controller).coerceAtLeast(0).coerceIn(combined.indices)
+            setPlaylist(combined, currentIndex, honorShuffle = false)
+            return
+        }
+        virtualPlaylistCurrentIndex = null
+        clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         AppLogStore.debug(context, "PlayerQueue", "playNextMany size=${songs.size} index=$insertIndex mode=$playNextMode")
         playlist.addAll(insertIndex, songs)
         _playlist.value = playlist.toList()
@@ -1811,7 +1812,7 @@ class ExoPlayerManager(private val context: Context) {
         persistAppShuffleEnabled(saved.shuffle)
         _playbackSpeed.value = saved.speed
         _playbackPitch.value = saved.pitch
-        if (saved.songs.size > MAX_CONTROLLER_QUEUE) savePlaybackQueue(force = true)
+        if (saved.songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) savePlaybackQueue(force = true)
     }
 
     private fun savePlaybackQueue(force: Boolean = false) {
@@ -1931,9 +1932,6 @@ class ExoPlayerManager(private val context: Context) {
         const val RESUME_POSITION_END_GUARD_MS = 8_000L
         const val MAX_RESUME_POSITION_ENTRIES = 256
         const val CLEAR_EXTERNAL_SNAPSHOT_SUPPRESSION_MS = 3_000L
-        // Max items handed to the media session at once; larger queues overflow the ~1MB Binder
-        // transaction limit (TransactionTooLargeException) on very large libraries.
-        const val MAX_CONTROLLER_QUEUE = 1000
         const val EXTRA_ONLINE_SOURCE = "com.ella.music.extra.ONLINE_SOURCE"
         const val EXTRA_ONLINE_ID = "com.ella.music.extra.ONLINE_ID"
         const val EXTRA_SONG_JSON = "com.ella.music.extra.SONG_JSON"

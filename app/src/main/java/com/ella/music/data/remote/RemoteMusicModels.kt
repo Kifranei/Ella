@@ -7,6 +7,7 @@ import org.json.JSONObject
 enum class RemoteMusicProvider(val id: String) {
     Lx("lx"),
     Navidrome("navidrome"),
+    OpenSubsonic("opensubsonic"),
     Emby("emby");
 
     companion object {
@@ -14,6 +15,9 @@ enum class RemoteMusicProvider(val id: String) {
             entries.firstOrNull { it.id == id } ?: Lx
     }
 }
+
+val RemoteMusicProvider.isSubsonicLike: Boolean
+    get() = this == RemoteMusicProvider.Navidrome || this == RemoteMusicProvider.OpenSubsonic
 
 data class RemoteMusicSourceConfig(
     val provider: RemoteMusicProvider,
@@ -26,7 +30,8 @@ data class RemoteMusicSourceConfig(
 ) {
     val isConfigured: Boolean
         get() = baseUrl.isNotBlank() && when (provider) {
-            RemoteMusicProvider.Navidrome -> username.isNotBlank() && (password.isNotBlank() || token.isNotBlank())
+            RemoteMusicProvider.Navidrome,
+            RemoteMusicProvider.OpenSubsonic -> username.isNotBlank() && (password.isNotBlank() || token.isNotBlank())
             RemoteMusicProvider.Emby -> token.isNotBlank() && userId.isNotBlank()
             RemoteMusicProvider.Lx -> false
         }

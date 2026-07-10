@@ -27,6 +27,7 @@ import com.ella.music.data.metadata.AudioTagInfo
 import com.ella.music.data.metadata.AudioCoverInfo
 import com.ella.music.data.model.UserPlaylist
 import com.ella.music.data.model.albumIdentityId
+import com.ella.music.data.remote.OpenSubsonicCollectionsStore
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicScanSummary
 import com.ella.music.data.repository.MusicRepository
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
@@ -51,6 +53,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val settingsManager = SettingsManager.getInstance(application)
     private val artistCoverRepository = ArtistCoverRepository.getInstance(application)
     private val playlistStore = PlaylistStore.getInstance(application)
+    private val openSubsonicCollectionsStore = OpenSubsonicCollectionsStore.getInstance(application)
     private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
     private val aiCoordinator = MainViewModelAiCoordinator(getApplication(), settingsManager, repository)
     private val neteaseLinkResolver = MainNeteaseLinkResolver(
@@ -82,7 +85,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun removePlaybackHistoryEntry(entry: PlaybackHistoryEntry) {
         playbackStatsStore.removeHistoryEntry(entry)
     }
-    val playlists: StateFlow<List<UserPlaylist>> = playlistStore.playlists
+    val playlists: StateFlow<List<UserPlaylist>> = combine(
+        playlistStore.playlists,
+        openSubsonicCollectionsStore.playlists
+    ) { localPlaylists, remotePlaylists ->
+        localPlaylists + remotePlaylists
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, playlistStore.playlists.value)
     private val _libraryCacheLoaded = MutableStateFlow(false)
     val libraryCacheLoaded: StateFlow<Boolean> = _libraryCacheLoaded.asStateFlow()
     private val _ratingRevision = MutableStateFlow(0)
@@ -143,6 +151,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } finally {
             repository.finishScanning()
         }
+        openSubsonicCollectionsStore.refreshForLibrarySource(source)
         repository.emitScanSummary(summary)
         _libraryCacheLoaded.value = true
         preloadLibrarySearchSnapshot()
@@ -295,6 +304,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 repository.loadCachedLibrary()
             }
+            openSubsonicCollectionsStore.refreshForLibrarySource(source)
             _libraryCacheLoaded.value = true
             preloadLibrarySearchSnapshot()
         }
