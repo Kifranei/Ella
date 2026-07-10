@@ -90,6 +90,8 @@ data class MusicScanSummary(
 
 class MusicRepository(private val context: Context) {
     companion object {
+        private const val WEBDAV_EAGER_METADATA_LIMIT = 300
+
         @Volatile
         private var instance: MusicRepository? = null
 
@@ -621,11 +623,21 @@ class MusicRepository(private val context: Context) {
                 if (item.isDirectory) {
                     pending.add(item.url)
                 } else if (WebDavClient.isAudioFile(item.name)) {
-                    songs += item.toWebDavLibrarySong().withRepositoryTags(allowFullDownload = false)
+                    songs += item.toWebDavLibrarySong()
                 }
             }
         }
-        return songs
+        return if (songs.size <= WEBDAV_EAGER_METADATA_LIMIT) {
+            songs.map { it.withRepositoryTags(allowFullDownload = false) }
+        } else {
+            songs.map { song ->
+                if (song.webDavHeaderCacheFile().let { it.exists() && it.length() > 0L }) {
+                    song.withRepositoryTags(allowFullDownload = false)
+                } else {
+                    song.withFinalLibraryFallbacks()
+                }
+            }
+        }
     }
 
     private fun com.ella.music.data.webdav.WebDavItem.toWebDavLibrarySong(): Song {
