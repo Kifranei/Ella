@@ -218,6 +218,19 @@ fun LxOnlineScreen(
         }
     }
 
+    fun resolveRemoteDownloadSong(item: RemoteOnlineSong): Song {
+        val sourceConfig = when (item.provider) {
+            RemoteMusicProvider.Navidrome -> navidromeConfig
+            RemoteMusicProvider.OpenSubsonic -> openSubsonicConfig
+            else -> return if (item.provider == RemoteMusicProvider.Emby) {
+                embyService.resolvePlayableSong(item)
+            } else {
+                item.song
+            }
+        }
+        return navidromeService.resolveDownloadableSong(item, sourceConfig)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -392,7 +405,7 @@ fun LxOnlineScreen(
                                 scope.launch {
                                     state.isBusy = true
                                     runCatching {
-                                        enqueueDownload(context, resolveActionRemoteSong(item))
+                                        enqueueDownload(context, resolveRemoteDownloadSong(item))
                                         showToast(context.getString(R.string.player_download_started))
                                     }.onFailure {
                                         state.message = it.localizedMessage ?: context.getString(R.string.lx_online_download_failed)

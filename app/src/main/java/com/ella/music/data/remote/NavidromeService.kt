@@ -349,6 +349,13 @@ class NavidromeService(private val context: Context) {
     fun resolvePlayableSong(item: RemoteOnlineSong): Song =
         item.song.copy(path = item.streamUrl, coverUrl = item.coverUrl, onlineSource = item.provider.id)
 
+    fun resolveDownloadableSong(item: RemoteOnlineSong, config: RemoteMusicSourceConfig): Song =
+        item.song.copy(
+            path = streamUrl(config, item.remoteId, config.downloadMaxBitRate),
+            coverUrl = item.coverUrl,
+            onlineSource = item.provider.id
+        )
+
     fun streamUrl(config: RemoteMusicSourceConfig, songId: String, maxBitRate: Int = config.streamMaxBitRate): String =
         endpoint(
             config,
