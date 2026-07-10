@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.NeteaseArtist
+import com.ella.music.data.model.formatPlaybackDuration
 import com.ella.music.ui.components.SafeCoverImage
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.window.WindowBottomSheet
@@ -177,8 +178,12 @@ internal fun PlayerDetailGroupedActionRow(
 internal fun PlayerDetailDualInfoCard(
     year: String,
     yearSongCount: Int,
+    yearDuration: Long,
     genre: String,
-    genreSongCount: Int
+    genreSongCount: Int,
+    genreDuration: Long,
+    onYearClick: () -> Unit,
+    onGenreClick: () -> Unit
 ) {
     if (year.isBlank() && genre.isBlank()) return
     Row(
@@ -193,7 +198,8 @@ internal fun PlayerDetailDualInfoCard(
             PlayerDetailStaticInfo(
                 label = stringResource(R.string.player_detail_year),
                 value = year,
-                summary = stringResource(R.string.player_detail_song_count, yearSongCount),
+                summary = stringResource(R.string.player_detail_song_count_duration, yearSongCount, yearDuration.formatPlaybackDuration()),
+                onClick = onYearClick,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -201,7 +207,8 @@ internal fun PlayerDetailDualInfoCard(
             PlayerDetailStaticInfo(
                 label = stringResource(R.string.player_detail_genre),
                 value = genre,
-                summary = stringResource(R.string.player_detail_song_count, genreSongCount),
+                summary = stringResource(R.string.player_detail_song_count_duration, genreSongCount, genreDuration.formatPlaybackDuration()),
+                onClick = onGenreClick,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -213,9 +220,15 @@ private fun PlayerDetailStaticInfo(
     label: String,
     value: String,
     summary: String,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
+            .padding(2.dp)
+    ) {
         Text(
             text = label,
             color = LocalPlayerContentColor.current.copy(alpha = 0.92f),

@@ -7,10 +7,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -223,30 +226,48 @@ internal fun PlaylistDetailEmptyState(
 @Composable
 internal fun PlaylistDetailReorderHandle(
     isDragging: Boolean,
+    draggedSelectionCount: Int? = null,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                if (isDragging) {
-                    MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
-                } else {
-                    Color.Transparent
-                }
-            ),
-        contentAlignment = Alignment.Center
+    Row(
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "\u2630",
-            fontSize = 16.sp,
-            color = if (isDragging) {
-                MiuixTheme.colorScheme.primary
-            } else {
-                MiuixTheme.colorScheme.onSurfaceVariantSummary
-            }
-        )
+        draggedSelectionCount?.let { count ->
+            Text(
+                text = stringResource(R.string.playlist_drag_selection_count, count),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = MiuixTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(MiuixTheme.colorScheme.primary)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Box(
+            modifier = modifier
+                .size(32.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    if (isDragging) {
+                        MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    } else {
+                        Color.Transparent
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "\u2630",
+                fontSize = 16.sp,
+                color = if (isDragging) {
+                    MiuixTheme.colorScheme.primary
+                } else {
+                    MiuixTheme.colorScheme.onSurfaceVariantSummary
+                }
+            )
+        }
     }
 }
 

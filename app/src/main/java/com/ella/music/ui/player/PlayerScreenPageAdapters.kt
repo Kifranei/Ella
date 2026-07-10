@@ -703,6 +703,8 @@ internal fun DetailPageContent(
         onArtist = { name -> onNavigateToArtist(name) },
         onComposer = { name -> onNavigateToMetadataCategory("composer", name) },
         onLyricist = { name -> onNavigateToMetadataCategory("lyricist", name) },
+        onYear = { year -> onNavigateToMetadataCategory("year", year) },
+        onGenre = { genre -> onNavigateToMetadataCategory("genre", genre) },
         onNeteaseSong = { openNetease(neteaseInfo?.musicId?.takeIf { it.isNotBlank() }?.let(::neteaseSongUrl)) },
         onNeteaseArtist = { id -> openNetease(neteaseArtistUrl(id)) },
         onNeteaseAlbum = { openNetease(neteaseInfo?.albumId?.takeIf { it.isNotBlank() }?.let(::neteaseAlbumUrl)) },

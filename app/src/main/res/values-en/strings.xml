@@ -964,8 +964,8 @@
     <string name="settings_min_duration_filter">Minimum duration filter</string>
     <string name="settings_min_duration_filter_summary">Filter audio files shorter than %1$d seconds</string>
     <string name="settings_seconds_value">%1$d sec</string>
-    <string name="settings_artist_separators">Custom artist separators</string>
-    <string name="settings_artist_separators_summary">One per line; for example /, feat., &amp;</string>
+    <string name="settings_artist_separators">Custom artist and credit separators</string>
+    <string name="settings_artist_separators_summary">One per line; applies to artists, composers, and lyricists, for example /, feat., &amp;</string>
     <string name="settings_artist_protected_names">Protected artist names</string>
     <string name="settings_artist_protected_names_summary">One per line; these names are protected before separator splitting</string>
     <string name="settings_genre_separators">Custom genre separators</string>
@@ -1163,6 +1163,7 @@
     <string name="player_detail_person_summary">%1$d songs · %2$s · %3$d albums</string>
     <string name="player_detail_album_summary">%1$d songs · %2$s · %3$s</string>
     <string name="player_detail_song_count">%1$d songs</string>
+    <string name="player_detail_song_count_duration">%1$d songs · %2$s</string>
     <string name="player_no_info">No available info</string>
     <string name="player_added_to_playlists">Added to %1$d playlists</string>
     <string name="player_added_to_playlist_named">Added to %1$s</string>

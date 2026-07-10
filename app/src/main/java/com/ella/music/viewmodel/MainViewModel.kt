@@ -104,7 +104,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
 
     init {
-        viewModelScope.launchNameSplitConfigObservers(settingsManager)
+        viewModelScope.launchNameSplitConfigObservers(settingsManager) {
+            metadataCategoryItemsCache.clear()
+        }
     }
 
     fun selectTab(index: Int) {

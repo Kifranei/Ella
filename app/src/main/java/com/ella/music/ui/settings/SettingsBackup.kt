@@ -162,6 +162,7 @@ fun BackupSettingsScreen(
                 }
                 pendingImportSource = BackupImportSource.LocalFile
                 pendingImportRoot = root
+                importTypeSelection = root.availableBackupTypes()
                 showImportTypeSheet = true
             }.onFailure {
                 Toast.makeText(context, context.getString(R.string.settings_backup_restore_failed), Toast.LENGTH_SHORT).show()
@@ -490,6 +491,7 @@ fun BackupSettingsScreen(
                             withContext(Dispatchers.IO) { tempFile.delete() }
                             pendingImportSource = BackupImportSource.WebDav
                             pendingImportRoot = root
+                            importTypeSelection = root.availableBackupTypes()
                             showImportTypeSheet = true
                         }.onSuccess {
                         }.onFailure {
@@ -528,6 +530,7 @@ fun BackupSettingsScreen(
             pendingImportSource = BackupImportSource.LocalFile
         },
         initialSelected = importTypeSelection,
+        availableTypes = pendingImportRoot?.availableBackupTypes().orEmpty(),
         onConfirm = { selectedTypes ->
             importTypeSelection = selectedTypes
             val root = pendingImportRoot

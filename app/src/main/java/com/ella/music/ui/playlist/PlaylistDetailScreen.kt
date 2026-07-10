@@ -120,6 +120,7 @@ fun PlaylistDetailScreen(
     var manualOrder by remember(playlist?.id) { mutableStateOf(songs) }
     var selectionMode by remember { mutableStateOf(false) }
     var selectedSongKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var draggedSongKey by remember { mutableStateOf<String?>(null) }
     var rangeAnchorSongKey by remember { mutableStateOf<String?>(null) }
     var rangeTargetSongKey by remember { mutableStateOf<String?>(null) }
     val sortedSongs = remember(songs, sortMode) { songs.sortedForPlaylistDetail(sortMode) }
@@ -129,6 +130,7 @@ fun PlaylistDetailScreen(
     LaunchedEffect(playlist?.id) {
         selectionMode = false
         selectedSongKeys = emptySet()
+        draggedSongKey = null
     }
     val reorderEnabled = !isRemotePlaylist &&
         playlist?.isFiveStarRating != true &&
@@ -142,6 +144,27 @@ fun PlaylistDetailScreen(
             baseSongs
         } else {
             mainViewModel.filterSongsBySearchSnapshot(baseSongs, query)
+        }
+    }
+    val draggedSelectionKeys = remember(draggedSongKey, selectedSongKeys, displayedSongs) {
+        val draggedKey = draggedSongKey
+        if (draggedKey == null || draggedKey !in selectedSongKeys) {
+            emptySet()
+        } else {
+            displayedSongs
+                .map { it.playlistIdentityKey() }
+                .filterTo(mutableSetOf()) { it in selectedSongKeys }
+        }
+    }
+    // A multi-selection has one physical drag target; its hidden siblings move with it.
+    val reorderableSongs = remember(displayedSongs, draggedSongKey, draggedSelectionKeys) {
+        if (draggedSelectionKeys.size <= 1) {
+            displayedSongs
+        } else {
+            displayedSongs.filter { song ->
+                val key = song.playlistIdentityKey()
+                key == draggedSongKey || key !in draggedSelectionKeys
+            }
         }
     }
     val songListHeaderCount = 2
@@ -163,8 +186,16 @@ fun PlaylistDetailScreen(
         lazyListState = listState,
         onMove = { from, to ->
             if (!reorderHandlesVisible) return@rememberReorderableLazyListState
-            val fromSongIndex = from.index - songListHeaderCount
-            val toSongIndex = to.index - songListHeaderCount
+            val fromSong = reorderableSongs.getOrNull(from.index - songListHeaderCount)
+                ?: return@rememberReorderableLazyListState
+            val toSong = reorderableSongs.getOrNull(to.index - songListHeaderCount)
+                ?: return@rememberReorderableLazyListState
+            val fromSongIndex = manualOrder.indexOfFirst {
+                it.playlistIdentityKey() == fromSong.playlistIdentityKey()
+            }
+            val toSongIndex = manualOrder.indexOfFirst {
+                it.playlistIdentityKey() == toSong.playlistIdentityKey()
+            }
             if (fromSongIndex !in manualOrder.indices || toSongIndex !in manualOrder.indices) return@rememberReorderableLazyListState
             manualOrder = manualOrder.moveSelectedItemsAsBlock(
                 from = fromSongIndex,
@@ -177,6 +208,7 @@ fun PlaylistDetailScreen(
     fun finishSelectionMode() {
         selectionMode = false
         selectedSongKeys = emptySet()
+        draggedSongKey = null
         rangeAnchorSongKey = null
         rangeTargetSongKey = null
     }
@@ -445,7 +477,7 @@ fun PlaylistDetailScreen(
                     )
                 }
             } else {
-                itemsIndexed(displayedSongs, key = { _, song -> song.playlistIdentityKey() }) { index, song ->
+                itemsIndexed(reorderableSongs, key = { _, song -> song.playlistIdentityKey() }) { index, song ->
                     ReorderableItem(
                         state = reorderableLazyListState,
                         key = song.playlistIdentityKey()
@@ -458,10 +490,16 @@ fun PlaylistDetailScreen(
                         }
                         val dragHandleModifier = Modifier
                             .draggableHandle(
-                                onDragStopped = ::settleManualOrder
+                                onDragStarted = { draggedSongKey = song.playlistIdentityKey() },
+                                onDragStopped = {
+                                    draggedSongKey = null
+                                    settleManualOrder()
+                                }
                             )
                             .longPressDraggableHandle(
+                                onDragStarted = { draggedSongKey = song.playlistIdentityKey() },
                                 onDragStopped = {
+                                    draggedSongKey = null
                                     settleManualOrder()
                                 }
                             )
@@ -503,12 +541,17 @@ fun PlaylistDetailScreen(
                                 }
                             },
                             onMore = { actionSong = song },
-                            leadingLabel = (index + 1).toString(),
+                            leadingLabel = (manualOrder.indexOfFirst {
+                                it.playlistIdentityKey() == song.playlistIdentityKey()
+                            } + 1).toString(),
                             leadingLabelBeforeCover = true,
                             trailingContent = if (reorderHandlesVisible) {
                                 {
                                     PlaylistDetailReorderHandle(
                                         isDragging = isDragging,
+                                        draggedSelectionCount = draggedSelectionKeys
+                                            .size
+                                            .takeIf { isDragging && song.playlistIdentityKey() == draggedSongKey && it > 1 },
                                         modifier = Modifier
                                             .then(dragHandleModifier)
                                     )

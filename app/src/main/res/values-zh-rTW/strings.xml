@@ -1053,6 +1053,12 @@
     <string name="player_netease_song_page">歌曲頁</string>
     <string name="player_netease_artist_page">藝人頁</string>
     <string name="player_netease_album_page">專輯頁</string>
+    <string name="player_detail_year">年份</string>
+    <string name="player_detail_genre">流派</string>
+    <string name="player_detail_person_summary">%1$d 首歌曲 · %2$s · %3$d 張專輯</string>
+    <string name="player_detail_album_summary">%1$d 首歌曲 · %2$s · %3$s</string>
+    <string name="player_detail_song_count">%1$d 首歌曲</string>
+    <string name="player_detail_song_count_duration">%1$d 首歌曲 · %2$s</string>
     <string name="player_no_info">無可用資訊</string>
     <string name="player_added_to_playlists">已加入 %1$d 個播放清單</string>
     <string name="player_added_to_playlist_named">已新增到 %1$s</string>

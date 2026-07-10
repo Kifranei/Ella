@@ -1033,6 +1033,12 @@
     <string name="player_netease_song_page">Titelseite</string>
     <string name="player_netease_artist_page">Künstlerseite</string>
     <string name="player_netease_album_page">Albumseite</string>
+    <string name="player_detail_year">Jahr</string>
+    <string name="player_detail_genre">Genre</string>
+    <string name="player_detail_person_summary">%1$d Titel · %2$s · %3$d Alben</string>
+    <string name="player_detail_album_summary">%1$d Titel · %2$s · %3$s</string>
+    <string name="player_detail_song_count">%1$d Titel</string>
+    <string name="player_detail_song_count_duration">%1$d Titel · %2$s</string>
     <string name="player_no_info">Keine verfügbaren Infos</string>
     <string name="player_added_to_playlists">Zu %1$d Playlists hinzugefügt</string>
     <string name="player_added_to_playlist_named">Zu %1$s hinzugefügt</string>

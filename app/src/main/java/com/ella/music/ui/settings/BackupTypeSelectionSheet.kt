@@ -80,10 +80,14 @@ internal fun BackupTypeSelectionSheet(
     confirmText: String,
     onDismiss: () -> Unit,
     onConfirm: (Set<BackupType>) -> Unit,
-    initialSelected: Set<BackupType> = BackupType.entries.toSet()
+    initialSelected: Set<BackupType> = BackupType.entries.toSet(),
+    availableTypes: Set<BackupType> = BackupType.entries.toSet()
 ) {
-    var selected by remember(show, initialSelected) { mutableStateOf(initialSelected) }
-    val allSelected = selected.size == BackupType.entries.size
+    val visibleTypes = remember(availableTypes) { BackupType.entries.filter { it in availableTypes } }
+    var selected by remember(show, initialSelected, availableTypes) {
+        mutableStateOf(initialSelected.intersect(availableTypes))
+    }
+    val allSelected = visibleTypes.isNotEmpty() && selected.size == visibleTypes.size
 
     EllaMiuixBottomSheet(
         show = show,
@@ -105,7 +109,7 @@ internal fun BackupTypeSelectionSheet(
                 BackupTypeSelectAllItem(
                     selected = allSelected,
                     onCheckedChange = { checked ->
-                        selected = if (checked) BackupType.entries.toSet() else emptySet()
+                        selected = if (checked) visibleTypes.toSet() else emptySet()
                     }
                 )
                 Box(
@@ -115,7 +119,7 @@ internal fun BackupTypeSelectionSheet(
                         .height(0.5.dp)
                         .background(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 )
-                BackupType.entries.forEach { type ->
+                visibleTypes.forEach { type ->
                     BackupTypeCheckboxItem(
                         type = type,
                         checked = type in selected,
@@ -133,8 +137,8 @@ internal fun BackupTypeSelectionSheet(
                 onConfirm = {
                     if (selected.isNotEmpty()) {
                         val confirmedSelection = selected
-                        onDismiss()
                         onConfirm(confirmedSelection)
+                        onDismiss()
                     } else {
                         onDismiss()
                     }

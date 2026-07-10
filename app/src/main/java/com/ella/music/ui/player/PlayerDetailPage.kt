@@ -27,6 +27,7 @@ import com.ella.music.R
 import com.ella.music.data.NeteaseKeyInfo
 import com.ella.music.data.matchesGenreName
 import com.ella.music.data.splitArtistNames
+import com.ella.music.data.splitGenreNames
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.SongTagInfo
 import com.ella.music.data.model.albumIdentityId
@@ -57,6 +58,8 @@ internal fun PlayerDetailPage(
     onArtist: (String) -> Unit,
     onComposer: (String) -> Unit,
     onLyricist: (String) -> Unit,
+    onYear: (String) -> Unit,
+    onGenre: (String) -> Unit,
     onNeteaseSong: () -> Unit,
     onNeteaseArtist: (String) -> Unit,
     onNeteaseAlbum: () -> Unit,
@@ -120,13 +123,16 @@ internal fun PlayerDetailPage(
         val albumId = song?.albumIdentityId() ?: 0L
         effectiveLibrarySongs.filter { it.albumIdentityId() == albumId }
     }
-    val year = song?.year.orEmpty().trim()
-    val genre = song?.genre.orEmpty().trim()
-    val yearSongCount = remember(year, effectiveLibrarySongs) {
-        effectiveLibrarySongs.count { it.year.trim().equals(year, ignoreCase = true) }
+    val year = remember(song?.year) {
+        Regex("""\d{4}""").find(song?.year.orEmpty())?.value.orEmpty()
     }
-    val genreSongCount = remember(genre, effectiveLibrarySongs) {
-        effectiveLibrarySongs.count { it.genre.matchesGenreName(genre) }
+    val genre = song?.genre.orEmpty().trim()
+    val genreCategoryName = remember(genre) { splitGenreNames(genre).firstOrNull().orEmpty() }
+    val yearSongs = remember(year, effectiveLibrarySongs) {
+        effectiveLibrarySongs.filter { it.year.trim().equals(year, ignoreCase = true) }
+    }
+    val genreSongs = remember(genre, effectiveLibrarySongs) {
+        effectiveLibrarySongs.filter { it.genre.matchesGenreName(genreCategoryName) }
     }
 
     if (showNeteaseArtistPicker) {
@@ -236,9 +242,13 @@ internal fun PlayerDetailPage(
                 item {
                     PlayerDetailDualInfoCard(
                         year = year,
-                        yearSongCount = yearSongCount,
+                        yearSongCount = yearSongs.size,
+                        yearDuration = yearSongs.sumOf { it.duration },
                         genre = genre,
-                        genreSongCount = genreSongCount
+                        genreSongCount = genreSongs.size,
+                        genreDuration = genreSongs.sumOf { it.duration },
+                        onYearClick = { onYear(year) },
+                        onGenreClick = { onGenre(genreCategoryName) }
                     )
                 }
             }

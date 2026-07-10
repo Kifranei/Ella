@@ -73,71 +73,137 @@ internal fun AlbumCopyrightFooter(
             .padding(horizontal = 16.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        AlbumInfoSection(
-            title = stringResource(R.string.album_copyright),
-            values = copyright.lines().filter { it.isNotBlank() }
-        )
-        if (!year.isNullOrBlank()) {
-            AlbumInfoSection(
-                title = stringResource(R.string.category_year),
-                values = listOf(year),
-                onValueClick = onYearClick
+        copyright.lines().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { values ->
+            AlbumMetadataGroupCard(
+                title = stringResource(R.string.album_copyright),
+                values = values
             )
         }
-        AlbumInfoSection(
-            title = stringResource(R.string.category_genre),
-            values = genres,
-            onValueClick = onGenreClick
+        if (!year.isNullOrBlank() || genres.isNotEmpty()) {
+            AlbumMetadataDualCard(
+                year = year.orEmpty(),
+                genres = genres,
+                onYearClick = onYearClick,
+                onGenreClick = onGenreClick
+            )
+        }
+        AlbumMetadataGroupCard(
+            title = stringResource(R.string.player_detail_artist),
+            values = artists,
+            onValueClick = onArtistClick
         )
-        if (artists.isNotEmpty() || composers.isNotEmpty() || lyricists.isNotEmpty()) {
+        AlbumMetadataGroupCard(
+            title = stringResource(R.string.player_detail_composer),
+            values = composers,
+            onValueClick = onComposerClick
+        )
+        AlbumMetadataGroupCard(
+            title = stringResource(R.string.player_detail_lyricist),
+            values = lyricists,
+            onValueClick = onLyricistClick
+        )
+    }
+}
+
+@Composable
+private fun AlbumMetadataGroupCard(
+    title: String,
+    values: List<String>,
+    onValueClick: ((String) -> Unit)? = null
+) {
+    if (values.isEmpty()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
+            .padding(vertical = 14.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MiuixTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp)
+        )
+        values.forEach { value ->
             Text(
-                text = stringResource(R.string.album_participating_artists_label),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-            )
-            AlbumInfoSection(
-                title = stringResource(R.string.player_detail_artist),
-                values = artists,
-                onValueClick = onArtistClick
-            )
-            AlbumInfoSection(
-                title = stringResource(R.string.player_detail_composer),
-                values = composers,
-                onValueClick = onComposerClick
-            )
-            AlbumInfoSection(
-                title = stringResource(R.string.player_detail_lyricist),
-                values = lyricists,
-                onValueClick = onLyricistClick
+                text = value,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(enabled = onValueClick != null) { onValueClick?.invoke(value) }
+                    .padding(horizontal = 18.dp, vertical = 7.dp)
             )
         }
     }
 }
 
 @Composable
-private fun AlbumInfoSection(
-    title: String,
-    values: List<String>,
-    onValueClick: ((String) -> Unit)? = null
+private fun AlbumMetadataDualCard(
+    year: String,
+    genres: List<String>,
+    onYearClick: (String) -> Unit,
+    onGenreClick: (String) -> Unit
 ) {
-    if (values.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MiuixTheme.colorScheme.onSurfaceVariantSummary
-        )
-        values.forEach { value ->
-            Text(
-                text = value,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-                color = if (onValueClick != null) MiuixTheme.colorScheme.primary else MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                modifier = Modifier.clickable(enabled = onValueClick != null) { onValueClick?.invoke(value) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f))
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        if (year.isNotBlank()) {
+            AlbumMetadataDualItem(
+                title = stringResource(R.string.category_year),
+                value = year,
+                onClick = { onYearClick(year) },
+                modifier = Modifier.weight(1f)
             )
         }
+        if (genres.isNotEmpty()) {
+            val primaryGenre = genres.first()
+            AlbumMetadataDualItem(
+                title = stringResource(R.string.category_genre),
+                value = genres.joinToString(" · "),
+                onClick = { onGenreClick(primaryGenre) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AlbumMetadataDualItem(
+    title: String,
+    value: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(2.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = MiuixTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = value,
+            fontSize = 15.sp,
+            color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

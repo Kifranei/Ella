@@ -1084,8 +1084,8 @@
     <string name="settings_min_duration_filter">最短时长过滤</string>
     <string name="settings_min_duration_filter_summary">过滤短于 %1$d 秒的音频文件</string>
     <string name="settings_seconds_value">%1$d秒</string>
-    <string name="settings_artist_separators">自定义艺术家分隔符</string>
-    <string name="settings_artist_separators_summary">一行一个；例如 /、feat.、&amp;</string>
+    <string name="settings_artist_separators">自定义艺人及创作人员分隔符</string>
+    <string name="settings_artist_separators_summary">一行一个；用于艺术家、作曲家、作词家，例如 /、feat.、&amp;</string>
     <string name="settings_artist_protected_names">不拆分的艺术家</string>
     <string name="settings_artist_protected_names_summary">一行一个；会先保护再按分隔符拆分</string>
     <string name="settings_genre_separators">自定义流派分隔符</string>
@@ -1287,6 +1287,7 @@
     <string name="player_detail_person_summary">%1$d 首歌曲 · %2$s · %3$d 张专辑</string>
     <string name="player_detail_album_summary">%1$d 首歌曲 · %2$s · %3$s</string>
     <string name="player_detail_song_count">%1$d 首歌曲</string>
+    <string name="player_detail_song_count_duration">%1$d 首歌曲 · %2$s</string>
     <string name="player_no_info">无可用信息</string>
     <string name="player_added_to_playlists">已添加到 %1$d 个歌单</string>
     <string name="player_added_to_playlist_named">已添加到 %1$s</string>

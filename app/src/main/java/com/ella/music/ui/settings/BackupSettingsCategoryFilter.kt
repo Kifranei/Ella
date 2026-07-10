@@ -25,6 +25,20 @@ private fun String.backupType(): BackupType = when {
     else -> BackupType.Personalization
 }
 
+internal fun JSONObject.availableBackupTypes(): Set<BackupType> {
+    val available = linkedSetOf<BackupType>()
+    val hasSectionedPayload = has("settings") || has("playlists") || has("playback") || has("aiChat")
+    val settings = if (hasSectionedPayload) optJSONObject("settings") ?: JSONObject() else this
+    val keys = settings.keys()
+    while (keys.hasNext()) {
+        available += keys.next().backupType()
+    }
+    if (has("playlists")) available += BackupType.Playlists
+    if (has("playback")) available += BackupType.PlaybackStats
+    if (has("aiChat")) available += BackupType.AiConfigAndChat
+    return available
+}
+
 private fun String.isAiSettingKey(): Boolean =
     this == "openai_api_key" ||
         this == "openai_base_url" ||
@@ -39,7 +53,8 @@ private fun String.isEqualizerSettingKey(): Boolean =
 private fun String.isOnlineSourceSettingKey(): Boolean =
     startsWith("webdav_") ||
         startsWith("lx_") ||
-        startsWith("navidrome_") ||
+    startsWith("navidrome_") ||
+        startsWith("opensubsonic_") ||
         startsWith("emby_") ||
         this == "online_selected_provider"
 

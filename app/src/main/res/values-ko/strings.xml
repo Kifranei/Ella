@@ -1033,6 +1033,12 @@
     <string name="player_netease_song_page">곡 페이지</string>
     <string name="player_netease_artist_page">아티스트 페이지</string>
     <string name="player_netease_album_page">앨범 페이지</string>
+    <string name="player_detail_year">연도</string>
+    <string name="player_detail_genre">장르</string>
+    <string name="player_detail_person_summary">%1$d곡 · %2$s · %3$d개 앨범</string>
+    <string name="player_detail_album_summary">%1$d곡 · %2$s · %3$s</string>
+    <string name="player_detail_song_count">%1$d곡</string>
+    <string name="player_detail_song_count_duration">%1$d곡 · %2$s</string>
     <string name="player_no_info">사용 가능한 정보가 없습니다</string>
     <string name="player_added_to_playlists">%1$d 재생목록에 추가됨</string>
     <string name="player_added_to_playlist_named">%1$s에 추가됨</string>
