@@ -15,6 +15,10 @@ import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.model.shiftedBy
 import com.ella.music.data.parser.EllaLyricsParser
 import com.ella.music.data.remote.OpenSubsonicCollectionsStore
+import com.ella.music.data.remote.NavidromeService
+import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.remote.SavedRemoteServer
+import com.ella.music.data.remote.isSubsonicLike
 import com.ella.music.data.repository.CoverUsage
 import com.ella.music.data.repository.MusicRepository
 import com.ella.music.player.DesktopLyricBridge
@@ -69,7 +73,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val playlistStore = PlaylistStore.getInstance(application)
     private val openSubsonicCollectionsStore = OpenSubsonicCollectionsStore.getInstance(application)
     private val playbackStatsStore = PlaybackStatsStore.getInstance(application)
-    private val playbackStatsTracker = PlayerPlaybackStatsTracker(playbackStatsStore)
+    private val navidromeService = NavidromeService(application)
+    private val playbackStatsTracker = PlayerPlaybackStatsTracker(playbackStatsStore) { song ->
+        val config = when (song.onlineSource) {
+            RemoteMusicProvider.Navidrome.id -> settingsManager.navidromeConfig.first()
+            RemoteMusicProvider.OpenSubsonic.id -> settingsManager.openSubsonicConfig.first()
+            else -> null
+        }
+        if (config?.isConfigured == true && song.onlineId.isNotBlank()) {
+            runCatching { navidromeService.scrobble(config, song.onlineId) }
+                .onFailure { AppLogStore.warn(application, "SubsonicScrobble", "Failed to scrobble ${song.title}", it) }
+        }
+    }
     private val lazyOnlineQueueController = PlayerLazyOnlineQueueController(viewModelScope, playerManager)
 
     val currentSong: StateFlow<Song?> = playerManager.currentSong
@@ -103,6 +118,53 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val lyricsLoading: StateFlow<Boolean> = _lyricsLoading.asStateFlow()
     private val _currentLyricOffsetMs = MutableStateFlow(0L)
     val currentLyricOffsetMs: StateFlow<Long> = _currentLyricOffsetMs.asStateFlow()
+
+    fun cycleRemoteStreamQuality() {
+        val song = currentSong.value ?: return
+        val provider = RemoteMusicProvider.fromId(song.onlineSource)
+        if (!provider.isSubsonicLike) return
+        viewModelScope.launch {
+            val activeId: String
+            val servers: List<SavedRemoteServer>
+            when (provider) {
+                RemoteMusicProvider.Navidrome -> {
+                    activeId = settingsManager.navidromeActiveServerId.first()
+                    servers = settingsManager.navidromeServers.first()
+                }
+                RemoteMusicProvider.OpenSubsonic -> {
+                    activeId = settingsManager.openSubsonicActiveServerId.first()
+                    servers = settingsManager.openSubsonicServers.first()
+                }
+                else -> return@launch
+            }
+            val server = servers.firstOrNull { it.id == activeId } ?: return@launch
+            val nextBitRate = when (server.config.streamMaxBitRate) {
+                0 -> 320
+                320 -> 192
+                192 -> 128
+                else -> 0
+            }
+            val updatedServer = server.copy(config = server.config.copy(streamMaxBitRate = nextBitRate))
+            when (provider) {
+                RemoteMusicProvider.Navidrome -> settingsManager.upsertNavidromeServer(updatedServer)
+                RemoteMusicProvider.OpenSubsonic -> settingsManager.upsertOpenSubsonicServer(updatedServer)
+            }
+
+            val currentIndex = playlist.value.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+            val position = currentPosition.value
+            val wasPlaying = isPlaying.value
+            val updatedQueue = playlist.value.map { queued ->
+                if (queued.onlineSource == provider.id && queued.onlineId.isNotBlank()) {
+                    queued.copy(path = navidromeService.streamUrl(updatedServer.config, queued.onlineId, nextBitRate))
+                } else {
+                    queued
+                }
+            }
+            playerManager.setPlaylist(updatedQueue, currentIndex)
+            playerManager.seekTo(position)
+            if (!wasPlaying) playerManager.pause()
+        }
+    }
 
     private val _lyricFormatAvailability = MutableStateFlow(MusicRepository.LyricFormatAvailability())
     val lyricFormatAvailability: StateFlow<MusicRepository.LyricFormatAvailability> =

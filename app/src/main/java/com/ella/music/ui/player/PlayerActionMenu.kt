@@ -52,6 +52,7 @@ internal fun PlayerActionMenu(
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
     sleepTimerStopAfterCurrent: Boolean,
+    remoteStreamMaxBitRate: Int?,
     onClose: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -93,6 +94,7 @@ internal fun PlayerActionMenu(
     onVisualizerEnabled: (Boolean) -> Unit,
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
+    onCycleRemoteStreamQuality: () -> Unit,
     initialPage: PlayerActionSheetPage = PlayerActionSheetPage.Main,
     modifier: Modifier = Modifier
 ) {
@@ -125,6 +127,15 @@ internal fun PlayerActionMenu(
                     PlayerActionMenuItem(stringResource(R.string.common_share), onShare)
                     PlayerActionMenuItem(stringResource(R.string.song_more_ai_title), onAiInterpret)
                     PlayerActionMenuItem(stringResource(R.string.player_song_info), onSongInfo)
+                    remoteStreamMaxBitRate?.let { bitRate ->
+                        PlayerActionMenuItem(
+                            stringResource(
+                                R.string.player_remote_stream_quality,
+                                if (bitRate == 0) stringResource(R.string.player_remote_stream_original) else "$bitRate kbps"
+                            ),
+                            onCycleRemoteStreamQuality
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 PlayerActionMenuGroup {

@@ -44,6 +44,7 @@ internal fun PlayerCoverActionSheet(
     stopAfterCurrentEnabled: Boolean,
     sleepTimerCustomMinutes: Int,
     sleepTimerStopAfterCurrent: Boolean,
+    remoteStreamMaxBitRate: Int?,
     onDismiss: () -> Unit,
     onAlbum: () -> Unit,
     onArtist: () -> Unit,
@@ -85,6 +86,7 @@ internal fun PlayerCoverActionSheet(
     onVisualizerEnabled: (Boolean) -> Unit,
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
+    onCycleRemoteStreamQuality: () -> Unit,
     initialPage: PlayerActionSheetPage
 ) {
     if (!show) return
@@ -129,6 +131,7 @@ internal fun PlayerCoverActionSheet(
             stopAfterCurrentEnabled = stopAfterCurrentEnabled,
             sleepTimerCustomMinutes = sleepTimerCustomMinutes,
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
+            remoteStreamMaxBitRate = remoteStreamMaxBitRate,
             onClose = onDismiss,
             onAlbum = onAlbum,
             onArtist = onArtist,
@@ -170,6 +173,7 @@ internal fun PlayerCoverActionSheet(
             onVisualizerEnabled = onVisualizerEnabled,
             onVisualizerOpacityChange = onVisualizerOpacityChange,
             onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
+            onCycleRemoteStreamQuality = onCycleRemoteStreamQuality,
             initialPage = initialPage
         )
     }

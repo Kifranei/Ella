@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,6 +47,8 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.data.repository.MusicRepository
+import com.ella.music.data.remote.RemoteMusicProvider
+import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
 
@@ -192,6 +195,17 @@ internal fun CoverPlayerPage(
     modifier: Modifier = Modifier
 ) {
     val bluetoothDeviceName = rememberBluetoothOutputName()
+    val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
+        initial = RemoteMusicSourceConfig(RemoteMusicProvider.Navidrome, "")
+    )
+    val openSubsonicConfig by playerViewModel.settingsManager.openSubsonicConfig.collectAsState(
+        initial = RemoteMusicSourceConfig(RemoteMusicProvider.OpenSubsonic, "")
+    )
+    val remoteStreamMaxBitRate = when (song?.onlineSource) {
+        RemoteMusicProvider.Navidrome.id -> navidromeConfig.streamMaxBitRate
+        RemoteMusicProvider.OpenSubsonic.id -> openSubsonicConfig.streamMaxBitRate
+        else -> null
+    }
     val dynamicCoverSongKey = song?.dynamicCoverResolutionKey().orEmpty()
     // Resolving a dynamic cover scans many candidate files and probes media tracks; doing that in
     // composition janked every song change (even when no cover exists). Resolve it off the main
@@ -751,6 +765,7 @@ internal fun CoverPlayerPage(
             stopAfterCurrentEnabled = stopAfterCurrentEnabled,
             sleepTimerCustomMinutes = sleepTimerCustomMinutes,
             sleepTimerStopAfterCurrent = sleepTimerStopAfterCurrent,
+            remoteStreamMaxBitRate = remoteStreamMaxBitRate,
             onDismiss = onDismissMenu,
             onAlbum = onAlbum,
             onArtist = onArtist,
@@ -792,6 +807,7 @@ internal fun CoverPlayerPage(
             onVisualizerEnabled = onVisualizerEnabled,
             onVisualizerOpacityChange = onVisualizerOpacityChange,
             onPlayerKeepScreenOnChange = onPlayerKeepScreenOnChange,
+            onCycleRemoteStreamQuality = playerViewModel::cycleRemoteStreamQuality,
             initialPage = actionMenuInitialPage
         )
     }

@@ -12,6 +12,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.math.absoluteValue
 
@@ -117,6 +118,95 @@ class NavidromeService(private val context: Context) {
         withContext(Dispatchers.IO) {
             require(songId.isNotBlank()) { "Missing remote song id" }
             request(config, if (favorite) "star" else "unstar", mapOf("id" to songId))
+        }
+
+    suspend fun scrobble(config: RemoteMusicSourceConfig, songId: String, submission: Boolean = true) =
+        withContext(Dispatchers.IO) {
+            if (songId.isNotBlank()) {
+                request(
+                    config,
+                    "scrobble",
+                    mapOf("id" to songId, "submission" to submission.toString(), "time" to System.currentTimeMillis().toString())
+                )
+            }
+        }
+
+    suspend fun getServerLyrics(config: RemoteMusicSourceConfig, song: Song): String? =
+        withContext(Dispatchers.IO) {
+            if (song.onlineId.isBlank()) return@withContext null
+            runCatching { fetchStructuredLyrics(config, song.onlineId) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?: runCatching {
+                    request(
+                        config,
+                        "getLyrics",
+                        mapOf("artist" to song.artist, "title" to song.title)
+                    ).optJSONObject("subsonic-response")
+                        ?.optJSONObject("lyrics")
+                        ?.optString("value")
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+        }
+
+    suspend fun getTopSongs(config: RemoteMusicSourceConfig, artist: String, count: Int = 50): List<RemoteOnlineSong> =
+        withContext(Dispatchers.IO) {
+            val songs = request(config, "getTopSongs", mapOf("artist" to artist, "count" to count.coerceIn(1, 500).toString()))
+                .optJSONObject("subsonic-response")
+                ?.optJSONObject("topSongs")
+                ?.optJSONArray("song") ?: return@withContext emptyList()
+            List(songs.length()) { songFromJson(songs.getJSONObject(it), config) }
+        }
+
+    suspend fun getSimilarSongs(config: RemoteMusicSourceConfig, songId: String, count: Int = 50): List<RemoteOnlineSong> =
+        withContext(Dispatchers.IO) {
+            val songs = request(config, "getSimilarSongs2", mapOf("id" to songId, "count" to count.coerceIn(1, 500).toString()))
+                .optJSONObject("subsonic-response")
+                ?.optJSONObject("similarSongs2")
+                ?.optJSONArray("song") ?: return@withContext emptyList()
+            List(songs.length()) { songFromJson(songs.getJSONObject(it), config) }
+        }
+
+    suspend fun getArtistInfo(config: RemoteMusicSourceConfig, artistId: String): JSONObject? =
+        withContext(Dispatchers.IO) {
+            request(config, "getArtistInfo2", mapOf("id" to artistId))
+                .optJSONObject("subsonic-response")
+                ?.optJSONObject("artistInfo2")
+        }
+
+    suspend fun createPlaylist(config: RemoteMusicSourceConfig, name: String, songIds: List<String>) =
+        withContext(Dispatchers.IO) {
+            require(config.remoteWriteEnabled) { context.getString(R.string.remote_playlist_write_locked) }
+            requestPairs(
+                config,
+                "createPlaylist",
+                listOf("name" to name) + songIds.filter(String::isNotBlank).map { "songId" to it }
+            )
+        }
+
+    suspend fun updatePlaylist(
+        config: RemoteMusicSourceConfig,
+        playlistId: String,
+        name: String? = null,
+        addSongIds: List<String> = emptyList(),
+        removeIndices: List<Int> = emptyList()
+    ) = withContext(Dispatchers.IO) {
+        require(config.remoteWriteEnabled) { context.getString(R.string.remote_playlist_write_locked) }
+        requestPairs(
+            config,
+            "updatePlaylist",
+            buildList {
+                add("playlistId" to playlistId)
+                name?.takeIf(String::isNotBlank)?.let { add("name" to it) }
+                addSongIds.filter(String::isNotBlank).forEach { add("songIdToAdd" to it) }
+                removeIndices.sortedDescending().forEach { add("songIndexToRemove" to it.toString()) }
+            }
+        )
+    }
+
+    suspend fun deletePlaylist(config: RemoteMusicSourceConfig, playlistId: String) =
+        withContext(Dispatchers.IO) {
+            require(config.remoteWriteEnabled) { context.getString(R.string.remote_playlist_write_locked) }
+            request(config, "deletePlaylist", mapOf("id" to playlistId))
         }
 
     private fun fetchStarredSongs(config: RemoteMusicSourceConfig): List<Song> {
@@ -259,6 +349,16 @@ class NavidromeService(private val context: Context) {
     fun resolvePlayableSong(item: RemoteOnlineSong): Song =
         item.song.copy(path = item.streamUrl, coverUrl = item.coverUrl, onlineSource = item.provider.id)
 
+    fun streamUrl(config: RemoteMusicSourceConfig, songId: String, maxBitRate: Int = config.streamMaxBitRate): String =
+        endpoint(
+            config,
+            "stream",
+            buildMap {
+                put("id", songId)
+                if (maxBitRate > 0) put("maxBitRate", maxBitRate.toString())
+            }
+        )
+
     private fun songFromJson(item: JSONObject, config: RemoteMusicSourceConfig): RemoteOnlineSong {
         val id = item.optString("id")
         val title = item.optString("title").ifBlank { context.getString(R.string.common_unknown) }
@@ -268,9 +368,19 @@ class NavidromeService(private val context: Context) {
         }
         val durationMs = item.optLong("duration", 0L).coerceAtLeast(0L) * 1000L
         val suffix = item.optString("suffix").ifBlank { "mp3" }
-        val stream = endpoint(config, "stream", mapOf("id" to id))
+        val streamParams = buildMap {
+            put("id", id)
+            if (config.streamMaxBitRate > 0) put("maxBitRate", config.streamMaxBitRate.toString())
+        }
+        val stream = endpoint(config, "stream", streamParams)
         val cover = item.optString("coverArt").takeIf { it.isNotBlank() }
-            ?.let { endpoint(config, "getCoverArt", mapOf("id" to it, "size" to "512")) }
+            ?.let {
+                endpoint(
+                    config,
+                    "getCoverArt",
+                    mapOf("id" to it, "size" to config.coverArtSize.coerceIn(64, 2048).toString())
+                )
+            }
             .orEmpty()
         // Populate album/artist/genre/year/track metadata so remote songs can feed the same
         // artist / album / genre / year library views as local songs.
@@ -312,7 +422,32 @@ class NavidromeService(private val context: Context) {
         endpoint: String,
         params: Map<String, String> = emptyMap()
     ): JSONObject {
-        val url = endpoint(config, endpoint, params)
+        return requestPairs(config, endpoint, params.entries.map { it.key to it.value })
+    }
+
+    private fun requestPairs(
+        config: RemoteMusicSourceConfig,
+        endpoint: String,
+        params: List<Pair<String, String>>
+    ): JSONObject {
+        var lastError: Throwable? = null
+        for (baseUrl in baseCandidates(config)) {
+            val result = runCatching { requestFromBase(config, baseUrl, endpoint, params) }
+            result.onSuccess {
+                activeBaseUrls[config.cacheKey()] = baseUrl
+                return it
+            }.onFailure { lastError = it }
+        }
+        throw lastError ?: IllegalStateException(context.getString(R.string.remote_source_request_failed))
+    }
+
+    private fun requestFromBase(
+        config: RemoteMusicSourceConfig,
+        baseUrl: String,
+        endpoint: String,
+        params: List<Pair<String, String>>
+    ): JSONObject {
+        val url = endpoint(config, endpoint, params, baseUrl)
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT).build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error(context.getString(R.string.remote_source_http_error, response.code))
@@ -327,7 +462,16 @@ class NavidromeService(private val context: Context) {
     }
 
     private fun endpoint(config: RemoteMusicSourceConfig, endpoint: String, params: Map<String, String>): String {
-        val base = config.baseUrl.trimEnd('/')
+        return endpoint(config, endpoint, params.entries.map { it.key to it.value })
+    }
+
+    private fun endpoint(
+        config: RemoteMusicSourceConfig,
+        endpoint: String,
+        params: List<Pair<String, String>>,
+        baseUrl: String = activeBaseUrls[config.cacheKey()] ?: config.baseUrl
+    ): String {
+        val base = baseUrl.trimEnd('/')
         val builder = "$base/rest/$endpoint.view".toHttpUrlOrNull()
             ?.newBuilder()
             ?: error(context.getString(R.string.remote_source_url_invalid))
@@ -344,6 +488,40 @@ class NavidromeService(private val context: Context) {
         return builder.build().toString()
     }
 
+    private fun baseCandidates(config: RemoteMusicSourceConfig): List<String> {
+        val active = activeBaseUrls[config.cacheKey()]
+        return listOfNotNull(active, config.baseUrl, config.secondaryBaseUrl)
+            .map { it.trim().trimEnd('/') }
+            .filter(String::isNotBlank)
+            .distinct()
+    }
+
+    private fun RemoteMusicSourceConfig.cacheKey(): String = "${provider.id}|${username}|${baseUrl.trimEnd('/')}"
+
+    private fun fetchStructuredLyrics(config: RemoteMusicSourceConfig, songId: String): String? {
+        val root = request(config, "getLyricsBySongId", mapOf("id" to songId))
+        val list = root.optJSONObject("subsonic-response")
+            ?.optJSONObject("lyricsList")
+            ?.optJSONArray("structuredLyrics") ?: return null
+        for (index in 0 until list.length()) {
+            val lyrics = list.optJSONObject(index) ?: continue
+            val lines = lyrics.optJSONArray("line") ?: continue
+            val content = buildString {
+                for (lineIndex in 0 until lines.length()) {
+                    val line = lines.optJSONObject(lineIndex) ?: continue
+                    val value = line.optString("value").trim()
+                    if (value.isBlank()) continue
+                    val startMs = line.optLong("start", 0L).coerceAtLeast(0L)
+                    val minutes = startMs / 60_000L
+                    val seconds = (startMs % 60_000L) / 1000.0
+                    append("[%02d:%05.2f]%s\n".format(minutes, seconds, value))
+                }
+            }
+            if (content.isNotBlank()) return content
+        }
+        return null
+    }
+
     private fun md5(value: String): String =
         MessageDigest.getInstance("MD5")
             .digest(value.toByteArray())
@@ -354,6 +532,7 @@ class NavidromeService(private val context: Context) {
 
     private companion object {
         const val USER_AGENT = "Halcyon/1.0 Navidrome"
+        val activeBaseUrls = ConcurrentHashMap<String, String>()
     }
 }
 

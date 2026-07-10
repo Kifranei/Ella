@@ -60,7 +60,7 @@ fun AddToPlaylistSheet(
     val savedAppendToEnd by settingsManager.addToPlaylistAppendToEnd.collectAsState(initial = false)
     // Server playlists are shown as read-only snapshots. Keep this picker limited to writable
     // local playlists so a tap never looks successful while changing nothing remotely.
-    val writablePlaylists = remember(playlists) { playlists.filterNot { it.isRemote } }
+    val writablePlaylists = remember(playlists) { playlists.filter { !it.isRemote || it.remoteWritable } }
     var selectedIds by remember(writablePlaylists) { mutableStateOf(emptySet<String>()) }
     var query by remember { mutableStateOf("") }
     var multiSelect by remember { mutableStateOf(false) }

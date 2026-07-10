@@ -8,6 +8,8 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.metadata.AudioTagRepository
 import com.ella.music.data.parser.EllaLyricsParser
 import com.ella.music.data.parser.LrcParser
+import com.ella.music.data.remote.NavidromeService
+import com.ella.music.data.remote.RemoteMusicProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -39,7 +41,7 @@ internal class MusicLyricsManager(
         lyricsCache[cacheKey]?.let { return@withContext it }
 
         if (safeMode == SettingsManager.LYRIC_SOURCE_AUTO) {
-            fetchOnlineLyrics(song)?.let { onlineLyrics ->
+            fetchOnlineLyrics(song, ignoreHeaderTags)?.let { onlineLyrics ->
                 lyricsCache[cacheKey] = onlineLyrics
                 return@withContext onlineLyrics
             }
@@ -172,7 +174,26 @@ internal class MusicLyricsManager(
         return result.takeIf { it.isNotEmpty() }
     }
 
-    private fun fetchOnlineLyrics(song: Song): List<LyricLine>? {
+    private suspend fun fetchOnlineLyrics(song: Song, ignoreHeaderTags: Boolean): List<LyricLine>? {
+        song.onlineLyrics.takeIf(String::isNotBlank)?.let { raw ->
+            parseRemoteLyrics(raw, ignoreHeaderTags)?.let { return it }
+        }
+        if (
+            song.onlineSource == RemoteMusicProvider.Navidrome.id ||
+            song.onlineSource == RemoteMusicProvider.OpenSubsonic.id
+        ) {
+            val config = if (song.onlineSource == RemoteMusicProvider.OpenSubsonic.id) {
+                settingsManager.openSubsonicConfig.first()
+            } else {
+                settingsManager.navidromeConfig.first()
+            }
+            if (config.isConfigured && song.onlineId.isNotBlank()) {
+                runCatching { NavidromeService(context).getServerLyrics(config, song) }
+                    .getOrNull()
+                    ?.let { raw -> parseRemoteLyrics(raw, ignoreHeaderTags) }
+                    ?.let { return it }
+            }
+        }
         if (song.onlineSource != "kw" || song.onlineId.isBlank()) return null
         val request = Request.Builder()
             .url("https://www.kuwo.cn/newh5/singles/songinfoandlrc?musicId=${song.onlineId}")
@@ -194,5 +215,17 @@ internal class MusicLyricsManager(
             Log.w("MusicRepo", "Failed to fetch online lyrics for ${song.title}", it)
             null
         }
+    }
+
+    private fun parseRemoteLyrics(raw: String, ignoreHeaderTags: Boolean): List<LyricLine>? {
+        val timed = LrcParser.parse(raw, ignoreHeaderTags).lyrics
+        if (timed.isNotEmpty()) return timed
+        return raw.lineSequence()
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .filterNot { ignoreHeaderTags && EllaLyricsParser.isIgnorableRawLyricLine(it) }
+            .mapIndexed { index, text -> LyricLine(timeMs = index * 3000L, text = text, words = emptyList()) }
+            .toList()
+            .takeIf(List<LyricLine>::isNotEmpty)
     }
 }

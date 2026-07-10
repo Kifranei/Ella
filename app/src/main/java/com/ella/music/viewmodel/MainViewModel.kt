@@ -539,10 +539,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun renamePlaylist(id: String, newName: String, onRenamed: (Boolean) -> Unit = {}) {
+        if (playlists.value.firstOrNull { it.id == id }?.remoteWritable == true) {
+            viewModelScope.launch { onRenamed(openSubsonicCollectionsStore.renamePlaylist(id, newName)) }
+            return
+        }
         playlistCoordinator.renamePlaylist(id, newName, onRenamed)
     }
 
     fun deletePlaylist(id: String) {
+        if (playlists.value.firstOrNull { it.id == id }?.remoteWritable == true) {
+            viewModelScope.launch { openSubsonicCollectionsStore.deletePlaylist(id) }
+            return
+        }
         playlistCoordinator.deletePlaylist(id)
     }
 
@@ -551,18 +559,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeSongFromPlaylist(playlistId: String, songKey: String) {
+        if (playlists.value.firstOrNull { it.id == playlistId }?.remoteWritable == true) {
+            viewModelScope.launch { openSubsonicCollectionsStore.removeSongs(playlistId, setOf(songKey)) }
+            return
+        }
         playlistCoordinator.removeSongFromPlaylist(playlistId, songKey)
     }
 
     fun removeSongsFromPlaylist(playlistId: String, songKeys: Set<String>) {
+        if (playlists.value.firstOrNull { it.id == playlistId }?.remoteWritable == true) {
+            viewModelScope.launch { openSubsonicCollectionsStore.removeSongs(playlistId, songKeys) }
+            return
+        }
         playlistCoordinator.removeSongsFromPlaylist(playlistId, songKeys)
     }
 
     fun addSongsToPlaylist(playlistId: String, songs: Collection<Song>, appendToEnd: Boolean = false) {
+        if (playlists.value.firstOrNull { it.id == playlistId }?.remoteWritable == true) {
+            viewModelScope.launch { openSubsonicCollectionsStore.addSongs(playlistId, songs) }
+            return
+        }
         playlistCoordinator.addSongsToPlaylist(playlistId, songs, appendToEnd)
     }
 
     fun reorderPlaylistSongs(playlistId: String, orderedKeys: List<String>) {
+        if (playlists.value.firstOrNull { it.id == playlistId }?.remoteWritable == true) {
+            viewModelScope.launch { openSubsonicCollectionsStore.reorderSongs(playlistId, orderedKeys) }
+            return
+        }
         playlistCoordinator.reorderPlaylistSongs(playlistId, orderedKeys)
     }
 

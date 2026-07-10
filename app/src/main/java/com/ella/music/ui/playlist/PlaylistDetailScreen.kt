@@ -103,6 +103,7 @@ fun PlaylistDetailScreen(
         storedPlaylist
     }
     val isRemotePlaylist = playlist?.isRemote == true
+    val isRemoteReadOnly = isRemotePlaylist && !playlist.remoteWritable
     val songs = remember(playlist, librarySongs, fiveStarSongs, isFiveStarPlaylist) {
         if (isFiveStarPlaylist) fiveStarSongs else playlist?.let(mainViewModel::playlistSongs).orEmpty()
     }
@@ -132,7 +133,7 @@ fun PlaylistDetailScreen(
         selectedSongKeys = emptySet()
         draggedSongKey = null
     }
-    val reorderEnabled = !isRemotePlaylist &&
+    val reorderEnabled = !isRemoteReadOnly &&
         playlist?.isFiveStarRating != true &&
         sortMode == PlaylistSongSortMode.Custom &&
         searchQuery.isBlank()
@@ -360,7 +361,7 @@ fun PlaylistDetailScreen(
                     else -> stringResource(R.string.playlist_title)
                 },
                 selectionMode = selectionMode,
-                showRemoveSelected = !isFiveStarPlaylist && !isRemotePlaylist,
+                showRemoveSelected = !isFiveStarPlaylist && !isRemoteReadOnly,
                 showExport = playlist != null && !isFiveStarPlaylist,
                 onNavigationClick = {
                     if (selectionMode) finishSelectionMode() else onBack()
@@ -535,7 +536,7 @@ fun PlaylistDetailScreen(
                                 updateRangeAnchorsForManualSelection(songKey, selectedNow = true)
                             },
                             onPlayNext = { playerViewModel.playNext(song) },
-                            onRemove = if (playlist.isFiveStarRating || isRemotePlaylist) null else {
+                            onRemove = if (playlist.isFiveStarRating || isRemoteReadOnly) null else {
                                 {
                                     removeFromPlaylistSong = song
                                 }
@@ -623,7 +624,7 @@ fun PlaylistDetailScreen(
                 onDismissAction = { actionSong = null },
                 onNavigateToAlbum = onNavigateToAlbum,
                 onNavigateToArtist = onNavigateToArtist,
-                onSongRemovedFromPlaylist = if (playlist.isFiveStarRating || isRemotePlaylist) null else {
+                onSongRemovedFromPlaylist = if (playlist.isFiveStarRating || isRemoteReadOnly) null else {
                     { song -> removeFromPlaylistSong = song }
                 }
             )

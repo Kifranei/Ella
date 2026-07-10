@@ -48,7 +48,7 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
         val collections = runCatching { service.loadCollections(config) }.getOrElse {
             return@withContext false
         }
-        applyCollections(config.provider, serverId, collections)
+        applyCollections(config.provider, serverId, collections, config.remoteWriteEnabled)
         true
     }
 
@@ -85,10 +85,54 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
         _favoriteSongKeys.value = emptySet()
     }
 
+    suspend fun renamePlaylist(playlistId: String, name: String): Boolean = mutatePlaylist(playlistId) { config, playlist ->
+        service.updatePlaylist(config, playlist.remotePlaylistId, name = name)
+    }
+
+    suspend fun deletePlaylist(playlistId: String): Boolean = mutatePlaylist(playlistId) { config, playlist ->
+        service.deletePlaylist(config, playlist.remotePlaylistId)
+    }
+
+    suspend fun addSongs(playlistId: String, songs: Collection<Song>): Boolean = mutatePlaylist(playlistId) { config, playlist ->
+        service.updatePlaylist(config, playlist.remotePlaylistId, addSongIds = songs.map { it.onlineId })
+    }
+
+    suspend fun removeSongs(playlistId: String, songKeys: Set<String>): Boolean = mutatePlaylist(playlistId) { config, playlist ->
+        val indices = playlist.songs.mapIndexedNotNull { index, song -> index.takeIf { song.key in songKeys } }
+        service.updatePlaylist(config, playlist.remotePlaylistId, removeIndices = indices)
+    }
+
+    suspend fun reorderSongs(playlistId: String, orderedKeys: List<String>): Boolean = mutatePlaylist(playlistId) { config, playlist ->
+        val songByKey = playlist.songs.associateBy { it.key }
+        val orderedIds = orderedKeys.mapNotNull { songByKey[it]?.onlineId }
+        if (orderedIds.size == playlist.songs.size) {
+            service.updatePlaylist(
+                config,
+                playlist.remotePlaylistId,
+                addSongIds = orderedIds,
+                removeIndices = playlist.songs.indices.toList()
+            )
+        }
+    }
+
+    private suspend fun mutatePlaylist(
+        playlistId: String,
+        block: suspend (RemoteMusicSourceConfig, UserPlaylist) -> Unit
+    ): Boolean = withContext(Dispatchers.IO) {
+        val playlist = _playlists.value.firstOrNull { it.id == playlistId && it.remoteWritable }
+            ?: return@withContext false
+        if (playlist.remotePlaylistId == REMOTE_FAVORITES_ID) return@withContext false
+        val config = settingsManager.openSubsonicConfig.first()
+        if (!config.isConfigured || !config.remoteWriteEnabled) return@withContext false
+        block(config, playlist)
+        refreshForLibrarySource(SettingsManager.LIBRARY_SOURCE_OPENSUBSONIC)
+    }
+
     private fun applyCollections(
         provider: RemoteMusicProvider,
         serverId: String,
-        collections: SubsonicLibraryCollections
+        collections: SubsonicLibraryCollections,
+        remoteWritable: Boolean
     ) {
         activeServerId = serverId
         val favorites = toPlaylist(
@@ -99,7 +143,8 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
                 R.string.remote_playlist_favorites,
                 appContext.getString(R.string.remote_source_opensubsonic)
             ),
-            songs = collections.favoriteSongs
+            songs = collections.favoriteSongs,
+            remoteWritable = false
         )
         _favoriteSongKeys.value = collections.favoriteSongs.mapTo(mutableSetOf()) { it.playlistIdentityKey() }
         _playlists.value = listOf(favorites) + collections.playlists.map { playlist ->
@@ -110,7 +155,8 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
                 name = playlist.name,
                 songs = playlist.songs,
                 createdAt = playlist.createdAt,
-                updatedAt = playlist.updatedAt
+                updatedAt = playlist.updatedAt,
+                remoteWritable = remoteWritable
             )
         }
     }
@@ -149,7 +195,8 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
         name: String,
         songs: List<Song>,
         createdAt: Long = 0L,
-        updatedAt: Long = 0L
+        updatedAt: Long = 0L,
+        remoteWritable: Boolean = false
     ): UserPlaylist = UserPlaylist(
         id = "remote:${provider.id}:$serverId:$playlistId",
         name = name,
@@ -158,7 +205,8 @@ class OpenSubsonicCollectionsStore private constructor(context: Context) {
         updatedAt = updatedAt,
         remoteSource = provider.id,
         remoteServerId = serverId,
-        remotePlaylistId = playlistId
+        remotePlaylistId = playlistId,
+        remoteWritable = remoteWritable
     )
 
     companion object {

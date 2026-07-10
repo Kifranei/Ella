@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -285,8 +286,13 @@ private fun RemoteServerEditorSheet(
 
     var name by remember(existing) { mutableStateOf(existing?.name.orEmpty()) }
     var url by remember(existing) { mutableStateOf(existing?.config?.baseUrl.orEmpty()) }
+    var secondaryUrl by remember(existing) { mutableStateOf(existing?.config?.secondaryBaseUrl.orEmpty()) }
     var user by remember(existing) { mutableStateOf(existing?.config?.username.orEmpty()) }
     var password by remember(existing) { mutableStateOf(existing?.config?.password.orEmpty()) }
+    var remoteWriteEnabled by remember(existing) { mutableStateOf(existing?.config?.remoteWriteEnabled ?: false) }
+    var streamMaxBitRate by remember(existing) { mutableStateOf(existing?.config?.streamMaxBitRate?.toString().orEmpty()) }
+    var downloadMaxBitRate by remember(existing) { mutableStateOf(existing?.config?.downloadMaxBitRate?.toString().orEmpty()) }
+    var coverArtSize by remember(existing) { mutableStateOf((existing?.config?.coverArtSize ?: 512).toString()) }
     var status by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
 
@@ -301,6 +307,13 @@ private fun RemoteServerEditorSheet(
         ) {
             WebDavTextField(stringResource(R.string.remote_server_name_label), name, onValueChange = { name = it })
             WebDavTextField(stringResource(R.string.webdav_url), url, onValueChange = { url = it })
+            if (isSubsonicLike) {
+                WebDavTextField(
+                    stringResource(R.string.remote_server_secondary_url_label),
+                    secondaryUrl,
+                    onValueChange = { secondaryUrl = it }
+                )
+            }
             WebDavTextField(stringResource(R.string.webdav_username), user, onValueChange = { user = it })
             WebDavTextField(
                 label = stringResource(R.string.webdav_password),
@@ -308,6 +321,29 @@ private fun RemoteServerEditorSheet(
                 onValueChange = { password = it },
                 visualTransformation = PasswordVisualTransformation()
             )
+            if (isSubsonicLike) {
+                WebDavTextField(
+                    stringResource(R.string.remote_server_stream_bitrate_label),
+                    streamMaxBitRate,
+                    onValueChange = { streamMaxBitRate = it.filter(Char::isDigit).take(4) }
+                )
+                WebDavTextField(
+                    stringResource(R.string.remote_server_download_bitrate_label),
+                    downloadMaxBitRate,
+                    onValueChange = { downloadMaxBitRate = it.filter(Char::isDigit).take(4) }
+                )
+                WebDavTextField(
+                    stringResource(R.string.remote_server_cover_size_label),
+                    coverArtSize,
+                    onValueChange = { coverArtSize = it.filter(Char::isDigit).take(4) }
+                )
+                SwitchPreference(
+                    title = stringResource(R.string.remote_playlist_write_title),
+                    summary = stringResource(R.string.remote_playlist_write_summary),
+                    checked = remoteWriteEnabled,
+                    onCheckedChange = { remoteWriteEnabled = it }
+                )
+            }
             status?.let {
                 Text(text = it, color = MiuixTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
             }
@@ -328,7 +364,17 @@ private fun RemoteServerEditorSheet(
                                 }
                                 runCatching {
                                     if (isSubsonicLike) {
-                                        val config = RemoteMusicSourceConfig(provider, trimmedUrl, user.trim(), password)
+                                        val config = RemoteMusicSourceConfig(
+                                            provider = provider,
+                                            baseUrl = trimmedUrl,
+                                            username = user.trim(),
+                                            password = password,
+                                            secondaryBaseUrl = secondaryUrl.trim().trimEnd('/'),
+                                            remoteWriteEnabled = remoteWriteEnabled,
+                                            streamMaxBitRate = streamMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+                                            downloadMaxBitRate = downloadMaxBitRate.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+                                            coverArtSize = coverArtSize.toIntOrNull()?.coerceIn(64, 2048) ?: 512
+                                        )
                                         navidromeService.test(config)
                                         val server = SavedRemoteServer(id = id, name = displayName, config = config)
                                         when (provider) {

@@ -26,7 +26,12 @@ data class RemoteMusicSourceConfig(
     val password: String = "",
     val token: String = "",
     val userId: String = "",
-    val serverName: String = ""
+    val serverName: String = "",
+    val secondaryBaseUrl: String = "",
+    val remoteWriteEnabled: Boolean = false,
+    val streamMaxBitRate: Int = 0,
+    val downloadMaxBitRate: Int = 0,
+    val coverArtSize: Int = 512
 ) {
     val isConfigured: Boolean
         get() = baseUrl.isNotBlank() && when (provider) {
@@ -57,6 +62,11 @@ fun List<SavedRemoteServer>.toRemoteServersJson(): String =
                     .put("token", server.config.token)
                     .put("userId", server.config.userId)
                     .put("serverName", server.config.serverName)
+                    .put("secondaryBaseUrl", server.config.secondaryBaseUrl)
+                    .put("remoteWriteEnabled", server.config.remoteWriteEnabled)
+                    .put("streamMaxBitRate", server.config.streamMaxBitRate)
+                    .put("downloadMaxBitRate", server.config.downloadMaxBitRate)
+                    .put("coverArtSize", server.config.coverArtSize)
             )
         }
     }.toString()
@@ -77,7 +87,12 @@ fun String.toSavedRemoteServers(provider: RemoteMusicProvider): List<SavedRemote
                     password = json.optString("password"),
                     token = json.optString("token"),
                     userId = json.optString("userId"),
-                    serverName = json.optString("serverName")
+                    serverName = json.optString("serverName"),
+                    secondaryBaseUrl = json.optString("secondaryBaseUrl").trim(),
+                    remoteWriteEnabled = json.optBoolean("remoteWriteEnabled", false),
+                    streamMaxBitRate = json.optInt("streamMaxBitRate", 0).coerceAtLeast(0),
+                    downloadMaxBitRate = json.optInt("downloadMaxBitRate", 0).coerceAtLeast(0),
+                    coverArtSize = json.optInt("coverArtSize", 512).coerceIn(64, 2048)
                 )
             )
         }

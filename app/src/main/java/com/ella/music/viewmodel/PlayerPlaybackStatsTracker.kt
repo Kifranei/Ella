@@ -5,7 +5,8 @@ import com.ella.music.data.model.Song
 
 internal class PlayerPlaybackStatsTracker(
     private val playbackStatsStore: PlaybackStatsStore,
-    private val minPlaybackStatsListenMs: Long = 20_000L
+    private val minPlaybackStatsListenMs: Long = 20_000L,
+    private val onPlayCounted: suspend (Song) -> Unit = {}
 ) {
     private var statsSongId: Long? = null
     private var statsSong: Song? = null
@@ -35,6 +36,7 @@ internal class PlayerPlaybackStatsTracker(
             }
             if (playCountedSongId != song.id && pendingListenMs >= minPlaybackStatsListenMs) {
                 playbackStatsStore.recordPlay(song)
+                onPlayCounted(song)
                 playCountedSongId = song.id
             }
             if (playCountedSongId == song.id && pendingListenMs >= 5000L) {

@@ -14,7 +14,8 @@ data class UserPlaylist(
     val updatedAt: Long,
     val remoteSource: String = "",
     val remoteServerId: String = "",
-    val remotePlaylistId: String = ""
+    val remotePlaylistId: String = "",
+    val remoteWritable: Boolean = false
 ) {
     val isFavorites: Boolean get() = id == FAVORITES_PLAYLIST_ID
     val isFiveStarRating: Boolean get() = id == FIVE_STAR_PLAYLIST_ID
@@ -125,6 +126,7 @@ fun UserPlaylist.toJson(): JSONObject =
         .put("remoteSource", remoteSource)
         .put("remoteServerId", remoteServerId)
         .put("remotePlaylistId", remotePlaylistId)
+        .put("remoteWritable", remoteWritable)
         .put("songs", JSONArray().also { array ->
             songs.forEach { array.put(it.toJson()) }
         })
@@ -138,6 +140,7 @@ fun JSONObject.toUserPlaylist(): UserPlaylist =
         remoteSource = optString("remoteSource"),
         remoteServerId = optString("remoteServerId"),
         remotePlaylistId = optString("remotePlaylistId"),
+        remoteWritable = optBoolean("remoteWritable", false),
         songs = optJSONArray("songs").toPlaylistSongs()
     )
 
