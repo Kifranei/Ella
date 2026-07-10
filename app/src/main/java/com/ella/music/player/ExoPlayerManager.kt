@@ -251,6 +251,20 @@ class ExoPlayerManager(private val context: Context) {
                 newPosition: Player.PositionInfo,
                 reason: Int
             ) {
+                val currentItem = mediaController?.currentMediaItem
+                val currentSong = _currentSong.value
+                // Replacing MediaMetadata for notification lyrics can surface as an internal
+                // discontinuity with a transient position. It is not a seek and must not reset
+                // the player page's progress or lyric timeline.
+                if (shouldIgnoreMetadataPatchDiscontinuity(
+                        reason = reason,
+                        isMetadataOnlyPatch = currentItem?.isMetadataOnlyPatch() == true,
+                        itemSong = currentItem?.toSongFromMediaItemExtras(),
+                        currentSong = currentSong
+                    )
+                ) {
+                    return
+                }
                 _currentPosition.value = newPosition.positionMs.coerceAtLeast(0L)
                 _duration.value = mediaController?.duration?.coerceAtLeast(0) ?: 0L
                 if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
@@ -883,11 +897,10 @@ class ExoPlayerManager(private val context: Context) {
     fun seekTo(positionMs: Long) {
         val controller = mediaController ?: return
         val duration = controller.duration
-        // Never let a seek land on/after the final frame: some formats (notably E-AC-3 / AC-3)
-        // treat that as end-of-stream and Media3 auto-advances to the next track, so dragging the
-        // progress bar to the very end "skips a song". Keep a small guard before the reported end.
+        // Keep the seek on the final frame rather than at end-of-stream, which lets a user drag
+        // or tap all the way to the end without accidentally auto-advancing to the next track.
         val target = if (duration > 0L) {
-            positionMs.coerceIn(0L, (duration - SEEK_END_GUARD_MS).coerceAtLeast(0L))
+            positionMs.coerceIn(0L, (duration - 1L).coerceAtLeast(0L))
         } else {
             positionMs.coerceAtLeast(0L)
         }

@@ -27,7 +27,8 @@ internal class PlayerScreenUiState(
     tagEditorKind: TagEditorOptionKind = TagEditorOptionKind.Metadata,
     metadataEditorSong: Song? = null,
     dynamicCoverFailedPath: String? = null,
-    lyricMatchSong: Song? = null
+    lyricMatchSong: Song? = null,
+    dynamicCoverVideoVisible: Boolean = true
 ) {
     var menuExpanded by mutableStateOf(menuExpanded)
     var dynamicCoverSheetSong by mutableStateOf(dynamicCoverSheetSong)
@@ -47,6 +48,7 @@ internal class PlayerScreenUiState(
     var pendingWriteRetry by mutableStateOf<(suspend () -> Unit)?>(null)
     var dynamicCoverFailedPath by mutableStateOf(dynamicCoverFailedPath)
     var lyricMatchSong by mutableStateOf(lyricMatchSong)
+    var dynamicCoverVideoVisible by mutableStateOf(dynamicCoverVideoVisible)
 }
 
 internal class PlayerLandscapeUiState(

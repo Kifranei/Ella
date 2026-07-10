@@ -419,6 +419,9 @@ fun PlayerScreen(
             playerPagerState.scrollToPage(PLAYER_PAGE_COVER)
         }
     }
+    LaunchedEffect(song?.dynamicCoverResolutionKey()) {
+        uiState.dynamicCoverVideoVisible = true
+    }
     // Sync the lyric parser engine setting to the LrcParser singleton at runtime.
     LaunchedEffect(lyricParserEngine) {
         LrcParser.parserEngine = lyricParserEngine
@@ -538,6 +541,8 @@ fun PlayerScreen(
                         dynamicCoverFailedPath = uiState.dynamicCoverFailedPath,
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+                        dynamicCoverVideoVisible = uiState.dynamicCoverVideoVisible,
+                        onDynamicCoverVideoVisibleChange = { uiState.dynamicCoverVideoVisible = it },
                         immersiveAlbumCover = immersiveAlbumCover,
                         playerBackgroundEnabled = playerBackgroundEnabled,
                         playerBackgroundUri = playerBackgroundUri,

@@ -3,6 +3,7 @@ package com.ella.music.ui.player
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,10 +20,12 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
@@ -51,6 +54,7 @@ import com.ella.music.data.remote.RemoteMusicProvider
 import com.ella.music.data.remote.RemoteMusicSourceConfig
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
+import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
 internal fun CoverPlayerPage(
@@ -64,6 +68,7 @@ internal fun CoverPlayerPage(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    dynamicCoverVideoVisible: Boolean,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -130,6 +135,7 @@ internal fun CoverPlayerPage(
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
     onDynamicCoverFailed: (String) -> Unit,
+    onToggleDynamicCoverVideo: () -> Unit,
     onMatchDynamicCover: () -> Unit,
     onToggleMenu: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -234,7 +240,8 @@ internal fun CoverPlayerPage(
     }
     // Stable local so the null-checked usages below can smart-cast (delegated props can't).
     val resolvedDynamicCover = dynamicCoverSource
-    val portraitDynamicCover = resolvedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
+    val displayedDynamicCover = resolvedDynamicCover.takeIf { dynamicCoverVideoVisible }
+    val portraitDynamicCover = displayedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
     val coverSwipeModifier = if (coverSwipeEnabled) {
         rememberCoverSwipeModifier(
             onSwipePrevious = onSwipePrevious,
@@ -282,7 +289,7 @@ internal fun CoverPlayerPage(
                 embeddedCover = embeddedCover,
                 paletteBitmap = paletteBitmap,
                 annotation = annotation,
-                dynamicCoverSource = dynamicCoverSource,
+                dynamicCoverSource = displayedDynamicCover,
                 isPlaying = isPlaying,
                 currentPosition = currentPosition,
                 duration = duration,
@@ -372,11 +379,11 @@ internal fun CoverPlayerPage(
                             .then(coverSwipeModifier),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (resolvedDynamicCover != null) {
+                        if (displayedDynamicCover != null) {
                             DynamicCoverVideo(
-                                source = resolvedDynamicCover,
+                                source = displayedDynamicCover,
                                 isPlaying = isPlaying,
-                                onPlaybackError = { onDynamicCoverFailed(resolvedDynamicCover.failureKey) },
+                                onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                 modifier = Modifier.fillMaxSize(),
                                 cornerRadiusDp = 0f,
                                 resizeMode = if (portraitDynamicCover) {
@@ -597,11 +604,11 @@ internal fun CoverPlayerPage(
                                 .then(coverSwipeModifier),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (resolvedDynamicCover != null) {
+                            if (displayedDynamicCover != null) {
                                 DynamicCoverVideo(
-                                    source = resolvedDynamicCover,
+                                    source = displayedDynamicCover,
                                     isPlaying = isPlaying,
-                                    onPlaybackError = { onDynamicCoverFailed(resolvedDynamicCover.failureKey) },
+                                    onPlaybackError = { onDynamicCoverFailed(displayedDynamicCover.failureKey) },
                                     modifier = Modifier.fillMaxSize(),
                                     cornerRadiusDp = 14f
                                 )
@@ -622,6 +629,25 @@ internal fun CoverPlayerPage(
                                     hiResLogoUri = hiResLogoUri,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            }
+                            if (resolvedDynamicCover != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(10.dp)
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(pagePalette.middle.copy(alpha = 0.62f))
+                                        .clickable(onClick = onToggleDynamicCoverVideo),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "MV",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = pagePalette.onBackground.copy(alpha = 0.94f)
+                                    )
+                                }
                             }
                         }
                         if (!titleAboveCover) {

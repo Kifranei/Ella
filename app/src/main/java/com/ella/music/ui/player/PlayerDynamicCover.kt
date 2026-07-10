@@ -2,6 +2,7 @@ package com.ella.music.ui.player
 
 import android.content.Context
 import android.graphics.Outline
+import android.graphics.Color
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -27,6 +28,7 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.SafeCoverImage
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 internal enum class DynamicCoverKind {
     Video,
@@ -78,6 +80,9 @@ internal fun DynamicCoverVideo(
     }
 
     val context = LocalContext.current
+    val initialPositionMs = remember(source.failureKey) {
+        DynamicCoverPlaybackMemory.restore(source.failureKey)
+    }
 
     val exoPlayer = remember(source.failureKey) {
         ExoPlayer.Builder(context).build().apply {
@@ -85,6 +90,7 @@ internal fun DynamicCoverVideo(
             volume = 0f
             setMediaItem(MediaItem.fromUri(source.uri))
             prepare()
+            if (initialPositionMs > 0L) seekTo(initialPositionMs)
         }
     }
 
@@ -98,6 +104,7 @@ internal fun DynamicCoverVideo(
         exoPlayer.addListener(listener)
 
         onDispose {
+            DynamicCoverPlaybackMemory.save(source.failureKey, exoPlayer.currentPosition)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -116,6 +123,8 @@ internal fun DynamicCoverVideo(
                 controllerAutoShow = false
                 controllerHideOnTouch = false
                 this.resizeMode = resizeMode
+                setKeepContentOnPlayerReset(true)
+                setShutterBackgroundColor(Color.TRANSPARENT)
                 setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
                 player = exoPlayer
@@ -136,6 +145,8 @@ internal fun DynamicCoverVideo(
             view.findViewById<View>(androidx.media3.ui.R.id.exo_controller)?.visibility = View.GONE
             view.player = exoPlayer
             view.resizeMode = resizeMode
+            view.setKeepContentOnPlayerReset(true)
+            view.setShutterBackgroundColor(Color.TRANSPARENT)
             view.clipToOutline = true
             view.hideController()
             exoPlayer.playWhenReady = isPlaying
@@ -500,6 +511,17 @@ private fun Song.dynamicCoverDocumentSource(
             }
         }
         .firstOrNull()
+}
+
+/** Keeps an ambient video's loop position while Compose swaps player pages. */
+private object DynamicCoverPlaybackMemory {
+    private val positions = ConcurrentHashMap<String, Long>()
+
+    fun restore(key: String): Long = positions[key]?.coerceAtLeast(0L) ?: 0L
+
+    fun save(key: String, positionMs: Long) {
+        if (positionMs > 0L) positions[key] = positionMs
+    }
 }
 
 private fun DocumentFile.findChildDirectoryIgnoreCase(name: String): DocumentFile? =

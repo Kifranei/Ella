@@ -14,6 +14,16 @@ internal fun isDisplayOnlyMetadataPatchSnapshot(
         (snapshotSong == null || snapshotSong.isSamePlaybackIdentity(currentSong))
 }
 
+internal fun shouldIgnoreMetadataPatchDiscontinuity(
+    reason: Int,
+    isMetadataOnlyPatch: Boolean,
+    itemSong: Song?,
+    currentSong: Song?
+): Boolean =
+    reason == Player.DISCONTINUITY_REASON_INTERNAL &&
+        isMetadataOnlyPatch &&
+        itemSong?.isSamePlaybackIdentity(currentSong) == true
+
 internal fun shouldIgnoreDisplayOnlyTimelineUpdate(
     reason: Int,
     currentItem: MediaItem?,

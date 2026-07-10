@@ -122,6 +122,28 @@ class MetadataPatchSnapshotPolicyTest {
         )
     }
 
+    @Test
+    fun internalDiscontinuityFromMetadataPatchIsIgnored() {
+        val song = song(id = 1L, path = "/music/current.flac")
+
+        assertTrue(
+            shouldIgnoreMetadataPatchDiscontinuity(
+                reason = Player.DISCONTINUITY_REASON_INTERNAL,
+                isMetadataOnlyPatch = true,
+                itemSong = song,
+                currentSong = song
+            )
+        )
+        assertFalse(
+            shouldIgnoreMetadataPatchDiscontinuity(
+                reason = Player.DISCONTINUITY_REASON_SEEK,
+                isMetadataOnlyPatch = true,
+                itemSong = song,
+                currentSong = song
+            )
+        )
+    }
+
     private fun song(id: Long, path: String): Song = Song(
         id = id,
         title = "Song $id",

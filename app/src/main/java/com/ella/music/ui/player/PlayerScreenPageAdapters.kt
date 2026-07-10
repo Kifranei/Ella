@@ -46,6 +46,8 @@ internal fun CoverPageContent(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
+    dynamicCoverVideoVisible: Boolean,
+    onDynamicCoverVideoVisibleChange: (Boolean) -> Unit,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -169,6 +171,10 @@ internal fun CoverPageContent(
         dynamicCoverFailedPath = dynamicCoverFailedPath,
         dynamicCoverEnabled = dynamicCoverEnabled,
         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
+        dynamicCoverVideoVisible = dynamicCoverVideoVisible,
+        onToggleDynamicCoverVideo = {
+            onDynamicCoverVideoVisibleChange(!dynamicCoverVideoVisible)
+        },
         immersiveAlbumCover = immersiveAlbumCover,
         playerBackgroundEnabled = playerBackgroundEnabled,
         playerBackgroundUri = playerBackgroundUri,
