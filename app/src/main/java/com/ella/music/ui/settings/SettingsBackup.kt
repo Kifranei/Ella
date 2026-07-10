@@ -52,6 +52,7 @@ import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun BackupSettingsScreen(
@@ -246,10 +247,14 @@ fun BackupSettingsScreen(
     val savedWebDavPassword by settingsManager.webDavPassword.collectAsState(initial = "")
     val savedWebDavBackupUrl by settingsManager.webDavBackupUrl.collectAsState(initial = "")
     val savedWebDavBackupPath by settingsManager.webDavBackupPath.collectAsState(initial = "")
+    val savedWebDavBackupUser by settingsManager.webDavBackupUsername.collectAsState(initial = "")
+    val savedWebDavBackupPassword by settingsManager.webDavBackupPassword.collectAsState(initial = "")
+    val webDavAutoBackupEnabled by settingsManager.webDavAutoBackupEnabled.collectAsState(initial = false)
+    val webDavAutoBackupInterval by settingsManager.webDavAutoBackupIntervalHours.collectAsState(initial = 24)
     var webDavBackupUrl by remember { mutableStateOf(savedWebDavBackupUrl) }
     var webDavBackupPath by remember { mutableStateOf(savedWebDavBackupPath) }
-    var webDavBackupUser by remember { mutableStateOf(savedWebDavUser) }
-    var webDavBackupPassword by remember { mutableStateOf(savedWebDavPassword) }
+    var webDavBackupUser by remember { mutableStateOf(savedWebDavBackupUser.ifBlank { savedWebDavUser }) }
+    var webDavBackupPassword by remember { mutableStateOf(savedWebDavBackupPassword.ifBlank { savedWebDavPassword }) }
     var webDavUploading by remember { mutableStateOf(false) }
     var webDavDownloading by remember { mutableStateOf(false) }
     var webDavBackupFiles by remember { mutableStateOf<List<com.ella.music.data.webdav.WebDavItem>>(emptyList()) }
@@ -265,14 +270,20 @@ fun BackupSettingsScreen(
         }
     }
     LaunchedEffect(savedWebDavUser) {
-        if (savedWebDavUser.isNotBlank() && webDavBackupUser.isBlank()) {
+        if (savedWebDavBackupUser.isBlank() && savedWebDavUser.isNotBlank() && webDavBackupUser.isBlank()) {
             webDavBackupUser = savedWebDavUser
         }
     }
     LaunchedEffect(savedWebDavPassword) {
-        if (savedWebDavPassword.isNotBlank() && webDavBackupPassword.isBlank()) {
+        if (savedWebDavBackupPassword.isBlank() && savedWebDavPassword.isNotBlank() && webDavBackupPassword.isBlank()) {
             webDavBackupPassword = savedWebDavPassword
         }
+    }
+    LaunchedEffect(savedWebDavBackupUser) {
+        if (savedWebDavBackupUser.isNotBlank()) webDavBackupUser = savedWebDavBackupUser
+    }
+    LaunchedEffect(savedWebDavBackupPassword) {
+        if (savedWebDavBackupPassword.isNotBlank()) webDavBackupPassword = savedWebDavBackupPassword
     }
 
     Column(
@@ -369,6 +380,30 @@ fun BackupSettingsScreen(
                         summary = stringResource(R.string.settings_backup_webdav_path_summary),
                         onValueChange = { webDavBackupPath = it }
                     )
+                    SwitchPreference(
+                        title = stringResource(R.string.settings_backup_webdav_auto_title),
+                        summary = stringResource(R.string.settings_backup_webdav_auto_summary),
+                        checked = webDavAutoBackupEnabled,
+                        onCheckedChange = { enabled ->
+                            backupScope.launch {
+                                settingsManager.setWebDavBackupUrl(webDavBackupUrl.trim().ifBlank { savedWebDavUrl })
+                                settingsManager.setWebDavBackupPath(webDavBackupPath)
+                                settingsManager.setWebDavBackupCredentials(webDavBackupUser, webDavBackupPassword)
+                                settingsManager.setWebDavAutoBackupEnabled(enabled)
+                            }
+                        }
+                    )
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_backup_webdav_interval_title),
+                        summary = stringResource(R.string.settings_backup_webdav_interval_summary),
+                        value = webDavAutoBackupInterval,
+                        valueRange = 1..168,
+                        valueText = stringResource(R.string.settings_backup_webdav_interval_value, webDavAutoBackupInterval),
+                        enabled = webDavAutoBackupEnabled,
+                        onValueChange = { hours ->
+                            backupScope.launch { settingsManager.setWebDavAutoBackupIntervalHours(hours) }
+                        }
+                    )
                     EllaMiuixListItem(
                         title = stringResource(R.string.settings_backup_webdav_upload),
                         summary = stringResource(R.string.settings_backup_webdav_upload_summary),
@@ -385,6 +420,7 @@ fun BackupSettingsScreen(
                                 // Persist the backup URL and path
                                 settingsManager.setWebDavBackupUrl(effectiveUrl)
                                 settingsManager.setWebDavBackupPath(webDavBackupPath)
+                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
                                 webDavUploading = true
                                 runCatching {
                                     val config = WebDavConfig(
@@ -424,6 +460,7 @@ fun BackupSettingsScreen(
                                 // Persist the backup URL and path
                                 settingsManager.setWebDavBackupUrl(effectiveUrl)
                                 settingsManager.setWebDavBackupPath(webDavBackupPath)
+                                settingsManager.setWebDavBackupCredentials(effectiveUser, effectivePassword)
                                 webDavDownloading = true
                                 runCatching {
                                     val config = WebDavConfig(

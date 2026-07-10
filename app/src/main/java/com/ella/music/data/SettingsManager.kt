@@ -206,6 +206,11 @@ class SettingsManager(private val context: Context) {
         val KEY_WEBDAV_LAST_URL = stringPreferencesKey("webdav_last_url")
         val KEY_WEBDAV_BACKUP_URL = stringPreferencesKey("webdav_backup_url")
         val KEY_WEBDAV_BACKUP_PATH = stringPreferencesKey("webdav_backup_path")
+        val KEY_WEBDAV_BACKUP_USERNAME = stringPreferencesKey("webdav_backup_username")
+        val KEY_WEBDAV_BACKUP_PASSWORD = stringPreferencesKey("webdav_backup_password")
+        val KEY_WEBDAV_AUTO_BACKUP_ENABLED = booleanPreferencesKey("webdav_auto_backup_enabled")
+        val KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS = intPreferencesKey("webdav_auto_backup_interval_hours")
+        val KEY_WEBDAV_AUTO_BACKUP_LAST_AT = stringPreferencesKey("webdav_auto_backup_last_at")
         val KEY_LX_SOURCE_URL = stringPreferencesKey("lx_source_url")
         val KEY_LX_SOURCE_NAME = stringPreferencesKey("lx_source_name")
         val KEY_LX_SOURCE_SCRIPT = stringPreferencesKey("lx_source_script")
@@ -933,6 +938,15 @@ class SettingsManager(private val context: Context) {
     val webDavLastUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_LAST_URL] ?: "" }
     val webDavBackupUrl: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_URL] ?: "" }
     val webDavBackupPath: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_PATH] ?: "" }
+    val webDavBackupUsername: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_USERNAME] ?: "" }
+    val webDavBackupPassword: Flow<String> = context.dataStore.data.map { it[KEY_WEBDAV_BACKUP_PASSWORD] ?: "" }
+    val webDavAutoBackupEnabled: Flow<Boolean> = context.dataStore.data.map { it[KEY_WEBDAV_AUTO_BACKUP_ENABLED] ?: false }
+    val webDavAutoBackupIntervalHours: Flow<Int> = context.dataStore.data.map {
+        (it[KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS] ?: 24).coerceIn(1, 168)
+    }
+    val webDavAutoBackupLastAt: Flow<Long> = context.dataStore.data.map {
+        it[KEY_WEBDAV_AUTO_BACKUP_LAST_AT]?.toLongOrNull() ?: 0L
+    }
     val lxSources: Flow<List<LxSourceConfig>> = context.dataStore.data.map { prefs -> prefs.lxSources() }
     val selectedLxSourceId: Flow<String> = context.dataStore.data.map { it[KEY_LX_SELECTED_SOURCE_ID] ?: "" }
     val selectedLxSource: Flow<LxSourceConfig?> = context.dataStore.data.map { prefs ->
@@ -1913,6 +1927,25 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setWebDavBackupCredentials(username: String, password: String) {
+        context.dataStore.edit {
+            if (username.isBlank()) it.remove(KEY_WEBDAV_BACKUP_USERNAME) else it[KEY_WEBDAV_BACKUP_USERNAME] = username
+            if (password.isBlank()) it.remove(KEY_WEBDAV_BACKUP_PASSWORD) else it[KEY_WEBDAV_BACKUP_PASSWORD] = password
+        }
+    }
+
+    suspend fun setWebDavAutoBackupEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_WEBDAV_AUTO_BACKUP_ENABLED] = enabled }
+    }
+
+    suspend fun setWebDavAutoBackupIntervalHours(hours: Int) {
+        context.dataStore.edit { it[KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS] = hours.coerceIn(1, 168) }
+    }
+
+    suspend fun setWebDavAutoBackupLastAt(timestamp: Long) {
+        context.dataStore.edit { it[KEY_WEBDAV_AUTO_BACKUP_LAST_AT] = timestamp.coerceAtLeast(0L).toString() }
+    }
+
     suspend fun deleteOpenSubsonicServer(id: String) {
         context.dataStore.edit { prefs ->
             val next = readOpenSubsonicServers(prefs).filterNot { it.id == id }
@@ -2444,6 +2477,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_BASS_BOOST_ENABLED)
             setBoolean(KEY_VIRTUALIZER_ENABLED)
             setBoolean(KEY_LYRIC_SHARE_USE_LYRIC_FONT)
+            setBoolean(KEY_WEBDAV_AUTO_BACKUP_ENABLED)
 
             setInt(KEY_THEME_MODE)
             setInt(KEY_MONET_COLOR_MODE)
@@ -2513,6 +2547,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_SPEED)
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_BLUR)
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_BRIGHTNESS)
+            setInt(KEY_WEBDAV_AUTO_BACKUP_INTERVAL_HOURS)
 
             val dynamicSortKeyPrefixes = listOf(
                 "sort_metadata_category_",
@@ -2533,6 +2568,9 @@ class SettingsManager(private val context: Context) {
             setString(KEY_WEBDAV_LAST_URL)
             setString(KEY_WEBDAV_BACKUP_URL)
             setString(KEY_WEBDAV_BACKUP_PATH)
+            setString(KEY_WEBDAV_BACKUP_USERNAME)
+            setString(KEY_WEBDAV_BACKUP_PASSWORD)
+            setString(KEY_WEBDAV_AUTO_BACKUP_LAST_AT)
             setString(KEY_LX_SOURCE_URL)
             setString(KEY_LX_SOURCE_NAME)
             setString(KEY_LX_SOURCE_SCRIPT)
