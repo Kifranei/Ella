@@ -61,16 +61,8 @@ internal fun MiniLyricsPreview(
     val denseMultiPartPreview = !compact && visiblePartCount >= 3
     // In a cramped floating window, shrink the type so long (e.g. English) lines fit the narrow
     // width instead of overflowing, and take less vertical room.
-    val primarySizeSp = when {
-        compact -> 15.5f
-        denseMultiPartPreview -> 18f
-        else -> 19f
-    }
-    val secondarySizeSp = when {
-        compact -> 12.8f
-        denseMultiPartPreview -> 14.2f
-        else -> 15.5f
-    }
+    val primarySizeSp = if (compact) 15.5f else 19f
+    val secondarySizeSp = if (compact) 12.8f else 15.5f
     SmoothLyricView(
         songId = songId,
         songTitle = songTitle,
@@ -100,7 +92,7 @@ internal fun MiniLyricsPreview(
         userScrollEnabled = false,
         lineGapDp = when {
             singleLinePreview -> 4f
-            denseMultiPartPreview -> 5f
+            denseMultiPartPreview -> 4f
             else -> 7f
         },
         modifier = modifier.fillMaxWidth()

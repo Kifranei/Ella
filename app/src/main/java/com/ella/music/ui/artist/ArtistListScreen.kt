@@ -107,6 +107,15 @@ private class ArtistListAccumulator(
     var duration: Long = 0L
     val albumIds: MutableSet<Long> = linkedSetOf()
     var representativeSong: Song? = null
+    private var representativeSongPriority: Int = Int.MAX_VALUE
+
+    fun considerCoverCandidate(song: Song) {
+        val priority = artistCoverPriority(song, name) ?: return
+        if (priority < representativeSongPriority) {
+            representativeSong = song
+            representativeSongPriority = priority
+        }
+    }
 }
 
 private fun buildArtistListAggregate(
@@ -129,17 +138,13 @@ private fun buildArtistListAggregate(
             accumulator.songCount += 1
             accumulator.duration += song.duration
             accumulator.albumIds += albumIdentityId
-            if (accumulator.representativeSong == null) {
-                accumulator.representativeSong = song
-            }
+            accumulator.considerCoverCandidate(song)
         }
         if (includeAlbumArtists) {
             splitArtistNames(song.albumArtist).forEach { artistName ->
                 val accumulator = accumulatorFor(artistName)
                 accumulator.albumIds += albumIdentityId
-                if (accumulator.representativeSong == null) {
-                    accumulator.representativeSong = song
-                }
+                accumulator.considerCoverCandidate(song)
             }
         }
     }

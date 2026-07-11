@@ -298,7 +298,9 @@ fun ArtistScreen(
         }
     }
 
-    val representativeCoverSong = remember(artistSongs) { artistSongs.firstOrNull() }
+    val representativeCoverSong = remember(songs, artistName) {
+        selectArtistCoverSong(songs, artistName)
+    }
     val artistCoverUri = representativeCoverSong?.albumId
         ?.takeIf { it > 0L }
         ?.let { mainViewModel.getAlbumArtUri(it) }
