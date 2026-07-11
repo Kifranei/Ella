@@ -150,7 +150,7 @@ internal class DesktopSmoothLyricView(context: Context) : FrameLayout(context) {
                 SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_PRONUNCIATION -> inferredPronunciation
                 else -> ""
             }.trim()
-            val mergedMainText = if (statusBarMergeSecondary && secondaryText.isNotBlank()) "$mainText  $secondaryText" else mainText
+            val mergedMainText = mergeDesktopStatusBarLyric(mainText, secondaryText, statusBarMergeSecondary)
             LyricLine(
                 timeMs = inferredStart, text = mergedMainText,
                 words = if (text.isBlank() && backgroundText.isNotBlank()) backgroundWords else words,
@@ -275,4 +275,14 @@ internal class DesktopSmoothLyricView(context: Context) : FrameLayout(context) {
     }
 
     private fun Char.isLatinLetter(): Boolean = this in 'A'..'Z' || this in 'a'..'z'
+}
+
+internal fun mergeDesktopStatusBarLyric(
+    mainText: String,
+    secondaryText: String,
+    mergeSecondary: Boolean
+): String = if (mergeSecondary && secondaryText.isNotBlank()) {
+    "${mainText.trimEnd()} ${secondaryText.trimStart()}"
+} else {
+    mainText
 }

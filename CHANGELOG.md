@@ -1,3 +1,27 @@
+# 1.2.1
+
+From tag `1.2.0` to `1.2.1`.
+
+中文更新日志
+- 重写播放进度交互，修复部分歌曲无法拖到末尾、MV 切歌后状态残留等问题，并完善动态封面与横屏播放体验。
+- 播放页默认改为非沉浸圆角封面布局；非 1:1 封面按图片实际边界裁圆角，迷你歌词固定占位，避免 TTML 背景歌词挤压控制区。
+- 完善歌词字体设置、罗马音/翻译显示和 TTML 解析；状态栏歌词长文本改为带间隔的连续循环滚动，合并副歌词时使用单空格。
+- 新增西文字体、默认字体与中日韩默认字体的独立配置，并修复歌词非当前行字重、换行和分享文字显示问题。
+- 优化艺术家页：艺术家封面按“自定义 → 独占专辑艺术家 → 独占歌曲艺术家 → 合作专辑艺术家 → 合作歌曲艺术家”选择。
+- 完善文件夹层次结构：子文件夹长按支持完整操作菜单与置顶，桌面快捷方式使用专用层次结构图标。
+- 切换歌曲、专辑、艺术家、文件夹、歌单及分类排序时立即更新列表，减少排序菜单点击后的卡顿感。
+- 优化专辑发行方展示、歌单多选/拖拽、媒体通知歌词、远程音乐源与下载音质地址等细节，并修复多项播放器和设置页问题。
+
+English Changelog
+- Reworked playback seeking and fixed cases where some songs could not seek to the end, stale MV state after track changes, and several dynamic-cover and landscape-player issues.
+- Made the non-immersive rounded-cover player layout the default. Non-square covers now round the actual artwork bounds, while mini lyrics keep a fixed viewport so TTML background lines do not push transport controls down.
+- Improved lyric font settings, romanization/translation display, and TTML parsing. Long status-bar lyrics now loop continuously with a gap, and merged secondary lyrics use a single space.
+- Added separate Western, default, and CJK default font settings, and fixed non-current lyric weight, wrapping, and lyric-share text rendering.
+- Improved artist artwork selection with this priority: custom asset → sole album artist → sole song artist → collaborative album artist → collaborative song artist.
+- Improved folder hierarchy actions: child folders now expose the full long-press menu and pinning, and hierarchy shortcuts use a dedicated icon.
+- Made song, album, artist, folder, playlist, and category sorting update immediately after selection to reduce perceived UI stalls.
+- Refined album publisher display, playlist multi-select/reordering, media-notification lyrics, remote music sources, download-quality URLs, and numerous player and settings details.
+
 # 1.2.0
 
 From tag `1.1.97` to current `HEAD`.
@@ -18,7 +42,7 @@ From tag `1.1.97` to current `HEAD`.
 - 修复扫描 toast 重复弹出、隐藏播放页拦截返回键、163 key 解密结果显示等问题。
 - 优化远程歌曲列表分页加载、歌词对唱显示、播放页和横屏页面细节。
 - 打包字体去重，减小 APK 体积，并在 release APK 文件名中嵌入 git 短哈希便于溯源。
-- 补全 RaWs Music 开源引用与第三方许可信息。
+- 补全 RawS Music 开源引用与第三方许可信息。
 
 English
 - Added custom artist-cover folders with artist-name based cover matching.
@@ -36,4 +60,4 @@ English
 - Fixed repeated scan toasts, hidden player pages intercepting back navigation, and missing 163 key decrypt result display.
 - Improved remote song-list pagination, duet lyric display, player page details, and landscape playback details.
 - Reduced APK size by deduplicating bundled fonts and embedded the git short hash in release APK filenames for traceability.
-- Added RaWs Music credits and third-party license references.
+- Added RawS Music credits and third-party license references.

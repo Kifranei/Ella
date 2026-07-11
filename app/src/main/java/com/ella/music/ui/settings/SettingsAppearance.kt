@@ -84,7 +84,7 @@ internal fun SettingsAppearanceSection(
     val dynamicCoverCustomFolders by settingsManager.dynamicCoverCustomFoldersRaw.collectAsState(initial = "")
     val hiResLogoEnabled by settingsManager.hiResLogoEnabled.collectAsState(initial = false)
     val hiResLogoUri by settingsManager.hiResLogoUri.collectAsState(initial = "")
-    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = true)
+    val playerImmersiveCover by settingsManager.playerImmersiveCover.collectAsState(initial = false)
     val transportButtonOutlines by settingsManager.transportButtonOutlines.collectAsState(initial = false)
     val playerTapSeekEnabled by settingsManager.playerTapSeekEnabled.collectAsState(initial = true)
     val playerShowTotalDuration by settingsManager.playerShowTotalDuration.collectAsState(initial = false)

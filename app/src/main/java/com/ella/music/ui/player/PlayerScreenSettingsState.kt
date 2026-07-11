@@ -26,7 +26,7 @@ internal data class PlayerScreenSettings(
     val audioVisualizerOpacity: Int = 100,
     val dynamicCoverEnabled: Boolean = false,
     val dynamicCoverCustomFolders: List<String> = emptyList(),
-    val immersiveAlbumCover: Boolean = true,
+    val immersiveAlbumCover: Boolean = false,
     val playerBackgroundEnabled: Boolean = false,
     val playerBackgroundUri: String = "",
     val playerBackgroundOpacity: Int = 100,

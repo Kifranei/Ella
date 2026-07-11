@@ -48,8 +48,10 @@
 ### 🖼 播放页与动态封面
 
 - 提供沉浸式歌词页、横屏歌词页和横屏多封面展示页。
+- 新安装默认使用非沉浸圆角封面播放页；非 1:1 封面会按实际图片边界应用圆角。
 - 支持动态视频封面，可按歌曲、专辑或全局 fallback 匹配视频封面。
 - 支持自定义艺术家封面文件夹，并可在艺术家页使用动态艺术家视频封面。
+- 艺术家静态封面按自定义资源、独占/合作专辑艺术家、独占/合作歌曲艺术家的顺序选择。
 - 支持全局自定义壁纸、开屏海报、自定义 Hi-Res 标识和播放页按钮轮廓。
 - 支持 Beautiful Lyrics 风格动态背景，可应用于歌词页、平板横屏播放页和横屏封面页，并提供速度、模糊和亮度调节。
 - 支持 Monet 动态取色，可从系统壁纸或当前歌曲封面生成全局强调色。
@@ -64,6 +66,7 @@
 - 支持外置歌词和内嵌歌词读取，并可从同名 `.lrc`、`.ttml`、`.elrc` 文件自动匹配。
 - 支持本地歌曲在线匹配歌词：基于 Lyrico 兼容插件，可从 zip 合集导入 / 删除歌词源插件，支持插件配置，匹配结果可写入内嵌标签、`TTMLLYRIC` 标签或 `.lrc`。
 - 提供桌面歌词悬浮窗、状态栏歌词、媒体通知歌词、词幕、SuperLyricApi 和 Lyric Getter API 集成。
+- 状态栏歌词的长文本会带间隔连续循环，避免滚动结束时闪跳。
 - 支持歌词卡片分享、字体导入与系统字体选择器、歌词偏移、歌词点击跳转和副行内容配置。
 
 ### 🌐 WebDAV、Navidrome、Emby 与 LX 在线音乐
@@ -196,7 +199,7 @@ RELEASE_KEY_PASSWORD
 
 如果未设置这些变量，会使用项目根目录下的 `release.jks`。如果没有可用的 release keystore，本地 release 构建默认失败；在 CI 或显式设置 `ALLOW_DEBUG_SIGNED_RELEASE=true` 时，会改用 debug 签名产出 release APK，便于 GitHub Actions 提供可测试安装包。
 
-日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。提交后请同时推送 GitHub 与 GitLab 远端。
+日常开发建议使用 `assembleDebug` 验证；`fastRelease` / release 构建仅在发版时使用。默认 native 库走预编译 `.so` 打包，如需更新 FFmpeg 或 lyrico-audiotag native，再手动运行对应脚本重新生成。发版后请同步推送 GitHub、GitLab 与 Codeberg 远端。
 
 ---
 
@@ -245,9 +248,9 @@ Halcyon 主项目以 **Apache-2.0** 协议开源。第三方组件保留其各�
 - **Beautiful Lyrics** — 为动态背景、全屏歌词与歌词视觉体验提供参考。
 - **Lyrico** — 为外部标签编辑器适配、歌曲标签读取和日志页面交互提供参考。
 - **LX Music Mobile** — 提供 LX Music API 兼容实现与测试参考。
-- **RaWs Music** — 提供 10 段均衡器、BiQuad 参数均衡与 DSP 核心参考。
+- **RawS Music** — 提供 10 段均衡器、BiQuad 参数均衡与 DSP 核心参考。
 - **光锥音乐** — 界面设计与功能实现参考。
-- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、accompanist-lyrics-ui、Beautiful Lyrics、RaWs Music 以及其它开源项目。
+- 感谢 Halcyon 所使用的 Miuix、Media3、FFmpeg、Lyricon、SuperLyricApi、LyricGetter-API、lyrico-audiotag / Lyrico、TagLib、163KeyDecrypter、Kyant Backdrop、Coil、OkHttp、Reorderable、accompanist-lyrics-core、accompanist-lyrics-ui、Beautiful Lyrics、RawS Music 以及其它开源项目。
 
 * 以及感谢各位群友积极的测试反馈。Halcyon 的开发与测试过程，也离不开各位群友的支持与鼓励。
 

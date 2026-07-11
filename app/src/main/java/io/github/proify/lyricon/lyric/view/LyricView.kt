@@ -152,6 +152,7 @@ class LyricView @JvmOverloads constructor(
     private var forcedVerticalAlignment = -1 // -1 = lyric scroll anchor, 0 = top, 1 = center, 2 = bottom
     private var maxMainLines = 0 // 0 = unlimited
     private var singleLineMarqueeEnabled = false
+    private val singleLineMarqueeStartTimes = mutableMapOf<String, Long>()
     private var placeholderFormat = PlaceholderFormat.NAME_ARTIST
     private var currentStyleConfig: RichLyricLineConfig? = null
     private var songName: String? = null
@@ -328,6 +329,7 @@ class LyricView @JvmOverloads constructor(
     fun setSingleLineMarqueeEnabled(enabled: Boolean) {
         if (singleLineMarqueeEnabled == enabled) return
         singleLineMarqueeEnabled = enabled
+        singleLineMarqueeStartTimes.clear()
         rebuildEntries()
         scrollToCurrentLine(false)
         invalidate()
@@ -615,6 +617,7 @@ class LyricView @JvmOverloads constructor(
         currentIndex = -1
         activeHighlightIndices = emptySet()
         currentPosMs = 0L
+        singleLineMarqueeStartTimes.clear()
         secondaryVisibilitySignature = 0
         lineAlphas.clear()
         lineScales.clear()
@@ -1384,7 +1387,17 @@ class LyricView @JvmOverloads constructor(
                 else -> startX
             }
         } else {
-            startX - marqueeOffsetPx(textWidth, availableWidth)
+            val key = "${paint.textSize}|$availableWidth|$text"
+            val now = SystemClock.uptimeMillis()
+            val startedAt = singleLineMarqueeStartTimes.getOrPut(key) { now }
+            val frame = calculateSingleLineMarqueeFrame(
+                elapsedMs = now - startedAt,
+                textWidth = textWidth,
+                speedPxPerSecond = (MARQUEE_SPEED_DP_PER_SEC * density).coerceAtLeast(1f),
+                gapPx = MARQUEE_RESTART_GAP_DP * density,
+                initialHoldMs = MARQUEE_HOLD_MS
+            )
+            startX - frame.offsetPx
         }
         val fm = paint.fontMetrics
         val bleed = TEXT_CLIP_BLEED_DP * density
@@ -1396,22 +1409,11 @@ class LyricView @JvmOverloads constructor(
             baseline + fm.bottom + density * 2f
         )
         canvas.drawText(text, drawX, baseline, paint)
-        canvas.restore()
-    }
-
-    private fun marqueeOffsetPx(textWidth: Float, availableWidth: Float): Float {
-        val overflow = (textWidth - availableWidth).coerceAtLeast(0f)
-        if (overflow <= 0f) return 0f
-        val speed = (MARQUEE_SPEED_DP_PER_SEC * density).coerceAtLeast(1f)
-        val restartGap = MARQUEE_RESTART_GAP_DP * density
-        val scrollDistance = overflow + restartGap
-        val scrollMs = ((scrollDistance / speed) * 1000f).toLong().coerceAtLeast(1L)
-        val cycleMs = MARQUEE_HOLD_MS + scrollMs
-        val phase = SystemClock.uptimeMillis() % cycleMs
-        return when {
-            phase < MARQUEE_HOLD_MS -> 0f
-            else -> scrollDistance * ((phase - MARQUEE_HOLD_MS).toFloat() / scrollMs.toFloat())
+        if (textWidth > availableWidth) {
+            val trailingX = drawX + textWidth + MARQUEE_RESTART_GAP_DP * density
+            canvas.drawText(text, trailingX, baseline, paint)
         }
+        canvas.restore()
     }
 
     private fun clearBlurCache() {
@@ -2297,4 +2299,29 @@ internal fun isLyricViewLineHighlighted(
     index in activeHighlightIndices
 } else {
     index == currentIndex
+}
+
+internal data class SingleLineMarqueeFrame(
+    val offsetPx: Float,
+    val cycleDistancePx: Float
+)
+
+internal fun calculateSingleLineMarqueeFrame(
+    elapsedMs: Long,
+    textWidth: Float,
+    speedPxPerSecond: Float,
+    gapPx: Float,
+    initialHoldMs: Long
+): SingleLineMarqueeFrame {
+    val distance = (textWidth + gapPx).coerceAtLeast(0f)
+    if (distance <= 0f || speedPxPerSecond <= 0f) {
+        return SingleLineMarqueeFrame(offsetPx = 0f, cycleDistancePx = distance)
+    }
+    val scrollMs = ((distance / speedPxPerSecond) * 1000f).toLong().coerceAtLeast(1L)
+    val movingElapsedMs = (elapsedMs - initialHoldMs).coerceAtLeast(0L)
+    val phaseMs = if (elapsedMs < initialHoldMs) 0L else movingElapsedMs % scrollMs
+    return SingleLineMarqueeFrame(
+        offsetPx = distance * (phaseMs.toFloat() / scrollMs.toFloat()),
+        cycleDistancePx = distance
+    )
 }

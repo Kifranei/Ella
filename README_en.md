@@ -48,8 +48,10 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 ### 🖼 Player UI & Dynamic Covers
 
 - Provides an immersive lyric page, landscape lyric page, and landscape stacked-cover page.
+- New installs default to the non-immersive rounded-cover player; non-square artwork is rounded at its actual image bounds.
 - Supports dynamic video covers matched by song, album, or global fallback.
 - Supports a custom artist-cover folder and dynamic artist video covers on artist pages.
+- Static artist artwork is selected in this order: custom asset, sole/collaborative album artist, then sole/collaborative song artist.
 - Supports global custom wallpapers, launch posters, custom Hi-Res badges, and optional player button outlines.
 - Supports Beautiful Lyrics-style dynamic backgrounds for the lyrics page, tablet landscape player, and landscape cover page, with speed, blur, and brightness controls.
 - Supports Monet dynamic color derived from the system wallpaper or the current song cover.
@@ -64,6 +66,7 @@ It focuses on local music and lyrics, with a MIUI / HyperOS-inspired interface, 
 - Reads embedded lyrics and external lyric files, including matching `.lrc`, `.ttml`, and `.elrc` files.
 - Supports online lyric matching for local songs via Lyrico-compatible plugins: import / delete plugin bundles from zip files, configure plugin fields, and write results to embedded tags, `TTMLLYRIC`, or a `.lrc` file.
 - Provides floating desktop lyrics, status-bar lyrics, media notification lyrics, lyric barrage, SuperLyricApi, and Lyric Getter API integration.
+- Long status-bar lyrics loop continuously with a gap instead of visibly jumping back to the start.
 - Supports lyric card sharing, font import with a system-font picker, lyric offset, tap-to-seek, and secondary-line configuration.
 
 ### 🌐 WebDAV, Navidrome, Emby & LX Online Music
@@ -196,7 +199,7 @@ RELEASE_KEY_PASSWORD
 
 If these variables are not set, the build uses `release.jks` in the project root. If no usable release keystore is available, local release builds fail by default; in CI or when `ALLOW_DEBUG_SIGNED_RELEASE=true` is set explicitly, the release APK is produced with the debug signing key for testable GitHub Actions artifacts.
 
-For daily development, use `assembleDebug` for validation. `fastRelease` / release builds are intended for release preparation only. Native libraries are packaged from prebuilt `.so` files by default; rerun the corresponding scripts only when updating FFmpeg or lyrico-audiotag native outputs. Push each completed commit to both GitHub and GitLab remotes.
+For daily development, use `assembleDebug` for validation. `fastRelease` / release builds are intended for release preparation only. Native libraries are packaged from prebuilt `.so` files by default; rerun the corresponding scripts only when updating FFmpeg or lyrico-audiotag native outputs. Release commits and tags should be synchronized to GitHub, GitLab, and Codeberg.
 
 ---
 
@@ -245,9 +248,9 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
 - **Beautiful Lyrics** — Reference for dynamic backgrounds, fullscreen lyrics, and lyric visual experience.
 - **Lyrico** — Reference for external tag editor adaptation and log page interaction.
 - **LX Music Mobile** — Provides LX Music API compatibility implementation and testing reference.
-- **RaWs Music** — Reference for the 10-band equalizer, BiQuad parametric EQ, and DSP core.
+- **RawS Music** — Reference for the 10-band equalizer, BiQuad parametric EQ, and DSP core.
 - **Light Cone Music** — Interface design and feature implementation reference.
-- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, 163KeyDecrypter, Kyant Backdrop, Coil, OkHttp, Reorderable, accompanist-lyrics-core, accompanist-lyrics-ui, Beautiful Lyrics, RaWs Music, and other open source projects used by Halcyon.
+- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, 163KeyDecrypter, Kyant Backdrop, Coil, OkHttp, Reorderable, accompanist-lyrics-core, accompanist-lyrics-ui, Beautiful Lyrics, RawS Music, and other open source projects used by Halcyon.
 
 ---
 

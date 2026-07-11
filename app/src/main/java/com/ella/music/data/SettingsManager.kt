@@ -11,8 +11,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.MutableSharedFlow
 import com.ella.music.player.FIXED_EQ_BAND_COUNT
 import com.ella.music.player.AudioEffectSettings
 import com.ella.music.player.PlaybackOutputSettings
@@ -50,6 +54,28 @@ enum class BottomBarGlassEffect {
 }
 
 class SettingsManager(private val context: Context) {
+
+    private data class SortIndexUpdate(
+        val key: Preferences.Key<Int>,
+        val value: Int
+    )
+
+    // DataStore correctly persists sort changes, but its disk-backed flow updates after the click
+    // coroutine yields. Emit an in-memory value first so every list re-sorts in the same frame.
+    private val immediateSortIndexUpdates = MutableSharedFlow<SortIndexUpdate>(extraBufferCapacity = 32)
+
+    private fun sortIndexFlow(key: Preferences.Key<Int>, defaultValue: Int): Flow<Int> = merge(
+        context.dataStore.data.map { it[key] ?: defaultValue },
+        immediateSortIndexUpdates
+            .filter { it.key == key }
+            .map { it.value }
+    ).distinctUntilChanged()
+
+    private suspend fun setSortIndex(key: Preferences.Key<Int>, index: Int) {
+        val safeIndex = index.coerceAtLeast(0)
+        immediateSortIndexUpdates.tryEmit(SortIndexUpdate(key, safeIndex))
+        context.dataStore.edit { it[key] = safeIndex }
+    }
 
     companion object {
         @Volatile
@@ -747,7 +773,7 @@ class SettingsManager(private val context: Context) {
         context.dataStore.data.map { it[KEY_PLAYER_KEEP_SCREEN_ON] ?: false }
     val playerHdrGlow: Flow<Boolean> = context.dataStore.data.map { it[KEY_PLAYER_HDR_GLOW] ?: false }
     val playerImmersiveCover: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: true }
+        context.dataStore.data.map { it[KEY_PLAYER_IMMERSIVE_COVER] ?: false }
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
@@ -1111,18 +1137,18 @@ class SettingsManager(private val context: Context) {
     val genreProtectedNames: Flow<String> = context.dataStore.data.map { it[KEY_GENRE_PROTECTED_NAMES] ?: "" }
     val tagIgnoreCase: Flow<Boolean> = context.dataStore.data.map { it[KEY_TAG_IGNORE_CASE] ?: false }
     val decoderMode: Flow<Int> = context.dataStore.data.map { it[KEY_DECODER_MODE] ?: 2 }
-    val librarySongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_LIBRARY_SONG] ?: 0 }
-    val albumListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ALBUM_LIST] ?: 0 }
-    val artistListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ARTIST_LIST] ?: 0 }
-    val albumDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ALBUM_DETAIL_SONG] ?: 0 }
-    val artistDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ARTIST_DETAIL_SONG] ?: 0 }
-    val artistDetailAlbumSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_ARTIST_DETAIL_ALBUM] ?: 0 }
-    val folderListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_LIST] ?: 0 }
-    val folderDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_DETAIL_SONG] ?: 0 }
-    val folderPlaylistListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_LIST] ?: 2 }
-    val folderPlaylistDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG] ?: 0 }
-    val folderPlaylistDetailFolderSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER] ?: 0 }
-    val playlistListSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_PLAYLIST_LIST] ?: 2 }
+    val librarySongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_LIBRARY_SONG, 0)
+    val albumListSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_ALBUM_LIST, 0)
+    val artistListSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_ARTIST_LIST, 0)
+    val albumDetailSongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_ALBUM_DETAIL_SONG, 0)
+    val artistDetailSongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_ARTIST_DETAIL_SONG, 0)
+    val artistDetailAlbumSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_ARTIST_DETAIL_ALBUM, 0)
+    val folderListSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_FOLDER_LIST, 0)
+    val folderDetailSongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_FOLDER_DETAIL_SONG, 0)
+    val folderPlaylistListSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_FOLDER_PLAYLIST_LIST, 2)
+    val folderPlaylistDetailSongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG, 0)
+    val folderPlaylistDetailFolderSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER, 0)
+    val playlistListSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_PLAYLIST_LIST, 2)
     val playlistCustomOrder: Flow<List<String>> = context.dataStore.data.map {
         it[KEY_PLAYLIST_CUSTOM_ORDER]
             .orEmpty()
@@ -1130,7 +1156,7 @@ class SettingsManager(private val context: Context) {
             .map(String::trim)
             .filter(String::isNotBlank)
     }
-    val playlistDetailSongSortIndex: Flow<Int> = context.dataStore.data.map { it[KEY_SORT_PLAYLIST_DETAIL_SONG] ?: 2 }
+    val playlistDetailSongSortIndex: Flow<Int> = sortIndexFlow(KEY_SORT_PLAYLIST_DETAIL_SONG, 2)
     val addToPlaylistAppendToEnd: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_ADD_TO_PLAYLIST_APPEND_TO_END] ?: false }
     val categoryGridColumns: Flow<Int> = context.dataStore.data.map {
@@ -1162,13 +1188,13 @@ class SettingsManager(private val context: Context) {
     val folderPlaylists: Flow<List<FolderPlaylist>> =
         context.dataStore.data.map { it[KEY_FOLDER_PLAYLISTS].orEmpty().toFolderPlaylists() }
     fun metadataCategorySortIndex(type: String): Flow<Int> =
-        context.dataStore.data.map { it[metadataCategorySortKey(type)] ?: 0 }
+        sortIndexFlow(metadataCategorySortKey(type), 0)
 
     fun metadataCategoryDetailSongSortIndex(type: String): Flow<Int> =
-        context.dataStore.data.map { it[metadataCategoryDetailSongSortKey(type)] ?: 0 }
+        sortIndexFlow(metadataCategoryDetailSongSortKey(type), 0)
 
     fun metadataCategoryDetailAlbumSortIndex(type: String): Flow<Int> =
-        context.dataStore.data.map { it[metadataCategoryDetailAlbumSortKey(type)] ?: 0 }
+        sortIndexFlow(metadataCategoryDetailAlbumSortKey(type), 0)
 
     val bluetoothLyricEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_BLUETOOTH_LYRIC_ENABLED] ?: false }
@@ -2173,51 +2199,51 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setLibrarySongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_LIBRARY_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_LIBRARY_SONG, index)
     }
 
     suspend fun setAlbumListSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_ALBUM_LIST] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_ALBUM_LIST, index)
     }
 
     suspend fun setArtistListSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_ARTIST_LIST] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_ARTIST_LIST, index)
     }
 
     suspend fun setAlbumDetailSongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_ALBUM_DETAIL_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_ALBUM_DETAIL_SONG, index)
     }
 
     suspend fun setArtistDetailSongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_ARTIST_DETAIL_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_ARTIST_DETAIL_SONG, index)
     }
 
     suspend fun setArtistDetailAlbumSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_ARTIST_DETAIL_ALBUM] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_ARTIST_DETAIL_ALBUM, index)
     }
 
     suspend fun setFolderListSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_FOLDER_LIST] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_FOLDER_LIST, index)
     }
 
     suspend fun setFolderDetailSongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_FOLDER_DETAIL_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_FOLDER_DETAIL_SONG, index)
     }
 
     suspend fun setFolderPlaylistListSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_LIST] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_FOLDER_PLAYLIST_LIST, index)
     }
 
     suspend fun setFolderPlaylistDetailSongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG, index)
     }
 
     suspend fun setFolderPlaylistDetailFolderSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER, index)
     }
 
     suspend fun setPlaylistListSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_PLAYLIST_LIST] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_PLAYLIST_LIST, index)
     }
 
     suspend fun setPlaylistCustomOrder(ids: List<String>) {
@@ -2258,7 +2284,7 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setPlaylistDetailSongSortIndex(index: Int) {
-        context.dataStore.edit { it[KEY_SORT_PLAYLIST_DETAIL_SONG] = index.coerceAtLeast(0) }
+        setSortIndex(KEY_SORT_PLAYLIST_DETAIL_SONG, index)
     }
 
     suspend fun setAddToPlaylistAppendToEnd(appendToEnd: Boolean) {
@@ -2355,15 +2381,15 @@ class SettingsManager(private val context: Context) {
     }
 
     suspend fun setMetadataCategorySortIndex(type: String, index: Int) {
-        context.dataStore.edit { it[metadataCategorySortKey(type)] = index.coerceAtLeast(0) }
+        setSortIndex(metadataCategorySortKey(type), index)
     }
 
     suspend fun setMetadataCategoryDetailSongSortIndex(type: String, index: Int) {
-        context.dataStore.edit { it[metadataCategoryDetailSongSortKey(type)] = index.coerceAtLeast(0) }
+        setSortIndex(metadataCategoryDetailSongSortKey(type), index)
     }
 
     suspend fun setMetadataCategoryDetailAlbumSortIndex(type: String, index: Int) {
-        context.dataStore.edit { it[metadataCategoryDetailAlbumSortKey(type)] = index.coerceAtLeast(0) }
+        setSortIndex(metadataCategoryDetailAlbumSortKey(type), index)
     }
 
     suspend fun setScanIncludeFolders(folders: String) {
