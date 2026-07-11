@@ -26,12 +26,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +60,11 @@ import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Share
 
+import androidx.compose.ui.graphics.luminance
+
 private const val MAX_SHARE_LINES = 14
+
+private val LocalShareContentColor = staticCompositionLocalOf { Color.White }
 
 @Composable
 fun LyricSharePicker(
@@ -67,6 +73,7 @@ fun LyricSharePicker(
     initialLine: LyricLine,
     cover: Bitmap?,
     backgroundColors: List<Color>,
+    contentColor: Color = Color.White,
     annotation: String = "",
     customInfo: String = "",
     shareTypeface: android.graphics.Typeface? = null,
@@ -131,6 +138,7 @@ fun LyricSharePicker(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
+        CompositionLocalProvider(LocalShareContentColor provides contentColor) {
         val landscape = maxWidth > maxHeight
         Column(modifier = Modifier.fillMaxSize()) {
             LyricShareHeader(
@@ -227,6 +235,7 @@ fun LyricSharePicker(
                 )
             }
         }
+        } // close CompositionLocalProvider
     }
 }
 
@@ -239,6 +248,7 @@ private fun LyricShareHeader(
     onShare: () -> Unit,
     onVideoShare: (() -> Unit)? = null
 ) {
+    val contentColor = LocalShareContentColor.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -250,13 +260,13 @@ private fun LyricShareHeader(
             Icon(
                 imageVector = MiuixIcons.Regular.Back,
                 contentDescription = stringResource(R.string.common_back),
-                tint = Color.White
+                tint = contentColor
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.lyric_share_picker_title),
-                color = Color.White,
+                color = contentColor,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -266,7 +276,7 @@ private fun LyricShareHeader(
                     selectedCount,
                     MAX_SHARE_LINES
                 ),
-                color = Color.White.copy(alpha = 0.56f),
+                color = contentColor.copy(alpha = 0.56f),
                 fontSize = 12.sp
             )
         }
@@ -275,7 +285,7 @@ private fun LyricShareHeader(
                 Icon(
                     imageVector = MiuixIcons.Regular.Play,
                     contentDescription = stringResource(R.string.lyric_video_share_chooser_title),
-                    tint = if (!shareEnabled) Color.White.copy(alpha = 0.34f) else Color.White
+                    tint = if (!shareEnabled) contentColor.copy(alpha = 0.34f) else contentColor
                 )
             }
         }
@@ -283,7 +293,7 @@ private fun LyricShareHeader(
             Icon(
                 imageVector = MiuixIcons.Regular.Share,
                 contentDescription = stringResource(R.string.common_share),
-                tint = if (!shareEnabled) Color.White.copy(alpha = 0.34f) else Color.White
+                tint = if (!shareEnabled) contentColor.copy(alpha = 0.34f) else contentColor
             )
         }
     }
@@ -294,25 +304,26 @@ private fun LyricShareTranslationToggle(
     includeTranslation: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
+    val contentColor = LocalShareContentColor.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.10f))
+            .background(contentColor.copy(alpha = 0.10f))
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.lyric_share_include_translation),
-                color = Color.White,
+                color = contentColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = stringResource(R.string.lyric_share_include_translation_summary),
-                color = Color.White.copy(alpha = 0.56f),
+                color = contentColor.copy(alpha = 0.56f),
                 fontSize = 12.sp
             )
         }
@@ -354,12 +365,13 @@ private fun LyricSharePickerRow(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val contentColor = LocalShareContentColor.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+            .background(if (selected) contentColor.copy(alpha = 0.18f) else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -368,15 +380,18 @@ private fun LyricSharePickerRow(
             modifier = Modifier
                 .size(22.dp)
                 .clip(CircleShape)
-                .background(if (selected) Color.White else Color.White.copy(alpha = 0.16f)),
+                .background(if (selected) contentColor else contentColor.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center
         ) {
             if (selected) {
+                // The checkmark dot contrasts with the circle: dark dot on light circle,
+                // light dot on dark circle.
+                val dotColor = if (contentColor.luminance() > 0.5f) Color(0xFF111111) else Color.White
                 Box(
                     modifier = Modifier
                         .size(9.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF111111))
+                        .background(dotColor)
                 )
             }
         }
@@ -387,7 +402,7 @@ private fun LyricSharePickerRow(
         ) {
             Text(
                 text = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "\u266a" } },
-                color = Color.White.copy(alpha = if (selected) 1f else 0.76f),
+                color = contentColor.copy(alpha = if (selected) 1f else 0.76f),
                 fontSize = 17.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
                 maxLines = 3,
@@ -400,7 +415,7 @@ private fun LyricSharePickerRow(
             if (!secondary.isNullOrBlank()) {
                 Text(
                     text = secondary,
-                    color = Color.White.copy(alpha = if (selected) 0.62f else 0.42f),
+                    color = contentColor.copy(alpha = if (selected) 0.62f else 0.42f),
                     fontSize = 13.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

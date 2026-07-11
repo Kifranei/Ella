@@ -202,6 +202,7 @@ internal fun PlayerLyricShareHost(
             initialLine = line,
             cover = embeddedCover ?: paletteBitmap,
             backgroundColors = listOf(palette.top, palette.middle, palette.bottom),
+            contentColor = palette.onBackground,
             annotation = annotation,
             customInfo = customInfo,
             shareTypeface = shareTypeface,

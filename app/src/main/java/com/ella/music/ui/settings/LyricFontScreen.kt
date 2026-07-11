@@ -7,15 +7,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -77,22 +80,8 @@ fun LyricFontScreen(
     val currentSystemFont = remember(selectedFontPath, systemFonts) {
         systemFonts.firstOrNull { it.path == selectedFontPath }
     }
-    val westernDisplayName = westernFontName.ifBlank {
-        stringResource(R.string.settings_lyric_font_western_default)
-    }
-    val cjkDisplayName = cjkFontName.ifBlank {
-        stringResource(R.string.settings_lyric_font_cjk_default)
-    }
-    val defaultChoice = FontChoice(
-        name = if (activeTarget == LyricFontTarget.Western) {
-            stringResource(R.string.settings_lyric_font_western_default)
-        } else {
-            stringResource(R.string.settings_lyric_font_cjk_default)
-        },
-        path = DEFAULT_FONT_CHOICE_PATH,
-        source = stringResource(R.string.settings_lyric_font_source_builtin),
-        sourceRank = -1
-    )
+    val westernDisplayName = westernFontName.ifBlank { "MiSans SemiBold" }
+    val cjkDisplayName = cjkFontName.ifBlank { "MiSans SemiBold" }
 
     suspend fun applyFont(font: FontChoice) {
         if (activeTarget == LyricFontTarget.Western) {
@@ -171,8 +160,10 @@ fun LyricFontScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .navigationBarsPadding()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 12.dp),
+            contentPadding = WindowInsets.navigationBars
+                .asPaddingValues()
+                .let { PaddingValues(bottom = it.calculateBottomPadding() + 24.dp) }
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -228,25 +219,6 @@ fun LyricFontScreen(
                     }
                 )
                 LyricFontListTitle()
-            }
-
-            item {
-                FontChoiceItem(
-                    font = defaultChoice,
-                    currentWeight = lyricFontWeight,
-                    italic = false,
-                    selected = selectedFontPath.isBlank(),
-                    onClick = {
-                        scope.launch {
-                            clearActiveFont()
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_lyric_font_applied, defaultChoice.name),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                )
             }
 
             items(fonts, key = { it.path }) { font ->

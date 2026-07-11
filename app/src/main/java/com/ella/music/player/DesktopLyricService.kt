@@ -639,15 +639,11 @@ class DesktopLyricService : Service() {
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
+            val defaultCjkPath = ensureBundledMiSansSemiboldPath(this@DesktopLyricService)
             val western = settingsManager.lyricWesternFontPath.first()
-                .ifBlank { ensureBundledInterPath(this@DesktopLyricService) }
+                .ifBlank { defaultCjkPath }
             val cjk = settingsManager.lyricCjkFontPath.first()
-                .ifBlank {
-                    settingsManager.lyricFontPath.first()
-                        .takeUnless { it.contains("Inter", ignoreCase = true) }
-                        .orEmpty()
-                        .ifBlank { ensureBundledMiSansSemiboldPath(this@DesktopLyricService) }
-                }
+                .ifBlank { defaultCjkPath }
             ScriptFontPaths(western, cjk).encode()
         } else {
             ""

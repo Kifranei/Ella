@@ -52,15 +52,12 @@ internal fun rememberPlayerLyricFontState(
     val lyricFontApplyToPage by settingsManager.lyricFontApplyToPage.collectAsState(initial = true)
     val bundledInterPath = remember(context) { ensureBundledInterPath(context) }
     val bundledCjkPath = remember(context) { ensureBundledMiSansSemiboldPath(context) }
-    val defaultCjkPath = remember(bundledCjkPath) {
-        bundledCjkPath.takeIf { !isXiaomiFamilyPlayerDevice() }.orEmpty()
-    }
     val migratedLegacyCjkPath = remember(lyricFontPath) {
         lyricFontPath.takeUnless { it.contains("Inter", ignoreCase = true) }.orEmpty()
     }
-    val effectiveWesternPath = lyricWesternFontPath.ifBlank { bundledInterPath }
+    val effectiveWesternPath = lyricWesternFontPath.ifBlank { bundledCjkPath }
     val effectiveCjkPath = lyricCjkFontPath.ifBlank {
-        migratedLegacyCjkPath.ifBlank { defaultCjkPath.ifBlank { SYSTEM_FONT_PATH } }
+        migratedLegacyCjkPath.ifBlank { bundledCjkPath }
     }
     val effectiveLyricFontPath = remember(effectiveWesternPath, effectiveCjkPath) {
         ScriptFontPaths(effectiveWesternPath, effectiveCjkPath).encode()
