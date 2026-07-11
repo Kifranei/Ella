@@ -925,6 +925,11 @@
     <string name="settings_playlist_special_entries">Show Favorites and Five-star entries on playlist page</string>
     <string name="settings_playlist_special_entries_summary">When off, the playlist page only shows custom playlists; favorites and ratings stay available as library filters</string>
     <string name="settings_lyric_font">Lyric font</string>
+    <string name="settings_lyric_font_western">Western font</string>
+    <string name="settings_lyric_font_cjk">CJK font</string>
+    <string name="settings_lyric_font_western_default">Default Western font (Inter)</string>
+    <string name="settings_lyric_font_cjk_default">Default CJK font</string>
+    <string name="settings_lyric_font_target_summary">Current: %1$s; tap, then choose separately below</string>
     <string name="settings_lyric_font_import">Import font</string>
     <string name="settings_lyric_font_list">Font list</string>
     <string name="settings_lyric_font_system_default_summary">Render lyrics with the default app font</string>

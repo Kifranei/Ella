@@ -830,6 +830,11 @@
     <string name="settings_playlist_special_entries">播放清單頁顯示喜歡與五星入口</string>
     <string name="settings_playlist_special_entries_summary">關閉後播放清單頁只顯示自訂播放清單；喜歡與星級可在音樂庫篩選</string>
     <string name="settings_lyric_font">歌詞字體</string>
+    <string name="settings_lyric_font_western">西文字體</string>
+    <string name="settings_lyric_font_cjk">中日韓字體</string>
+    <string name="settings_lyric_font_western_default">西文預設字體（Inter）</string>
+    <string name="settings_lyric_font_cjk_default">中日韓預設字體</string>
+    <string name="settings_lyric_font_target_summary">目前：%1$s；點擊後從下方清單單獨選擇</string>
     <string name="settings_lyric_font_import">匯入字體</string>
     <string name="settings_lyric_font_list">字體列表</string>
     <string name="settings_lyric_font_system_default_summary">使用應用預設字體渲染歌詞</string>

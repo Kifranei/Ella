@@ -35,13 +35,24 @@ internal enum class DynamicCoverKind {
     AnimatedImage
 }
 
+internal enum class PlayerVideoRole {
+    DynamicCover,
+    MusicVideo
+}
+
 internal data class DynamicCoverSource(
     val uri: Uri,
     val failureKey: String,
     val kind: DynamicCoverKind = DynamicCoverKind.Video,
     val aspectRatio: Float? = null,
     val preferLandscapeBackground: Boolean = false,
-    val playbackOwnerKey: String = ""
+    val playbackOwnerKey: String = "",
+    val role: PlayerVideoRole = PlayerVideoRole.DynamicCover
+)
+
+internal data class PlayerVideoSources(
+    val dynamicCover: DynamicCoverSource? = null,
+    val musicVideo: DynamicCoverSource? = null
 )
 
 internal fun Song.dynamicCoverResolutionKey(): String =
@@ -170,20 +181,42 @@ internal fun Song.dynamicCoverSource(
         dynamicCoverVideoFile(
             context = context,
             customRootPaths = customRootPaths,
-            includeExternalFiles = includeExternalFiles
+            includeExternalFiles = includeExternalFiles,
+            musicVideoOnly = false
         )?.let { file ->
             file.toDynamicCoverSource(
                 context = context,
-                songCandidates = dynamicCoverSongCandidates()
+                role = PlayerVideoRole.DynamicCover
             )
         } ?: dynamicCoverDocumentSource(
             context = context,
-            customRootPaths = customRootPaths
+            customRootPaths = customRootPaths,
+            musicVideoOnly = false
         ) ?: legacyEmbeddedAnimatedImageSource(context)
             ?: embeddedDynamicVideoSource(context)
     } else {
         legacyEmbeddedAnimatedImageSource(context) ?: embeddedDynamicVideoSource(context)
     }
+    return resolvedSource?.copy(playbackOwnerKey = dynamicCoverResolutionKey())
+}
+
+internal fun Song.musicVideoSource(
+    context: Context,
+    customRootPaths: List<String> = emptyList()
+): DynamicCoverSource? {
+    val resolvedSource = dynamicCoverVideoFile(
+        context = context,
+        customRootPaths = customRootPaths,
+        includeExternalFiles = true,
+        musicVideoOnly = true
+    )?.toDynamicCoverSource(
+        context = context,
+        role = PlayerVideoRole.MusicVideo
+    ) ?: dynamicCoverDocumentSource(
+        context = context,
+        customRootPaths = customRootPaths,
+        musicVideoOnly = true
+    )
     return resolvedSource?.copy(playbackOwnerKey = dynamicCoverResolutionKey())
 }
 
@@ -288,7 +321,8 @@ private fun Song.hasPlayableEmbeddedVideoTrack(context: Context, uri: Uri): Bool
 private fun Song.dynamicCoverVideoFile(
     context: Context,
     customRootPaths: List<String>,
-    includeExternalFiles: Boolean
+    includeExternalFiles: Boolean,
+    musicVideoOnly: Boolean
 ): File? {
     val songFile = path
         .takeUnless { it.startsWith("http://") || it.startsWith("https://") }
@@ -315,8 +349,6 @@ private fun Song.dynamicCoverVideoFile(
     val artistSongCompactName = listOf(artist, title)
         .filter { it.isNotBlank() }
         .joinToString("-")
-    val songKey = artistSongName.toSafeDynamicCoverName()
-
     val songNameCandidates = listOf(
         songFile?.nameWithoutExtension.orEmpty(),
         title,
@@ -331,6 +363,7 @@ private fun Song.dynamicCoverVideoFile(
         .distinct()
     val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
     val musicVideoSongCandidates = buildLandscapeMusicVideoNameCandidates(songCandidates)
+    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly)
     val albumNameCandidates = listOf(
         albumName,
         albumKey,
@@ -343,13 +376,17 @@ private fun Song.dynamicCoverVideoFile(
     val folderCandidates = songFolder
         ?.takeIf { it.exists() && it.isDirectory }
         ?.let { folder ->
-            (musicVideoSongCandidates + songCandidates).distinct().map { File(folder, "$it.mp4") } + listOf(
-                File(folder, "cover.mp4"),
-                File(folder, "${folder.name}.mp4"),
-                File(folder, "$albumName.mp4"),
-                File(folder, "$albumKey.mp4"),
-                File(folder, "$artistAlbumKey.mp4")
-            )
+            if (musicVideoOnly) {
+                musicVideoSongCandidates.map { File(folder, "$it.mp4") }
+            } else {
+                songCandidates.map { File(folder, "$it.mp4") } + listOf(
+                    File(folder, "cover.mp4"),
+                    File(folder, "${folder.name}.mp4"),
+                    File(folder, "$albumName.mp4"),
+                    File(folder, "$albumKey.mp4"),
+                    File(folder, "$artistAlbumKey.mp4")
+                )
+            }
         }
         .orEmpty()
 
@@ -361,22 +398,22 @@ private fun Song.dynamicCoverVideoFile(
 
     val libraryCandidates = roots.flatMap { root ->
         buildList {
-            add(File(root, "cover.mp4"))
-            addAll((musicVideoSongCandidates + songCandidates).distinct().map { name ->
+            if (!musicVideoOnly) add(File(root, "cover.mp4"))
+            addAll(selectedSongCandidates.map { name ->
                 File(root, "$name.mp4")
             })
-            addAll(albumNameCandidates.map { name ->
-                File(root, "$name.mp4")
-            })
+            if (!musicVideoOnly) {
+                addAll(albumNameCandidates.map { name -> File(root, "$name.mp4") })
+            }
             listOf("Song", "song").forEach { songDir ->
-                addAll((musicVideoSongCandidates + songCandidates).distinct().map { name ->
+                addAll(selectedSongCandidates.map { name ->
                     File(root, "$songDir/$name.mp4")
                 })
             }
-            listOf("Album", "album").forEach { albumDir ->
-                addAll(albumNameCandidates.map { name ->
-                    File(root, "$albumDir/$name.mp4")
-                })
+            if (!musicVideoOnly) {
+                listOf("Album", "album").forEach { albumDir ->
+                    addAll(albumNameCandidates.map { name -> File(root, "$albumDir/$name.mp4") })
+                }
             }
         }
     }
@@ -385,7 +422,7 @@ private fun Song.dynamicCoverVideoFile(
 
     candidates.firstOrNull { it.exists() && it.isFile && it.length() > 0L }?.let { return it }
 
-    val fuzzySongTokens = (songCandidates + musicVideoSongCandidates)
+    val fuzzySongTokens = selectedSongCandidates
         .mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
     val fuzzyAlbumTokens = albumNameCandidates
         .mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
@@ -406,7 +443,7 @@ private fun Song.dynamicCoverVideoFile(
                 file.extension.equals("mp4", ignoreCase = true) &&
                 file.length() > 0L &&
                 file.nameWithoutExtension.toDynamicCoverMatchToken().let { token ->
-                    token in fuzzySongTokens || token in fuzzyAlbumTokens
+                    token in fuzzySongTokens || (!musicVideoOnly && token in fuzzyAlbumTokens)
                 }
         }?.firstOrNull()
     }
@@ -446,7 +483,8 @@ internal fun dynamicCoverRootDirectories(
 
 private fun Song.dynamicCoverDocumentSource(
     context: Context,
-    customRootPaths: List<String>
+    customRootPaths: List<String>,
+    musicVideoOnly: Boolean
 ): DynamicCoverSource? {
     val albumName = album.ifBlank { "Unknown" }
     val artistAlbumKey = listOf(artist, albumName)
@@ -480,8 +518,8 @@ private fun Song.dynamicCoverDocumentSource(
         .filter { it.isNotBlank() }
         .distinct()
     val songCandidates = (songNameCandidates + safeSongNameCandidates).distinct()
-    val musicVideoSongCandidates = buildLandscapeMusicVideoNameCandidates(songCandidates)
-    val fuzzySongTokens = (songCandidates + musicVideoSongCandidates).mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
+    val selectedSongCandidates = playerVideoNameCandidates(songCandidates, musicVideoOnly)
+    val fuzzySongTokens = selectedSongCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
     val fuzzyAlbumTokens = albumNameCandidates.mapTo(mutableSetOf()) { it.toDynamicCoverMatchToken() }
 
     return customRootPaths
@@ -501,21 +539,28 @@ private fun Song.dynamicCoverDocumentSource(
 
             searchRoots.firstNotNullOfOrNull { directory ->
                 val exactNames = buildList {
-                    add("cover.mp4")
-                    addAll(musicVideoSongCandidates.map { "$it.mp4" })
-                    addAll(songCandidates.map { "$it.mp4" })
-                    addAll(albumNameCandidates.map { "$it.mp4" })
+                    if (!musicVideoOnly) add("cover.mp4")
+                    addAll(selectedSongCandidates.map { "$it.mp4" })
+                    if (!musicVideoOnly) addAll(albumNameCandidates.map { "$it.mp4" })
                 }
                 exactNames.firstNotNullOfOrNull { name ->
-                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(context, rawUri, songCandidates)
+                    directory.findChildFileIgnoreCase(name)?.toDynamicCoverSource(
+                        context,
+                        rawUri,
+                        if (musicVideoOnly) PlayerVideoRole.MusicVideo else PlayerVideoRole.DynamicCover
+                    )
                 } ?: directory.listFiles().firstOrNull { file ->
                     file.isFile &&
                         file.length() > 0L &&
                         file.name.orEmpty().substringAfterLast('.', "").equals("mp4", ignoreCase = true) &&
                         file.name.orEmpty().substringBeforeLast('.').toDynamicCoverMatchToken().let { token ->
-                            token in fuzzySongTokens || token in fuzzyAlbumTokens
+                            token in fuzzySongTokens || (!musicVideoOnly && token in fuzzyAlbumTokens)
                         }
-                }?.toDynamicCoverSource(context, rawUri, songCandidates)
+                }?.toDynamicCoverSource(
+                    context,
+                    rawUri,
+                    if (musicVideoOnly) PlayerVideoRole.MusicVideo else PlayerVideoRole.DynamicCover
+                )
             }
         }
         .firstOrNull()
@@ -550,30 +595,29 @@ private fun DocumentFile.findChildFileIgnoreCase(name: String): DocumentFile? =
 
 private fun File.toDynamicCoverSource(
     context: Context,
-    songCandidates: Collection<String>
+    role: PlayerVideoRole
 ): DynamicCoverSource {
     val uri = Uri.fromFile(this)
     return DynamicCoverSource(
         uri = uri,
         failureKey = "file:${absolutePath}:${lastModified()}:${length()}",
         aspectRatio = context.readDynamicCoverAspectRatio(uri),
-        preferLandscapeBackground = isLandscapeMusicVideoFileName(nameWithoutExtension, songCandidates)
+        preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
+        role = role
     )
 }
 
 private fun DocumentFile.toDynamicCoverSource(
     context: Context,
     rootUri: String,
-    songCandidates: Collection<String>
+    role: PlayerVideoRole
 ): DynamicCoverSource =
     DynamicCoverSource(
         uri = uri,
         failureKey = "tree:$rootUri:${uri}:${length()}",
         aspectRatio = context.readDynamicCoverAspectRatio(uri),
-        preferLandscapeBackground = isLandscapeMusicVideoFileName(
-            name.orEmpty().substringBeforeLast('.'),
-            songCandidates
-        )
+        preferLandscapeBackground = role == PlayerVideoRole.MusicVideo,
+        role = role
     )
 
 private fun Context.readDynamicCoverAspectRatio(uri: Uri): Float? =
@@ -618,6 +662,15 @@ internal fun buildLandscapeMusicVideoNameCandidates(baseNames: Collection<String
         .flatMap { name -> listOf("${name}_MV", "${name}-MV") }
         .distinct()
 
+internal fun playerVideoNameCandidates(
+    songCandidates: Collection<String>,
+    musicVideoOnly: Boolean
+): List<String> = if (musicVideoOnly) {
+    buildLandscapeMusicVideoNameCandidates(songCandidates)
+} else {
+    songCandidates.map(String::trim).filter(String::isNotBlank).distinct()
+}
+
 internal fun isLandscapeMusicVideoFileName(
     nameWithoutExtension: String,
     songCandidates: Collection<String>
@@ -633,26 +686,6 @@ private fun String.hasLandscapeMusicVideoSuffix(): Boolean =
 
 private fun String.removeLandscapeMusicVideoSuffix(): String =
     trim().replace(LANDSCAPE_MUSIC_VIDEO_SUFFIX_REGEX, "")
-
-private fun Song.dynamicCoverSongCandidates(): List<String> {
-    val artistSongName = listOf(artist, title)
-        .filter { it.isNotBlank() }
-        .joinToString(" - ")
-    val artistSongCompactName = listOf(artist, title)
-        .filter { it.isNotBlank() }
-        .joinToString("-")
-    return listOf(
-        File(path).nameWithoutExtension,
-        title,
-        artistSongCompactName,
-        artistSongName
-    )
-        .filter { it.isNotBlank() }
-        .distinct()
-        .let { raw ->
-            (raw + raw.map { it.toSafeDynamicCoverName() }.filter { it.isNotBlank() }).distinct()
-        }
-}
 
 private fun String.toDynamicCoverMatchToken(): String =
     lowercase()

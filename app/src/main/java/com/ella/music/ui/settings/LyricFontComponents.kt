@@ -33,6 +33,34 @@ import top.yukonga.miuix.kmp.icon.extended.Delete
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
+internal fun LyricFontTargetCard(
+    title: String,
+    currentName: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.padding(vertical = 4.dp),
+        onClick = onClick
+    ) {
+        BasicComponent(
+            title = title,
+            summary = stringResource(R.string.settings_lyric_font_target_summary, currentName),
+            endActions = {
+                if (selected) {
+                    Icon(
+                        imageVector = MiuixIcons.Basic.Check,
+                        contentDescription = null,
+                        tint = MiuixTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
 internal fun SystemDefaultFontCard(
     selected: Boolean,
     onClick: () -> Unit

@@ -68,7 +68,8 @@ fun SettingsDetailScreen(
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
 
-    val lyricFontName by settingsManager.lyricFontName.collectAsState(initial = "")
+    val lyricWesternFontName by settingsManager.lyricWesternFontName.collectAsState(initial = "")
+    val lyricCjkFontName by settingsManager.lyricCjkFontName.collectAsState(initial = "")
     val homeSectionOrder by settingsManager.homeSectionOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_SECTION_ORDER)
     val homeHiddenSections by settingsManager.homeHiddenSections.collectAsState(initial = "")
     val homeLibraryTileOrder by settingsManager.homeLibraryTileOrder.collectAsState(initial = SettingsManager.DEFAULT_HOME_LIBRARY_TILE_ORDER)
@@ -210,7 +211,10 @@ fun SettingsDetailScreen(
                     SettingsCardGroup(highlight = highlightKey == "lyric_font") {
                         ArrowPreference(
                             title = stringResource(R.string.settings_font_settings),
-                            summary = lyricFontName.ifBlank { stringResource(R.string.settings_system_default) },
+                            summary = listOf(
+                                lyricWesternFontName.ifBlank { stringResource(R.string.settings_lyric_font_western_default) },
+                                lyricCjkFontName.ifBlank { stringResource(R.string.settings_lyric_font_cjk_default) }
+                            ).joinToString(" / "),
                             onClick = onNavigateToLyricFont
                         )
                     }

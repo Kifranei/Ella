@@ -810,6 +810,11 @@
     <string name="settings_playlist_special_entries">Afficher Favoris et Cinq étoiles sur la page des playlists</string>
     <string name="settings_playlist_special_entries_summary">Si désactivé, la page des playlists affiche uniquement les playlists personnalisées ; les favoris et notes restent disponibles comme filtres de bibliothèque</string>
     <string name="settings_lyric_font">Police des paroles</string>
+    <string name="settings_lyric_font_western">Police occidentale</string>
+    <string name="settings_lyric_font_cjk">Police CJK</string>
+    <string name="settings_lyric_font_western_default">Police occidentale par défaut (Inter)</string>
+    <string name="settings_lyric_font_cjk_default">Police CJK par défaut</string>
+    <string name="settings_lyric_font_target_summary">Actuelle : %1$s ; touchez puis choisissez séparément ci-dessous</string>
     <string name="settings_lyric_font_import">Importer une police</string>
     <string name="settings_lyric_font_list">Liste des polices</string>
     <string name="settings_lyric_font_system_default_summary">Afficher les paroles avec la police par défaut de l’application</string>

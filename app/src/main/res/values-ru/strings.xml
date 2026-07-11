@@ -808,6 +808,11 @@
     <string name="settings_playlist_special_entries">Показывать избранное и пятизвездочные записи на странице плейлиста</string>
     <string name="settings_playlist_special_entries_summary">Если этот параметр отключен, на странице списка воспроизведения отображаются только пользовательские списки воспроизведения; избранное и рейтинги остаются доступными в виде фильтров библиотеки.</string>
     <string name="settings_lyric_font">Лирический шрифт</string>
+    <string name="settings_lyric_font_western">Латинский шрифт</string>
+    <string name="settings_lyric_font_cjk">Шрифт CJK</string>
+    <string name="settings_lyric_font_western_default">Латинский шрифт по умолчанию (Inter)</string>
+    <string name="settings_lyric_font_cjk_default">Шрифт CJK по умолчанию</string>
+    <string name="settings_lyric_font_target_summary">Текущий: %1$s; нажмите и выберите отдельно ниже</string>
     <string name="settings_lyric_font_import">Импортировать шрифт</string>
     <string name="settings_lyric_font_list">Список шрифтов</string>
     <string name="settings_lyric_font_system_default_summary">Отрисовывайте тексты песен с помощью шрифта приложения по умолчанию.</string>

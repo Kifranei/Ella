@@ -810,6 +810,11 @@
     <string name="settings_playlist_special_entries">재생목록 페이지에 즐겨찾기 및 별 5개 항목 표시</string>
     <string name="settings_playlist_special_entries_summary">꺼져 있으면 재생목록 페이지에 사용자 지정 재생목록만 표시됩니다. 즐겨찾기 및 평가는 라이브러리 필터로 계속 사용할 수 있습니다.</string>
     <string name="settings_lyric_font">가사 글꼴</string>
+    <string name="settings_lyric_font_western">서양 문자 글꼴</string>
+    <string name="settings_lyric_font_cjk">한중일 글꼴</string>
+    <string name="settings_lyric_font_western_default">기본 서양 문자 글꼴(Inter)</string>
+    <string name="settings_lyric_font_cjk_default">기본 한중일 글꼴</string>
+    <string name="settings_lyric_font_target_summary">현재: %1$s. 탭한 뒤 아래에서 별도로 선택</string>
     <string name="settings_lyric_font_import">글꼴 가져오기</string>
     <string name="settings_lyric_font_list">글꼴 목록</string>
     <string name="settings_lyric_font_system_default_summary">기본 앱 글꼴로 가사 렌더링</string>

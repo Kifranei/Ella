@@ -894,11 +894,27 @@ class ExoPlayerManager(private val context: Context) {
         }
     }
 
-    fun seekTo(positionMs: Long) {
-        val controller = mediaController ?: return
+    fun seekTo(positionMs: Long): Long? {
+        val controller = mediaController ?: return null
         val target = playbackSeekTarget(positionMs, controller.duration)
         controller.seekTo(target)
+        _currentPosition.value = target
         savePlaybackState(force = true)
+        return target
+    }
+
+    fun seekToProgress(progress: Float, fallbackDurationMs: Long): Long? {
+        val controller = mediaController ?: return null
+        val target = playbackSeekTargetForProgress(
+            progress = progress,
+            playerDurationMs = controller.duration,
+            fallbackDurationMs = fallbackDurationMs
+        ) ?: return null
+        controller.seekTo(target)
+        _currentPosition.value = target
+        if (controller.duration > 0L) _duration.value = controller.duration
+        savePlaybackState(force = true)
+        return target
     }
 
     fun toggleShuffle() {
