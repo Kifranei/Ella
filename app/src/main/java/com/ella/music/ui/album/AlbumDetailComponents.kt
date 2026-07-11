@@ -57,7 +57,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 internal fun AlbumCopyrightFooter(
     copyright: String,
-    producer: String,
+    publisher: String,
     year: AlbumMetadataDisplayItem?,
     genres: List<AlbumMetadataDisplayItem>,
     artists: List<AlbumMetadataDisplayItem>,
@@ -81,7 +81,7 @@ internal fun AlbumCopyrightFooter(
                 values = values
             )
         }
-        producer.lines().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { values ->
+        publisher.lines().filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { values ->
             AlbumTextInfoSection(
                 title = stringResource(R.string.album_publisher),
                 values = values

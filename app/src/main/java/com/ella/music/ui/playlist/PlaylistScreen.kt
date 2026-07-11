@@ -667,7 +667,9 @@ fun PlaylistScreen(
                             } else {
                                 {
                                     if (selectionMode) {
-                                        togglePlaylistSelection(playlist)
+                                        if (shouldSelectPlaylistOnLongPress(true, playlist.id in selectedPlaylistIds)) {
+                                            togglePlaylistSelection(playlist)
+                                        }
                                     } else {
                                         selectionMode = true
                                         selectedPlaylistIds = selectedPlaylistIds + playlist.id

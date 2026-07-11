@@ -201,23 +201,17 @@ fun AlbumDetailScreen(
                 .joinToString("\n")
         }
     }
-    val albumProducer by produceState<String>(initialValue = "", albumId, albumSongs) {
+    val albumPublisher by produceState<String>(initialValue = "", albumId, albumSongs) {
         value = withContext(Dispatchers.IO) {
             albumSongs
                 .asSequence()
-                .mapNotNull { song ->
+                .flatMap { song ->
                     mainViewModel.getFullAudioTagInfo(song)
                         ?.customTags
-                        ?.entries
-                        ?.firstOrNull { (key, _) ->
-                            key.equals("PRODUCER", ignoreCase = true) ||
-                                key.equals("PRODUCERS", ignoreCase = true)
-                        }
-                        ?.value
+                        ?.albumPublisherValues()
+                        .orEmpty()
+                        .asSequence()
                 }
-                .flatten()
-                .map(String::trim)
-                .filter(String::isNotBlank)
                 .distinctBy { it.lowercase(Locale.ROOT) }
                 .take(3)
                 .joinToString("\n")
@@ -546,7 +540,7 @@ fun AlbumDetailScreen(
             }
             if (
                 albumCopyright.isNotBlank() ||
-                albumProducer.isNotBlank() ||
+                albumPublisher.isNotBlank() ||
                 albumGenres.isNotEmpty() ||
                 participatingArtists.isNotEmpty() ||
                 participatingComposers.isNotEmpty() ||
@@ -556,7 +550,7 @@ fun AlbumDetailScreen(
                 item(key = "album-extra-info") {
                     AlbumCopyrightFooter(
                         copyright = albumCopyright,
-                        producer = albumProducer,
+                        publisher = albumPublisher,
                         genres = genreDisplayItems,
                         artists = artistDisplayItems,
                         composers = composerDisplayItems,
