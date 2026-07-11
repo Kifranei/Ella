@@ -2,6 +2,8 @@ package com.ella.music.ui.player
 
 import android.content.Context
 import android.app.Activity
+import android.Manifest
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.content.Intent
 import android.content.ContextWrapper
@@ -271,6 +273,19 @@ fun PlayerScreen(
         ?.takeIf { it.hasMiniLyric() }
         ?: lyrics.firstOrNull { it.hasMiniLyric() }
     val uiState = rememberPlayerScreenUiState()
+    val musicVideoPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            uiState.musicVideoVisible = true
+        } else {
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_dynamic_cover_permission_denied),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
     val landscapeState = rememberPlayerLandscapeUiState()
     val visualizerPermissionState = rememberPlayerVisualizerPermissionState(
         context = context,
@@ -546,7 +561,16 @@ fun PlayerScreen(
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
                         musicVideoVisible = uiState.musicVideoVisible,
-                        onMusicVideoVisibleChange = { uiState.musicVideoVisible = it },
+                        onMusicVideoVisibleChange = { visible ->
+                            val needsVideoPermission = visible &&
+                                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED
+                            if (needsVideoPermission) {
+                                musicVideoPermissionLauncher.launch(Manifest.permission.READ_MEDIA_VIDEO)
+                            } else {
+                                uiState.musicVideoVisible = visible
+                            }
+                        },
                         immersiveAlbumCover = immersiveAlbumCover,
                         playerBackgroundEnabled = playerBackgroundEnabled,
                         playerBackgroundUri = playerBackgroundUri,

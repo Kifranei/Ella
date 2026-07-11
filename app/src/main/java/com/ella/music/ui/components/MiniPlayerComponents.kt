@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -331,10 +332,18 @@ private fun AutoScrollingMiniText(
             topLeft = topLeft
         )
         if (enabled && highlightWithProgress && highlightRight > 0f) {
+            // Draw a solid sung section, then blend it into the dim copy.  The previous
+            // rectangular clip made every word boundary snap hard in the mini player.
+            // Once the last word is complete, do not leave the trailing feather visible:
+            // its transparent edge would otherwise keep the final glyphs permanently dim.
+            val featherWidth = if (safeProgress >= 0.995f) 0f else {
+                with(density) { 18.dp.toPx() }.coerceAtMost(highlightRight)
+            }
+            val solidHighlightRight = (highlightRight - featherWidth).coerceAtLeast(0f)
             clipRect(
                 left = 0f,
                 top = 0f,
-                right = highlightRight,
+                right = solidHighlightRight,
                 bottom = size.height
             ) {
                 drawText(
@@ -342,6 +351,27 @@ private fun AutoScrollingMiniText(
                     color = highlightedColor,
                     topLeft = topLeft
                 )
+            }
+            if (featherWidth > 0f) {
+                clipRect(
+                    left = solidHighlightRight,
+                    top = 0f,
+                    right = highlightRight,
+                    bottom = size.height
+                ) {
+                    drawText(
+                        textLayoutResult = textLayout,
+                        brush = Brush.horizontalGradient(
+                            colorStops = arrayOf(
+                                0f to highlightedColor,
+                                1f to Color.Transparent
+                            ),
+                            startX = solidHighlightRight,
+                            endX = highlightRight
+                        ),
+                        topLeft = topLeft
+                    )
+                }
             }
         }
     }

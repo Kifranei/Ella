@@ -17,6 +17,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -137,6 +138,21 @@ fun MiniPlayer(
                         dragAmount = 0f
                     },
                     onDragCancel = { dragAmount = 0f }
+                )
+            }
+            .pointerInput(song.id) {
+                var verticalDragAmount = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { verticalDragAmount = 0f },
+                    onVerticalDrag = { change, amount ->
+                        verticalDragAmount += amount
+                        change.consume()
+                    },
+                    onDragEnd = {
+                        if (verticalDragAmount < -48f) onClick()
+                        verticalDragAmount = 0f
+                    },
+                    onDragCancel = { verticalDragAmount = 0f }
                 )
             }
             .clickable(
@@ -313,6 +329,21 @@ fun CompactMiniPlayer(
                 modifier = Modifier
                     .weight(1f)
                     .height(64.dp)
+                    .pointerInput(song.id) {
+                        var verticalDragAmount = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = { verticalDragAmount = 0f },
+                            onVerticalDrag = { change, amount ->
+                                verticalDragAmount += amount
+                                change.consume()
+                            },
+                            onDragEnd = {
+                                if (verticalDragAmount < -48f) onClick()
+                                verticalDragAmount = 0f
+                            },
+                            onDragCancel = { verticalDragAmount = 0f }
+                        )
+                    }
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,

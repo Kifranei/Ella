@@ -189,6 +189,7 @@ internal fun LyricsPlayerPage(
                             lyrics = lyrics,
                             currentIndex = currentLyricIndex,
                             currentPositionMs = currentPositionMs,
+                            isPlaying = isPlaying,
                             showTranslation = showTranslation,
                             showPronunciation = showPronunciation,
                             fontFamily = fontFamily,

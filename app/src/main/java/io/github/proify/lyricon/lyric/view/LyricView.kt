@@ -77,12 +77,17 @@ class LyricView @JvmOverloads constructor(
         private const val INTERLUDE_DOT_SPACING_DP = 6f
         private const val INTERLUDE_ENTER_MS = 750L
         private const val INTERLUDE_PULSE_MS = 4000f
-        private const val INTERLUDE_PULSE_AMPLITUDE = 0.2f
+        // Apple Music-style breathing, restrained for the compact lyric viewport.
+        // This keeps the dots between 0.9x and 1.1x instead of the overly obvious 0.8x–1.2x.
+        private const val INTERLUDE_PULSE_AMPLITUDE = 0.1f
         private const val INTERLUDE_EXIT_UP_MS = 750L
         private const val INTERLUDE_EXIT_DOWN_MS = 250L
         private const val INTERLUDE_EXTRA_DP = 48f
         private const val INTERLUDE_EXPAND_MS = 500L
         private const val INTERLUDE_COLLAPSE_MS = 300L
+        // Kept separate from the inactive sentinel (-1) so an intro can reserve
+        // space above the first lyric line for the same Apple Music dots.
+        private const val INTRO_INTERLUDE_INDEX = -2
         private const val MARQUEE_HOLD_MS = 900L
         private const val MARQUEE_SPEED_DP_PER_SEC = 36f
         private const val MARQUEE_RESTART_GAP_DP = 48f
@@ -1056,7 +1061,7 @@ class LyricView @JvmOverloads constructor(
     }
 
     private fun updateInterludeExpand(): Boolean {
-        if (interludePrevIdx < 0 && !interludeCollapsing) return false
+        if (!isInterludeActive() && !interludeCollapsing) return false
         val now = SystemClock.uptimeMillis()
         if (!interludeCollapsing) {
             val t = ((now - interludeExpandStartTime).toFloat() / INTERLUDE_EXPAND_MS).coerceIn(0f, 1f)
@@ -1255,7 +1260,7 @@ class LyricView @JvmOverloads constructor(
         // line. This keeps non-current lines on the same line breaks as the current line, since
         // drawTextAligned uses StaticLayout which can break words differently than the word-by-word
         // karaoke layout used for the highlighted line.
-        if (!singleLineMarqueeEnabled && !entry.words.isNullOrEmpty()) {
+        if (!singleLineMarqueeEnabled && !entry.words.isNullOrEmpty() && !farBlur) {
             drawKaraokeWords(canvas, entry, index, textStartX, mainBaseline, entry.alignedRight, entry.centered)
         } else {
             val paint = when {
@@ -1424,6 +1429,25 @@ class LyricView @JvmOverloads constructor(
     }
 
     private fun detectInterlude() {
+        val firstEntry = entries.firstOrNull()
+        if (
+            firstEntry != null &&
+            currentIndex < 0 &&
+            firstEntry.begin >= INTERLUDE_MIN_GAP_MS &&
+            currentPosMs in 0 until firstEntry.begin
+        ) {
+            if (interludePrevIdx != INTRO_INTERLUDE_INDEX) {
+                interludeCollapsing = false
+                interludePrevIdx = INTRO_INTERLUDE_INDEX
+                interludeNextIdx = 0
+                interludeGapStart = 0L
+                interludeGapEnd = firstEntry.begin
+                interludeEnterStart = SystemClock.uptimeMillis()
+                interludeExpandStartTime = SystemClock.uptimeMillis()
+                interludeExpandProgress = 0f
+            }
+            return
+        }
         if (currentIndex < 0 || currentIndex >= entries.size - 1) {
             if (isInterludeActive()) startInterludeCollapse()
             return
@@ -1465,16 +1489,18 @@ class LyricView @JvmOverloads constructor(
         interludeCollapseStartTime = 0L
     }
 
-    private fun isInterludeActive(): Boolean = interludePrevIdx >= 0
+    private fun isInterludeActive(): Boolean = interludePrevIdx != -1
 
     private fun getInterludeExpandOffset(): Float {
-        if (interludePrevIdx < 0 && !interludeCollapsing) return 0f
+        if (!isInterludeActive() && !interludeCollapsing) return 0f
         return interludeExpandProgress * INTERLUDE_EXTRA_DP * density
     }
 
     private fun drawInterlude(canvas: Canvas) {
-        if (interludePrevIdx < 0 || interludeNextIdx < 0) return
-        val prevEntry = entries.getOrNull(interludePrevIdx) ?: return
+        if (!isInterludeActive() || interludeNextIdx < 0) return
+        val nextEntry = entries.getOrNull(interludeNextIdx) ?: return
+        val prevEntry = entries.getOrNull(interludePrevIdx)
+        val layoutEntry = prevEntry ?: nextEntry
 
         val viewH = height.toFloat()
         val ds = dotSizePx
@@ -1484,14 +1510,19 @@ class LyricView @JvmOverloads constructor(
         val edgeInset = TEXT_EDGE_SAFE_INSET_DP * density
         val alignInset = RIGHT_ALIGN_GLYPH_SAFE_INSET_DP * density
         val startX = when {
-            prevEntry.alignedRight -> width - paddingRight.toFloat() - edgeInset - alignInset - dotGroupWidth
-            prevEntry.centered -> paddingLeft.toFloat() + (availableWidth - dotGroupWidth) / 2f
+            layoutEntry.alignedRight -> width - paddingRight.toFloat() - edgeInset - alignInset - dotGroupWidth
+            layoutEntry.centered -> paddingLeft.toFloat() + (availableWidth - dotGroupWidth) / 2f
             else -> paddingLeft.toFloat() + edgeInset
         }
         val expandOffset = getInterludeExpandOffset()
         if (expandOffset < ds) return
-        val prevBottom = prevEntry.yTop + prevEntry.totalH - scrollY
-        val centerY = prevBottom + expandOffset / 2f
+        // During the intro every lyric line is shifted down by the expansion.
+        // Put the dots in the newly created space immediately above line zero.
+        val centerY = if (prevEntry == null) {
+            nextEntry.yTop - scrollY + expandOffset / 2f
+        } else {
+            prevEntry.yTop + prevEntry.totalH - scrollY + expandOffset / 2f
+        }
 
         if (centerY + ds < 0f || centerY - ds > viewH) return
 

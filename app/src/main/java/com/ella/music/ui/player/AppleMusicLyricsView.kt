@@ -2,31 +2,47 @@ package com.ella.music.ui.player
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -34,14 +50,18 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
+import com.ella.music.data.model.primaryEndMs
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
+import kotlin.math.PI
+import kotlin.math.sin
 
 /** A native, independently implemented focus-lyrics renderer. */
 @Composable
@@ -49,6 +69,7 @@ internal fun AppleMusicLyricsView(
     lyrics: List<LyricLine>,
     currentIndex: Int,
     currentPositionMs: Long,
+    isPlaying: Boolean,
     showTranslation: Boolean,
     showPronunciation: Boolean,
     fontFamily: FontFamily?,
@@ -75,15 +96,30 @@ internal fun AppleMusicLyricsView(
     }
 
     val listState = rememberLazyListState()
+    val interludes = remember(lyrics) { lyrics.interludes() }
+    var smoothPositionMs by remember { mutableLongStateOf(currentPositionMs) }
+    LaunchedEffect(currentPositionMs, isPlaying) {
+        val anchorPositionMs = currentPositionMs
+        val anchorFrameNs = withFrameNanos { it }
+        smoothPositionMs = anchorPositionMs
+        while (isPlaying) {
+            val frameNs = withFrameNanos { it }
+            smoothPositionMs = anchorPositionMs + ((frameNs - anchorFrameNs) / 1_000_000L)
+        }
+    }
+    val activeInterlude = interludes.firstOrNull { it.isActiveAt(smoothPositionMs) }
     val activeIndex = currentIndex.coerceIn(0, lyrics.lastIndex)
-    LaunchedEffect(activeIndex) {
+    val scrollTargetIndex = activeInterlude?.let { interlude ->
+        interlude.nextLineIndex + interludes.count { it.nextLineIndex < interlude.nextLineIndex }
+    } ?: activeIndex + interludes.count { it.nextLineIndex <= activeIndex }
+    LaunchedEffect(scrollTargetIndex) {
         // Do not issue the first scroll before LazyColumn has a viewport; that was making the
         // focus line land under the page header until the user manually scrolled.
         val viewportHeight = snapshotFlow {
             listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset
         }.filter { it > 0 }.first()
         // Negative offset positions the line safely below the header rather than underneath it.
-        listState.animateScrollToItem(activeIndex, -(viewportHeight * 0.24f).toInt())
+        listState.animateScrollToItem(scrollTargetIndex, -(viewportHeight * 0.24f).toInt())
     }
     val defaultTextAlign = when (lyricTextAlign) {
         SettingsManager.PLAYER_LYRIC_ALIGN_CENTER -> TextAlign.Center
@@ -97,13 +133,29 @@ internal fun AppleMusicLyricsView(
         verticalArrangement = Arrangement.spacedBy(25.dp),
         modifier = modifier.fillMaxSize()
     ) {
-        itemsIndexed(lyrics, key = { index, line -> "${line.timeMs}-$index" }) { index, line ->
-            val duetActive = line.isDuetLine() && line.isActiveAt(currentPositionMs)
+        lyrics.forEachIndexed { index, line ->
+            interludes.firstOrNull { it.nextLineIndex == index }?.let { interlude ->
+                item(key = "interlude-${interlude.startMs}-${interlude.endMs}") {
+                    AppleMusicInterlude(
+                        interlude = interlude,
+                        positionMs = smoothPositionMs,
+                        contentColor = contentColor,
+                        textAlign = lyrics[if (interlude.nextLineIndex == 0) 0 else interlude.nextLineIndex - 1]
+                            .duetTextAlign(defaultTextAlign)
+                    )
+                }
+            }
+            item(key = "${line.timeMs}-$index") {
+            val duetActive = line.isDuetLine() && line.isActiveAt(smoothPositionMs)
+            val lineIsActive = activeInterlude == null && (index == activeIndex || duetActive)
             AppleMusicLyricLine(
                 line = line,
-                active = index == activeIndex || duetActive,
+                active = lineIsActive,
                 distance = (index - activeIndex).coerceIn(-4, 4),
-                currentPositionMs = currentPositionMs,
+                userScrolling = listState.isScrollInProgress,
+                // Do not invalidate every retained LazyColumn row for every playback tick.
+                // Only the active (or simultaneous duet) line needs a changing karaoke position.
+                currentPositionMs = if (lineIsActive) smoothPositionMs else Long.MIN_VALUE,
                 showTranslation = showTranslation,
                 showPronunciation = showPronunciation,
                 fontFamily = fontFamily,
@@ -118,6 +170,64 @@ internal fun AppleMusicLyricsView(
                 onDoubleClick = onLineDoubleClick,
                 onLongClick = { onLineLongClick(line) }
             )
+            }
+        }
+    }
+}
+
+/** Matches Apple Music's instrumental marker: three 10dp dots, separated by 6dp. */
+@Composable
+private fun AppleMusicInterlude(
+    interlude: AppleMusicInterlude,
+    positionMs: Long,
+    contentColor: Color,
+    textAlign: TextAlign
+) {
+    val visible = interlude.isActiveAt(positionMs)
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(spring(dampingRatio = 0.78f, stiffness = 360f)) + fadeIn(),
+        exit = shrinkVertically(spring(dampingRatio = 0.9f, stiffness = 480f)) + fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            contentAlignment = when (textAlign) {
+                TextAlign.End -> Alignment.CenterEnd
+                TextAlign.Center -> Alignment.Center
+                else -> Alignment.CenterStart
+            }
+        ) {
+            Row {
+                // Match the legacy renderer's Apple Music-inspired four-second breath,
+                // while keeping the compact dot group within a restrained 0.9x–1.1x range.
+                val pulseScale = 1f + 0.1f * sin(
+                    ((positionMs - interlude.startMs).toFloat() / 4_000f) * 2f * PI.toFloat()
+                )
+                val progress = ((positionMs - interlude.startMs).toFloat() /
+                    (interlude.endMs - interlude.startMs - 800L).coerceAtLeast(1L))
+                    .coerceIn(0f, 1f)
+                // Each dot gets a 16dp cell (10dp dot + 6dp spacing).  Scaling the drawing
+                // within that cell reserves enough room for the 1.1x breath and prevents the
+                // third dot from being clipped by Compose's animated item layer.
+                Row {
+                    repeat(3) { index ->
+                        val dotProgress = ((progress - index / 3f) * 3f).coerceIn(0f, 1f)
+                        val dotAlpha by animateFloatAsState(
+                            targetValue = 0.18f + 0.67f * dotProgress,
+                            animationSpec = spring(dampingRatio = 0.9f, stiffness = 440f),
+                            label = "appleInterludeDot$index"
+                        )
+                        Canvas(modifier = Modifier.size(16.dp)) {
+                            drawCircle(
+                                color = contentColor.copy(alpha = dotAlpha),
+                                radius = 5.dp.toPx() * pulseScale
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -127,6 +237,7 @@ private fun AppleMusicLyricLine(
     line: LyricLine,
     active: Boolean,
     distance: Int,
+    userScrolling: Boolean,
     currentPositionMs: Long,
     showTranslation: Boolean,
     showPronunciation: Boolean,
@@ -166,11 +277,7 @@ private fun AppleMusicLyricLine(
         fontFamily = fontFamily,
         color = contentColor.copy(alpha = alpha),
         textAlign = textAlign,
-        shadow = if (active) Shadow(
-            color = contentColor.copy(alpha = 0.40f * focus),
-            offset = Offset(0f, 5f),
-            blurRadius = 24f
-        ) else null
+        shadow = null
     )
     val secondaryStyle = TextStyle(
         fontSize = (secondaryTextSizeSp * fontScale * secondaryFontScale).sp,
@@ -197,6 +304,7 @@ private fun AppleMusicLyricLine(
                     pivotFractionY = 0.5f
                 )
             }
+            .then(if (!userScrolling && !active && abs(distance) >= 2) Modifier.blur((2 + abs(distance)).dp) else Modifier)
             .pointerInput(line) {
                 detectTapGestures(
                     onTap = { onClick() },
@@ -232,6 +340,12 @@ private fun AppleMusicLyricLine(
             )
         }
         line.backgroundText?.trim()?.takeIf { it.isNotBlank() && line.text.isNotBlank() }?.let { background ->
+            AnimatedVisibility(
+                visible = line.isBackgroundActiveAt(currentPositionMs),
+                enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.72f), initialOffsetY = { it / 2 }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 3 })
+            ) {
+                Column {
             TimedLyricText(
                 text = background,
                 words = line.backgroundWords,
@@ -247,6 +361,8 @@ private fun AppleMusicLyricLine(
                     style = secondaryStyle.copy(color = contentColor.copy(alpha = alpha * 0.62f)),
                     modifier = Modifier.fillMaxWidth().padding(top = 3.dp)
                 )
+            }
+                }
             }
         }
     }
@@ -280,28 +396,80 @@ private fun TimedLyricText(
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         timedWords.forEach { word ->
-            val color = word.karaokeColor(
+            AppleMusicKaraokeWord(
+                word = word,
                 positionMs = positionMs,
                 active = active,
-                baseColor = style.color,
+                baseStyle = style,
                 contentColor = contentColor
             )
-            BasicText(text = word.text, style = style.copy(color = color))
         }
     }
 }
 
-private fun LyricWord.karaokeColor(
+@Composable
+private fun AppleMusicKaraokeWord(
+    word: LyricWord,
     positionMs: Long,
     active: Boolean,
-    baseColor: Color,
+    baseStyle: TextStyle,
     contentColor: Color
-) : Color {
-    if (!active) return baseColor
-    val progress = ((positionMs - startMs).toFloat() / (endMs - startMs).coerceAtLeast(1L))
+ ) {
+    val progress = if (active) ((positionMs - word.startMs).toFloat() / (word.endMs - word.startMs).coerceAtLeast(1L))
         .coerceIn(0f, 1f)
-    val dim = contentColor.copy(alpha = baseColor.alpha * 0.36f)
-    return androidx.compose.ui.graphics.lerp(dim, contentColor.copy(alpha = baseColor.alpha), progress)
+    else 0f
+    val bright = contentColor.copy(alpha = baseStyle.color.alpha)
+    val dim = contentColor.copy(alpha = baseStyle.color.alpha * 0.36f)
+    when {
+        progress <= 0f -> BasicText(text = word.text, style = baseStyle.copy(color = dim))
+        progress >= 1f -> BasicText(text = word.text, style = baseStyle.copy(color = bright))
+        else -> Box {
+            BasicText(text = word.text, style = baseStyle.copy(color = dim))
+            val featherStart = (progress - 0.15f).coerceAtLeast(0f)
+            BasicText(
+                text = word.text,
+                style = baseStyle.copy(
+                    brush = Brush.horizontalGradient(
+                        colorStops = arrayOf(
+                            0f to bright,
+                            featherStart to bright,
+                            progress to Color.Transparent,
+                            1f to Color.Transparent
+                        )
+                    )
+                )
+            )
+            word.sustainGlowAlpha(positionMs, active).takeIf { it > 0f }?.let { glowAlpha ->
+                BasicText(
+                    text = word.text,
+                    style = baseStyle.copy(
+                        color = bright.copy(alpha = glowAlpha * 0.38f),
+                        shadow = Shadow(
+                            color = bright.copy(alpha = glowAlpha * 0.58f),
+                            offset = Offset(0f, 0f),
+                            blurRadius = 16f
+                        )
+                    )
+                )
+            }
+        }
+    }
+}
+
+private fun LyricWord.sustainGlowAlpha(positionMs: Long, active: Boolean): Float {
+    if (!active) return 0f
+    val duration = endMs - startMs
+    if (duration < 900L || positionMs !in startMs until endMs) return 0f
+    val elapsed = positionMs - startMs
+    val delay = minOf(420L, (duration * 0.36f).toLong().coerceAtLeast(1L))
+    if (elapsed < delay) return 0f
+    val progress = ((elapsed - delay).toFloat() / (duration - delay).coerceAtLeast(1L))
+        .coerceIn(0f, 1f)
+    return when {
+        progress < 0.18f -> progress / 0.18f
+        progress > 0.82f -> (1f - progress) / 0.18f
+        else -> 1f
+    }.coerceIn(0f, 1f)
 }
 
 private fun List<LyricWord>.withDisplaySpacing(lineText: String): List<LyricWord> {
@@ -330,6 +498,40 @@ private fun LyricLine.isDuetLine(): Boolean = agent.equals("v1", true) || agent.
 private fun LyricLine.isActiveAt(positionMs: Long): Boolean {
     val timedEnd = endMs ?: words.maxOfOrNull { it.endMs } ?: backgroundEndMs ?: timeMs + 4_000L
     return positionMs in timeMs until timedEnd.coerceAtLeast(timeMs + 1L)
+}
+
+private fun LyricLine.isBackgroundActiveAt(positionMs: Long): Boolean {
+    val start = backgroundStartMs ?: backgroundWords.minOfOrNull { it.startMs } ?: return false
+    val end = backgroundEndMs ?: backgroundWords.maxOfOrNull { it.endMs } ?: endMs ?: return false
+    return positionMs in start until end.coerceAtLeast(start + 1L)
+}
+
+private const val INTERLUDE_MIN_GAP_MS = 7_000L
+
+private data class AppleMusicInterlude(
+    val startMs: Long,
+    val endMs: Long,
+    val nextLineIndex: Int
+) {
+    fun isActiveAt(positionMs: Long): Boolean = positionMs in startMs until endMs
+}
+
+private fun List<LyricLine>.interludes(): List<AppleMusicInterlude> {
+    if (isEmpty()) return emptyList()
+    val lines = this
+    return buildList {
+        lines.first().takeIf { it.timeMs >= INTERLUDE_MIN_GAP_MS }?.let { firstLine ->
+            add(AppleMusicInterlude(startMs = 0L, endMs = firstLine.timeMs, nextLineIndex = 0))
+        }
+        for (index in 1..lines.lastIndex) {
+            val previous = lines[index - 1]
+            val next = lines[index]
+            val gapStart = previous.primaryEndMs(nextLine = next)
+            if (next.timeMs - gapStart >= INTERLUDE_MIN_GAP_MS) {
+                add(AppleMusicInterlude(startMs = gapStart, endMs = next.timeMs, nextLineIndex = index))
+            }
+        }
+    }
 }
 
 private fun LyricLine.duetTextAlign(default: TextAlign): TextAlign = when {
