@@ -582,7 +582,11 @@ class LyricView @JvmOverloads constructor(
         enableAnim = config.enableAnim
         mainPaint.typeface = config.primary.typeface
         hlPaint.typeface = config.primary.typeface
-        dimPaint.typeface = Typeface.create(config.primary.typeface, Typeface.NORMAL)
+        // Keep non-current lines on the same typeface as the current line so they break into the
+        // same number of lines. Visual hierarchy is already provided by alpha/color, not by making
+        // the dim typeface lighter (which caused a 3-line lyric to collapse to 2 lines once the
+        // line stopped being highlighted).
+        dimPaint.typeface = config.primary.typeface
         transPaint.typeface = config.secondary.typeface
         hlTransPaint.typeface = config.secondary.typeface
         dimTransPaint.typeface = config.secondary.typeface
