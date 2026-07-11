@@ -17,32 +17,17 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.ui.components.SmoothLyricView
 import top.yukonga.miuix.kmp.basic.Text
 
+// Keep the player layout stable when TTML background/translation layers appear or disappear.
+// Extra lyric layers are clipped/scrolled inside this viewport instead of moving transport controls.
 internal fun miniLyricsPreviewHeight(
-    line: LyricLine?,
-    showTranslation: Boolean,
-    showPronunciation: Boolean,
     compact: Boolean = false
-) = when (line?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) {
-    // Single-line (e.g. Chinese only): keep a tall area and let the tighter line gap fit 5 lines.
-    0, 1 -> if (compact) 150.dp else 186.dp
-    2 -> if (compact) 154.dp else 202.dp
-    3 -> if (compact) 168.dp else 220.dp
-    else -> if (compact) 176.dp else 232.dp
-}
+) = if (compact) 154.dp else 202.dp
 
 /**
- * Height for the lyric preview in a cramped floating window: just enough for the current line
- * (plus its translation/pronunciation), so the transport controls below stay on-screen.
+ * Fixed compact viewport for cramped floating windows. TTML background layers remain inside this
+ * area so the transport controls below never shift when the active lyric changes.
  */
-internal fun miniLyricsCompactHeight(
-    line: LyricLine?,
-    showTranslation: Boolean,
-    showPronunciation: Boolean
-) = when (line?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) {
-    0, 1 -> 40.dp
-    2 -> 64.dp
-    else -> 84.dp
-}
+internal fun miniLyricsCompactHeight() = 64.dp
 
 @Composable
 internal fun MiniLyricsPreview(
@@ -70,12 +55,22 @@ internal fun MiniLyricsPreview(
         ?: return
     // When only the main line shows (e.g. Chinese with no translation/pronunciation), tighten the
     // line gap so the preview fits ~5 lines instead of ~4.
-    val singleLinePreview = compact || (lyrics.getOrNull(safeIndex)
-        ?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1) <= 1
+    val visiblePartCount = lyrics.getOrNull(safeIndex)
+        ?.miniVisiblePartCount(showTranslation, showPronunciation) ?: 1
+    val singleLinePreview = compact || visiblePartCount <= 1
+    val denseMultiPartPreview = !compact && visiblePartCount >= 3
     // In a cramped floating window, shrink the type so long (e.g. English) lines fit the narrow
     // width instead of overflowing, and take less vertical room.
-    val primarySizeSp = if (compact) 15.5f else 19f
-    val secondarySizeSp = if (compact) 12.8f else 15.5f
+    val primarySizeSp = when {
+        compact -> 15.5f
+        denseMultiPartPreview -> 18f
+        else -> 19f
+    }
+    val secondarySizeSp = when {
+        compact -> 12.8f
+        denseMultiPartPreview -> 14.2f
+        else -> 15.5f
+    }
     SmoothLyricView(
         songId = songId,
         songTitle = songTitle,
@@ -103,7 +98,11 @@ internal fun MiniLyricsPreview(
         autoScrollResumeEnabled = true,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
-        lineGapDp = if (singleLinePreview) 4f else if (compact) 5f else 7f,
+        lineGapDp = when {
+            singleLinePreview -> 4f
+            denseMultiPartPreview -> 5f
+            else -> 7f
+        },
         modifier = modifier.fillMaxWidth()
     )
 }

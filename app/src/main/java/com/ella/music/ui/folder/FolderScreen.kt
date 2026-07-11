@@ -106,6 +106,7 @@ fun FolderScreen(
     val scanProgress by mainViewModel.scanProgress.collectAsState()
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
+    val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val folderSortIndex by mainViewModel.settingsManager.folderListSortIndex.collectAsState(initial = LibrarySortUiState.folderListSortIndex)
     val folderSortMode = FolderListSortMode.entries.getOrElse(folderSortIndex) { FolderListSortMode.Name }
     LaunchedEffect(folderSortIndex) {
@@ -288,7 +289,13 @@ fun FolderScreen(
         folderMenuTarget?.let { folder ->
             FolderActionSheet(
                 title = folder.name,
+                isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) },
                 onDismiss = { folderMenuTarget = null },
+                onTogglePin = {
+                    val isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) }
+                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
+                    folderMenuTarget = null
+                },
                 onShare = {
                     shareLocalSongs(context, songsForFolder(folder))
                     folderMenuTarget = null
@@ -409,7 +416,7 @@ fun FolderScreen(
                 }
             }
         } else {
-            val folders = remember(rootChildFolders, rootSongs, rootFolderPath, folderSortMode, searchQuery) {
+            val folders = remember(rootChildFolders, rootSongs, rootFolderPath, folderSortMode, searchQuery, pinnedFolderPaths) {
                 val entries = buildList {
                     if (rootSongs.isNotEmpty()) {
                         add(
@@ -427,8 +434,9 @@ fun FolderScreen(
                 }
                 val query = searchQuery.trim()
                 val pinnedRoot = rootFolderPath.takeIf { rootSongs.isNotEmpty() }
+                val effectivePinnedPaths = listOfNotNull(pinnedRoot) + pinnedFolderPaths
                 entries
-                    .sortedForFolderList(folderSortMode, pinnedPath = pinnedRoot)
+                    .sortedForFolderList(folderSortMode, pinnedPaths = effectivePinnedPaths)
                     .let { sorted ->
                         if (query.isBlank()) sorted else sorted.filter { folder ->
                             folder.name.contains(query, ignoreCase = true) ||

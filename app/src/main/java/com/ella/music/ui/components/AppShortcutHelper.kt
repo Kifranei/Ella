@@ -175,7 +175,7 @@ private fun shortcutIconForRoutePrefix(route: String): Int = when {
     route == Screen.Playlists.baseRoute || route.startsWith("${Screen.Playlists.baseRoute}?") -> R.drawable.ic_shortcut_playlist
     route.startsWith("album/") -> R.drawable.ic_shortcut_album
     route.startsWith("artist/") -> R.drawable.ic_shortcut_artist
-    route.startsWith("folder/") -> R.drawable.ic_shortcut_folder
+    route.startsWith("folder/") -> R.drawable.ic_shortcut_folder_hierarchy
     route.startsWith("playlist/") -> R.drawable.ic_shortcut_playlist
     route.startsWith("category/folder/") -> R.drawable.ic_shortcut_folder
     route.startsWith("category/genre/") -> R.drawable.ic_shortcut_tag

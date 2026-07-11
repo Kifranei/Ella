@@ -27,7 +27,7 @@ internal enum class FolderListSortField(val labelRes: Int) {
 
 internal fun List<FolderTreeEntry>.sortedForFolderList(
     mode: FolderListSortMode,
-    pinnedPath: String? = null
+    pinnedPaths: List<String> = emptyList()
 ): List<FolderTreeEntry> {
     val sorted = when (mode) {
         FolderListSortMode.Name -> sortedBy { it.name.musicSortKey() }
@@ -38,9 +38,16 @@ internal fun List<FolderTreeEntry>.sortedForFolderList(
         FolderListSortMode.DateModified -> sortedWith(compareByDescending<FolderTreeEntry> { it.dateModified }.thenBy { it.name.musicSortKey() })
         FolderListSortMode.DateModifiedAsc -> sortedWith(compareBy<FolderTreeEntry> { it.dateModified }.thenBy { it.name.musicSortKey() })
     }
-    if (pinnedPath.isNullOrBlank()) return sorted
-    val pinned = sorted.firstOrNull { it.path.equals(pinnedPath, ignoreCase = true) } ?: return sorted
-    return listOf(pinned) + sorted.filterNot { it.path.equals(pinnedPath, ignoreCase = true) }
+    if (pinnedPaths.isEmpty()) return sorted
+    val pinnedRank = pinnedPaths
+        .mapIndexed { index, path -> path.lowercase(Locale.ROOT) to index }
+        .toMap()
+    val pinned = sorted
+        .filter { it.path.lowercase(Locale.ROOT) in pinnedRank }
+        .sortedBy { pinnedRank[it.path.lowercase(Locale.ROOT)] ?: Int.MAX_VALUE }
+    if (pinned.isEmpty()) return sorted
+    val pinnedKeys = pinned.mapTo(hashSetOf()) { it.path.lowercase(Locale.ROOT) }
+    return pinned + sorted.filterNot { it.path.lowercase(Locale.ROOT) in pinnedKeys }
 }
 
 internal fun FolderTreeEntry.summaryFor(context: android.content.Context, mode: FolderListSortMode): String {

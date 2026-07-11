@@ -202,7 +202,9 @@ internal fun WebDavBrowserCard(
 @Composable
 internal fun FolderActionSheet(
     title: String,
+    isPinned: Boolean,
     onDismiss: () -> Unit,
+    onTogglePin: () -> Unit,
     onShare: () -> Unit,
     onAddToPlaylist: () -> Unit,
     onAddToQueue: () -> Unit,
@@ -222,6 +224,10 @@ internal fun FolderActionSheet(
                 .padding(horizontal = 18.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
+            EllaMiuixMenuItem(
+                text = stringResource(if (isPinned) R.string.common_unpin else R.string.common_pin_to_top),
+                onClick = onTogglePin
+            )
             EllaMiuixMenuItem(
                 text = stringResource(R.string.common_share),
                 onClick = onShare

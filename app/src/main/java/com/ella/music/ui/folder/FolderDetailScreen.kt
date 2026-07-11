@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.ella.music.R
+import com.ella.music.data.tagIdentityKey
 import com.ella.music.data.exception.WritePermissionRequiredException
 import com.ella.music.data.model.FAVORITES_PLAYLIST_ID
 import com.ella.music.data.model.Song
@@ -89,8 +90,11 @@ import com.ella.music.ui.components.SortDropdownItem
 import com.ella.music.ui.components.SortDropdownMenu
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.ellaPageBackground
+import com.ella.music.ui.components.requestPinnedEllaShortcut
+import com.ella.music.ui.components.shareLocalSongs
 import com.ella.music.ui.components.toFastIndexSection
 import com.ella.music.ui.components.wallpaperContentOverlayColor
+import com.ella.music.ui.navigation.Screen
 import com.ella.music.ui.settings.findComponentActivity
 import com.ella.music.viewmodel.MainViewModel
 import com.ella.music.viewmodel.PlayerViewModel
@@ -134,6 +138,7 @@ fun FolderDetailScreen(
     val showPlayNextInLists by mainViewModel.settingsManager.showPlayNextInLists.collectAsState(initial = false)
     val scanExcludeFolders by mainViewModel.settingsManager.scanExcludeFolders.collectAsState(initial = "")
     val blockedFolders = remember(scanExcludeFolders) { scanExcludeFolders.toFolderSettingList() }
+    val pinnedFolderPaths by mainViewModel.settingsManager.pinnedKeysFlow("folder").collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val saveScope = context.findComponentActivity()?.lifecycleScope ?: scope
     var searchQuery by remember { mutableStateOf("") }
@@ -149,6 +154,7 @@ fun FolderDetailScreen(
     var pendingDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var pendingSystemDeleteSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
     var folderToBlock by remember { mutableStateOf<String?>(null) }
+    var folderMenuTarget by remember { mutableStateOf<FolderTreeEntry?>(null) }
     val persistedSortIndex by mainViewModel.settingsManager.folderDetailSongSortIndex.collectAsState(
         initial = LibrarySortUiState.folderDetailSongSortIndex
     )
@@ -170,8 +176,9 @@ fun FolderDetailScreen(
     val normalizedFolderPath = remember(folderPath) { folderPath.normalizeFolderPath() }
     var scrollToTopRequest by remember { mutableStateOf(0) }
 
-    val childFolders = remember(songs, normalizedFolderPath) {
-        songs.childFoldersOf(context, normalizedFolderPath).sortedBy { it.name.musicSortKey() }
+    val childFolders = remember(songs, normalizedFolderPath, pinnedFolderPaths) {
+        songs.childFoldersOf(context, normalizedFolderPath)
+            .sortedForFolderList(FolderListSortMode.Name, pinnedFolderPaths)
     }
     val directSongs = remember(songs, normalizedFolderPath) {
         songs.directSongsInFolder(normalizedFolderPath)
@@ -301,8 +308,9 @@ fun FolderDetailScreen(
         }
     }
 
-    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded || folderToBlock != null) {
+    BackHandler(enabled = selectionMode || searchExpanded || sortExpanded || folderToBlock != null || folderMenuTarget != null) {
         when {
+            folderMenuTarget != null -> folderMenuTarget = null
             folderToBlock != null -> folderToBlock = null
             selectionMode -> {
                 clearSelection()
@@ -617,7 +625,7 @@ fun FolderDetailScreen(
                                 ChildFolderRow(
                                     folder = folder,
                                     onClick = { onFolderClick(folder.path) },
-                                    onLongClick = { folderToBlock = folder.path }
+                                    onLongClick = { folderMenuTarget = folder }
                                 )
                             }
                         }
@@ -713,6 +721,57 @@ fun FolderDetailScreen(
                         .padding(end = LibraryFloatingControlsEndPadding, bottom = LibraryFloatingControlsBottomPadding)
                 )
             }
+        }
+
+        folderMenuTarget?.let { folder ->
+            val folderSongs = remember(songs, folder.path) { songs.recursiveSongsInFolder(folder.path) }
+            val isPinned = pinnedFolderPaths.any { it.equals(folder.path, ignoreCase = true) }
+            FolderActionSheet(
+                title = folder.name,
+                isPinned = isPinned,
+                onDismiss = { folderMenuTarget = null },
+                onTogglePin = {
+                    scope.launch { mainViewModel.settingsManager.setPinned("folder", folder.path, !isPinned) }
+                    folderMenuTarget = null
+                },
+                onShare = {
+                    shareLocalSongs(context, folderSongs)
+                    folderMenuTarget = null
+                },
+                onAddToPlaylist = {
+                    playlistPickerSongs = folderSongs
+                    folderMenuTarget = null
+                },
+                onAddToQueue = {
+                    playerViewModel.addToPlaylist(folderSongs)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_queue), Toast.LENGTH_SHORT).show()
+                    folderMenuTarget = null
+                },
+                onPlayNext = {
+                    playerViewModel.playNext(folderSongs)
+                    Toast.makeText(context, context.getString(R.string.song_more_added_to_play_next), Toast.LENGTH_SHORT).show()
+                    folderMenuTarget = null
+                },
+                onAddShortcut = {
+                    val ok = requestPinnedEllaShortcut(
+                        context = context,
+                        id = "folder_${folder.path.tagIdentityKey()}",
+                        label = folder.name,
+                        route = Screen.FolderDetail.createRoute(folder.path)
+                    )
+                    Toast.makeText(
+                        context,
+                        if (ok) context.getString(R.string.playlist_shortcut_requested, folder.name)
+                        else context.getString(R.string.playlist_shortcut_unsupported),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    folderMenuTarget = null
+                },
+                onBlock = {
+                    folderToBlock = folder.path
+                    folderMenuTarget = null
+                }
+            )
         }
 
         folderToBlock?.let { folderPath ->

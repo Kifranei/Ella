@@ -504,9 +504,9 @@ internal fun CoverPlayerPage(
                                     .fillMaxWidth()
                                     .height(
                                         if (compactWindow) {
-                                            miniLyricsCompactHeight(effectiveMiniLyricLine, showTranslation, showPronunciation)
+                                            miniLyricsCompactHeight()
                                         } else {
-                                            miniLyricsPreviewHeight(effectiveMiniLyricLine, showTranslation, showPronunciation)
+                                            miniLyricsPreviewHeight()
                                         }
                                     )
                             )
@@ -695,9 +695,9 @@ internal fun CoverPlayerPage(
                                     .fillMaxWidth()
                                     .height(
                                         if (compactWindow) {
-                                            miniLyricsCompactHeight(effectiveMiniLyricLine, showTranslation, showPronunciation)
+                                            miniLyricsCompactHeight()
                                         } else {
-                                            miniLyricsPreviewHeight(effectiveMiniLyricLine, showTranslation, showPronunciation, compact = true)
+                                            miniLyricsPreviewHeight(compact = true)
                                         }
                                     )
                             )
