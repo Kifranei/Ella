@@ -171,6 +171,7 @@ fun LyricFontScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
                 .padding(horizontal = 12.dp)
         ) {
             item {

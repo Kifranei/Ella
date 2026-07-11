@@ -42,8 +42,12 @@ internal fun loadScriptAwareTypeface(
     boldFallback: Boolean
 ): Typeface {
     val safeWeight = weight.coerceIn(100, 900)
+    val slant = if (italic) FontStyle.FONT_SLANT_ITALIC else FontStyle.FONT_SLANT_UPRIGHT
+
+    // Build Font objects with the exact weight so variable fonts (e.g. Inter Variable)
+    // select the correct weight axis instead of falling back to synthetic bolding.
     val customFamilies = listOf(paths.western, paths.cjk)
-        .mapNotNull(::fontFamilyFromPath)
+        .mapNotNull { path -> fontFamilyFromPath(path, safeWeight, slant) }
 
     if (customFamilies.isEmpty()) {
         val fallback = if (boldFallback) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
@@ -53,12 +57,7 @@ internal fun loadScriptAwareTypeface(
     return runCatching {
         val builder = Typeface.CustomFallbackBuilder(customFamilies.first())
             .setSystemFallback("sans-serif")
-            .setStyle(
-                FontStyle(
-                    safeWeight,
-                    if (italic) FontStyle.FONT_SLANT_ITALIC else FontStyle.FONT_SLANT_UPRIGHT
-                )
-            )
+            .setStyle(FontStyle(safeWeight, slant))
         customFamilies.drop(1).forEach(builder::addCustomFallback)
         builder.build()
     }.getOrElse {
@@ -69,10 +68,14 @@ internal fun loadScriptAwareTypeface(
     }
 }
 
-private fun fontFamilyFromPath(path: String): FontFamily? {
+private fun fontFamilyFromPath(path: String, weight: Int, slant: Int): FontFamily? {
     if (!isReadableFontPath(path)) return null
     return runCatching {
-        FontFamily.Builder(Font.Builder(File(path)).build()).build()
+        val font = Font.Builder(File(path))
+            .setWeight(weight)
+            .setSlant(slant)
+            .build()
+        FontFamily.Builder(font).build()
     }.getOrNull()
 }
 

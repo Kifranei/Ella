@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.ui.text.font.FontFamily
 import com.ella.music.R
+import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.components.loadScriptAwareTypeface
 import java.io.File
 
 internal data class FontChoice(
@@ -78,9 +80,13 @@ internal fun String.toFontFamilyOrNull(weight: Int, italic: Boolean): FontFamily
     }
     val file = File(this)
     if (!file.exists() || !file.canRead()) return null
+    // Use the same script-aware loading path as the actual lyric rendering so the
+    // preview honours variable-font weight axes (e.g. Inter at 900) instead of
+    // falling back to synthetic bolding via Typeface.create(base, weight, italic).
     return runCatching {
-        val base = Typeface.createFromFile(file)
-        FontFamily(Typeface.create(base, weight.coerceIn(100, 900), italic))
+        val paths = ScriptFontPaths(this, "")
+        val typeface = loadScriptAwareTypeface(paths, weight, italic, boldFallback = false)
+        FontFamily(typeface)
     }.getOrNull()
 }
 

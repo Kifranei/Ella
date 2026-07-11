@@ -567,7 +567,7 @@ private fun Song.dynamicCoverDocumentSource(
 }
 
 /** Keeps an ambient video's loop position while Compose swaps player pages. */
-private object DynamicCoverPlaybackMemory {
+internal object DynamicCoverPlaybackMemory {
     private val positions = ConcurrentHashMap<String, Long>()
     private var activeOwnerKey: String? = null
 
@@ -584,6 +584,20 @@ private object DynamicCoverPlaybackMemory {
 
     fun save(key: String, positionMs: Long) {
         if (positionMs > 0L) positions[key] = positionMs
+    }
+
+    /**
+     * Explicitly clears all remembered playback positions.
+     *
+     * Called when the active song changes (next/previous) to guarantee MV/dynamic-cover
+     * videos restart from the beginning instead of resuming a stale position. This is a
+     * safety net alongside [activate] — the activate-based clear can be defeated by Compose
+     * lifecycle timing (onDispose save racing ahead of activate clear).
+     */
+    @Synchronized
+    fun clearAll() {
+        positions.clear()
+        activeOwnerKey = null
     }
 }
 

@@ -121,10 +121,11 @@ internal fun rememberPlayerLyricFontState(
 
     return PlayerLyricFontState(
         // fontFamily drives the PlayerSongMetaText group (song title + artist + annotation) on
-        // the player/lyrics pages. When the "apply font to page" toggle is off, return null so
-        // those texts fall back to the global app font, leaving the lyric body font untouched.
+        // the player/lyrics pages. fontPath drives the lyric body (SmoothLyricView). Both honour
+        // the "apply font to page" toggle — when off, the entire page (title, artist, AND lyrics)
+        // falls back to the global/system font so the switch is actually effective.
         fontFamily = if (lyricFontApplyToPage) lyricFontFamily else null,
-        fontPath = effectiveLyricFontPath,
+        fontPath = if (lyricFontApplyToPage) effectiveLyricFontPath else "",
         fontWeight = lyricFontWeight,
         fontScale = lyricFontScale,
         secondaryFontScale = lyricSecondaryFontScale,

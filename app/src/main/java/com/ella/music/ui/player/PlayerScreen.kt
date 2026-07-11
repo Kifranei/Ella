@@ -421,6 +421,9 @@ fun PlayerScreen(
     }
     LaunchedEffect(song?.dynamicCoverResolutionKey()) {
         uiState.musicVideoVisible = false
+        // Clear all remembered video positions so the next/previous song's MV or
+        // dynamic cover starts from the beginning instead of resuming a stale position.
+        DynamicCoverPlaybackMemory.clearAll()
     }
     // Sync the lyric parser engine setting to the LrcParser singleton at runtime.
     LaunchedEffect(lyricParserEngine) {

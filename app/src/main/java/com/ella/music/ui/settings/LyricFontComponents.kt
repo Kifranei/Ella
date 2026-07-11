@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -20,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -92,7 +97,19 @@ internal fun LyricFontWeightCard(
     lyricFontWeight: Int,
     onWeightChange: (Int) -> Unit
 ) {
-    val safeWeight = lyricFontWeight.coerceIn(100, 900)
+    // Local state for immediate slider feedback; persisted value is debounced so
+    // DataStore writes and desktop-lyric Service restarts don't fire on every drag frame.
+    var localWeight by remember { mutableIntStateOf(lyricFontWeight) }
+    LaunchedEffect(lyricFontWeight) {
+        localWeight = lyricFontWeight
+    }
+    LaunchedEffect(localWeight) {
+        if (localWeight != lyricFontWeight) {
+            delay(300)
+            onWeightChange(localWeight)
+        }
+    }
+    val safeWeight = localWeight.coerceIn(100, 900)
     Card(
         modifier = Modifier.padding(vertical = 4.dp)
     ) {
@@ -126,7 +143,7 @@ internal fun LyricFontWeightCard(
                 value = (safeWeight - 100) / 800f,
                 onValueChange = { fraction ->
                     val weight = (100 + fraction.coerceIn(0f, 1f) * 800f).toInt()
-                    onWeightChange(weight)
+                    localWeight = weight
                 },
                 modifier = Modifier.fillMaxWidth()
             )
