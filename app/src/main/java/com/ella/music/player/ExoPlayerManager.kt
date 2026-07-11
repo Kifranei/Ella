@@ -896,14 +896,7 @@ class ExoPlayerManager(private val context: Context) {
 
     fun seekTo(positionMs: Long) {
         val controller = mediaController ?: return
-        val duration = controller.duration
-        // Keep the seek on the final frame rather than at end-of-stream, which lets a user drag
-        // or tap all the way to the end without accidentally auto-advancing to the next track.
-        val target = if (duration > 0L) {
-            positionMs.coerceIn(0L, (duration - 1L).coerceAtLeast(0L))
-        } else {
-            positionMs.coerceAtLeast(0L)
-        }
+        val target = playbackSeekTarget(positionMs, controller.duration)
         controller.seekTo(target)
         savePlaybackState(force = true)
     }

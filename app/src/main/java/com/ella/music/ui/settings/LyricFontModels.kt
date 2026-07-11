@@ -117,29 +117,40 @@ private fun ensureBundledFontChoices(context: Context): List<FontChoice> {
     if (legacyTarget.exists()) {
         runCatching { legacyTarget.delete() }
     }
-    val target = File(bundledDir, "MiSans-Semibold.ttf")
-    runCatching {
-        if (!target.exists() || target.length() <= 0L) {
-            context.assets.open(MISANS_VF_ASSET_PATH).use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
+    return BUNDLED_FONT_SPECS.mapNotNull { spec ->
+        val target = File(bundledDir, spec.fileName)
+        runCatching {
+            if (!target.exists() || target.length() <= 0L) {
+                context.assets.open(spec.assetPath).use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
             }
+        }.onFailure {
+            if (target.exists() && target.length() <= 0L) target.delete()
         }
-    }.onFailure {
-        if (target.exists() && target.length() <= 0L) target.delete()
-    }
-    return if (target.exists() && target.canRead() && target.length() > 0L) {
-        listOf(
+        if (target.exists() && target.canRead() && target.length() > 0L) {
             FontChoice(
-                name = "MiSans SemiBold",
+                name = spec.displayName,
                 path = target.absolutePath,
                 source = context.getString(R.string.settings_lyric_font_source_builtin),
                 sourceRank = FONT_SOURCE_BUNDLED
             )
-        )
-    } else {
-        emptyList()
+        } else {
+            null
+        }
     }
 }
+
+internal data class BundledFontSpec(
+    val displayName: String,
+    val fileName: String,
+    val assetPath: String
+)
+
+internal val BUNDLED_FONT_SPECS = listOf(
+    BundledFontSpec("Inter", "InterVariable.ttf", "fonts/InterVariable.ttf"),
+    BundledFontSpec("MiSans SemiBold", "MiSans-Semibold.ttf", "fonts/MiSans-Semibold.ttf")
+)
 
 private fun Context.resolveDisplayName(uri: Uri): String {
     return contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
@@ -163,7 +174,6 @@ private fun String.cleanFontName(context: Context): String {
 
 private const val IMPORTED_FONT_DIR = "lyric_fonts"
 private const val BUNDLED_FONT_DIR = "lyric_builtin_fonts"
-private const val MISANS_VF_ASSET_PATH = "fonts/MiSans-Semibold.ttf"
 private const val FONT_SOURCE_BUNDLED = 0
 private const val FONT_SOURCE_SYSTEM = 1
 internal const val FONT_SOURCE_IMPORTED = 2
