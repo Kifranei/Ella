@@ -1039,6 +1039,11 @@
     <string name="settings_playlist_special_entries">歌单页显示喜欢和五星入口</string>
     <string name="settings_playlist_special_entries_summary">关闭后歌单页只显示自定义歌单；喜欢和星级可在音乐库筛选</string>
     <string name="settings_lyric_font">歌词字体</string>
+    <string name="settings_lyric_font_western">西文字体</string>
+    <string name="settings_lyric_font_cjk">中日韩字体</string>
+    <string name="settings_lyric_font_western_default">西文默认字体（Inter）</string>
+    <string name="settings_lyric_font_cjk_default">中日韩默认字体</string>
+    <string name="settings_lyric_font_target_summary">当前：%1$s；点击后从下方列表单独选择</string>
     <string name="settings_font_settings">字体设置</string>
     <string name="settings_font_screen_title">字体</string>
     <string name="settings_font_system_fonts">系统字体</string>

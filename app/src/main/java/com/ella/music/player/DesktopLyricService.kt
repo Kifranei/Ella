@@ -33,8 +33,11 @@ import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.LyricWord
 import com.ella.music.ui.components.buildLyriconRichLineConfig
 import com.ella.music.ui.components.loadAndroidTypeface
+import com.ella.music.ui.components.ScriptFontPaths
 import com.ella.music.ui.components.toLyriconWords
 import com.ella.music.ui.components.toLyriconSong
+import com.ella.music.ui.player.ensureBundledInterPath
+import com.ella.music.ui.player.ensureBundledMiSansSemiboldPath
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -636,7 +639,16 @@ class DesktopLyricService : Service() {
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
-            settingsManager.lyricFontPath.first()
+            val western = settingsManager.lyricWesternFontPath.first()
+                .ifBlank { ensureBundledInterPath(this@DesktopLyricService) }
+            val cjk = settingsManager.lyricCjkFontPath.first()
+                .ifBlank {
+                    settingsManager.lyricFontPath.first()
+                        .takeUnless { it.contains("Inter", ignoreCase = true) }
+                        .orEmpty()
+                        .ifBlank { ensureBundledMiSansSemiboldPath(this@DesktopLyricService) }
+                }
+            ScriptFontPaths(western, cjk).encode()
         } else {
             ""
         },

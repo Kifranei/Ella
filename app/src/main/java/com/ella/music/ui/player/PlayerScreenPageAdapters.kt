@@ -46,8 +46,8 @@ internal fun CoverPageContent(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
-    dynamicCoverVideoVisible: Boolean,
-    onDynamicCoverVideoVisibleChange: (Boolean) -> Unit,
+    musicVideoVisible: Boolean,
+    onMusicVideoVisibleChange: (Boolean) -> Unit,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -171,9 +171,9 @@ internal fun CoverPageContent(
         dynamicCoverFailedPath = dynamicCoverFailedPath,
         dynamicCoverEnabled = dynamicCoverEnabled,
         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
-        dynamicCoverVideoVisible = dynamicCoverVideoVisible,
-        onToggleDynamicCoverVideo = {
-            onDynamicCoverVideoVisibleChange(!dynamicCoverVideoVisible)
+        musicVideoVisible = musicVideoVisible,
+        onToggleMusicVideo = {
+            onMusicVideoVisibleChange(!musicVideoVisible)
         },
         immersiveAlbumCover = immersiveAlbumCover,
         playerBackgroundEnabled = playerBackgroundEnabled,
@@ -293,7 +293,7 @@ internal fun CoverPageContent(
                 }
             }
         },
-        onSeek = { fraction -> playerViewModel.seekTo((fraction * duration).toLong()) },
+        onSeek = { fraction -> playerViewModel.seekToProgress(fraction, duration) },
         onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
         onPrevious = { playerViewModel.skipToPrevious() },
         onSwipePrevious = onSwipePrevious,

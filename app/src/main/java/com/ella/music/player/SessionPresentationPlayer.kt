@@ -77,9 +77,12 @@ internal class SessionPresentationPlayer(player: Player) : ForwardingSimpleBaseP
         notificationLyric
             ?.takeIf { it.songKey == songKey }
             ?.let { lyric ->
+                val secondary = lyric.secondaryText.ifBlank { "${song.title} · ${song.artist}" }
                 metadataBuilder
                     .setTitle(lyric.title)
-                    .setArtist(lyric.secondaryText.ifBlank { "${song.title} · ${song.artist}" })
+                    .setDisplayTitle(lyric.title)
+                    .setArtist(secondary)
+                    .setSubtitle(secondary)
             }
 
         oplusLyric

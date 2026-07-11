@@ -32,6 +32,7 @@ import com.ella.music.data.audioQualitySummary
 import com.ella.music.data.normalizedAudioFormat
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.Song
+import com.ella.music.ui.components.loadAndroidTypeface
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -187,29 +188,15 @@ internal fun adaptiveTitleFontSize(text: String, maxSize: TextUnit): TextUnit {
 
 internal fun String.toPlayerLyricFontFamily(weight: Int, italic: Boolean): FontFamily? {
     if (isBlank()) return null
-    if (this == com.ella.music.ui.settings.SYSTEM_FONT_PATH) {
-        return runCatching {
-            FontFamily(Typeface.create(Typeface.DEFAULT, weight.coerceIn(100, 900), italic))
-        }.getOrNull()
-    }
-    val file = File(this)
-    if (!file.exists() || !file.canRead()) return null
     return runCatching {
-        val baseTypeface = Typeface.createFromFile(file)
-        val weightedTypeface = Typeface.create(baseTypeface, weight.coerceIn(100, 900), italic)
-        FontFamily(weightedTypeface)
+        FontFamily(loadAndroidTypeface(this, weight, italic, boldFallback = false))
     }.getOrNull()
 }
 
 internal fun String.toPlayerLyricTypeface(weight: Int): Typeface? {
     if (isBlank()) return null
-    if (this == com.ella.music.ui.settings.SYSTEM_FONT_PATH) {
-        return Typeface.create(Typeface.DEFAULT, weight.coerceIn(100, 900), false)
-    }
-    val file = File(this)
-    if (!file.exists() || !file.canRead()) return null
     return runCatching {
-        Typeface.create(Typeface.createFromFile(file), weight.coerceIn(100, 900), false)
+        loadAndroidTypeface(this, weight, italic = false, boldFallback = false)
     }.getOrNull()
 }
 
@@ -283,6 +270,21 @@ internal fun rememberBluetoothOutputName(): String? {
         }
     }
     return outputName
+}
+
+internal fun ensureBundledInterPath(context: Context): String {
+    val bundledDir = File(context.filesDir, "lyric_builtin_fonts").apply { mkdirs() }
+    val target = File(bundledDir, "InterVariable.ttf")
+    if (!target.exists() || target.length() <= 0L) {
+        runCatching {
+            context.assets.open("fonts/InterVariable.ttf").use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+        }.onFailure {
+            if (target.exists() && target.length() <= 0L) target.delete()
+        }
+    }
+    return target.takeIf { it.exists() && it.canRead() && it.length() > 0L }?.absolutePath.orEmpty()
 }
 
 private fun Context.currentOutputDisplayName(): String? {

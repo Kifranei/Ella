@@ -420,7 +420,7 @@ fun PlayerScreen(
         }
     }
     LaunchedEffect(song?.dynamicCoverResolutionKey()) {
-        uiState.dynamicCoverVideoVisible = true
+        uiState.musicVideoVisible = false
     }
     // Sync the lyric parser engine setting to the LrcParser singleton at runtime.
     LaunchedEffect(lyricParserEngine) {
@@ -541,8 +541,8 @@ fun PlayerScreen(
                         dynamicCoverFailedPath = uiState.dynamicCoverFailedPath,
                         dynamicCoverEnabled = dynamicCoverEnabled,
                         dynamicCoverCustomFolders = dynamicCoverCustomFolders,
-                        dynamicCoverVideoVisible = uiState.dynamicCoverVideoVisible,
-                        onDynamicCoverVideoVisibleChange = { uiState.dynamicCoverVideoVisible = it },
+                        musicVideoVisible = uiState.musicVideoVisible,
+                        onMusicVideoVisibleChange = { uiState.musicVideoVisible = it },
                         immersiveAlbumCover = immersiveAlbumCover,
                         playerBackgroundEnabled = playerBackgroundEnabled,
                         playerBackgroundUri = playerBackgroundUri,
@@ -778,7 +778,7 @@ fun PlayerScreen(
                 onLyricLineClick = { line -> playerViewModel.seekTo(line.timeMs) },
                 onLyricLineLongClick = ::openLyricSharePicker,
                 onSeekProgress = { progress ->
-                    if (duration > 0L) playerViewModel.seekTo((duration * progress).toLong())
+                    playerViewModel.seekToProgress(progress, duration)
                 },
                 onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
                 onPrevious = { playerViewModel.skipToPrevious() },

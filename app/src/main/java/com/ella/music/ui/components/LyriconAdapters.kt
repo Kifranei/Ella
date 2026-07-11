@@ -20,6 +20,9 @@ internal fun loadAndroidTypeface(
     italic: Boolean,
     boldFallback: Boolean
 ): Typeface {
+    ScriptFontPaths.decode(fontPath)?.let { paths ->
+        return loadScriptAwareTypeface(paths, weight, italic, boldFallback)
+    }
     val safeWeight = weight.coerceIn(100, 900)
     val base = if (fontPath.isNotBlank()) {
         runCatching {

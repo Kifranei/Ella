@@ -9,7 +9,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import com.ella.music.data.SettingsManager
-import com.ella.music.ui.theme.bundledMiSansSemiboldFontFamily
+import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.settings.SYSTEM_FONT_PATH
 
 internal data class PlayerLyricFontState(
     val fontFamily: FontFamily?,
@@ -30,6 +31,8 @@ internal fun rememberPlayerLyricFontState(
     settingsManager: SettingsManager
 ): PlayerLyricFontState {
     val lyricFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
+    val lyricWesternFontPath by settingsManager.lyricWesternFontPath.collectAsState(initial = "")
+    val lyricCjkFontPath by settingsManager.lyricCjkFontPath.collectAsState(initial = "")
     val lyricFontWeightValue by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     val lyricFontScaleValue by settingsManager.lyricFontScale.collectAsState(initial = 100)
     val lyricSecondaryFontScaleValue by settingsManager.lyricSecondaryFontScale.collectAsState(initial = 100)
@@ -47,33 +50,27 @@ internal fun rememberPlayerLyricFontState(
     )
     val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = false)
     val lyricFontApplyToPage by settingsManager.lyricFontApplyToPage.collectAsState(initial = true)
-    val bundledDefaultLyricFontPath = remember(context) { ensureBundledMiSansSemiboldPath(context) }
-    val preferBundledLyricFontByDefault = remember { !isXiaomiFamilyPlayerDevice() }
-    val defaultLyricFontPath = remember(preferBundledLyricFontByDefault, bundledDefaultLyricFontPath) {
-        bundledDefaultLyricFontPath.takeIf { preferBundledLyricFontByDefault }
+    val bundledInterPath = remember(context) { ensureBundledInterPath(context) }
+    val bundledCjkPath = remember(context) { ensureBundledMiSansSemiboldPath(context) }
+    val defaultCjkPath = remember(bundledCjkPath) {
+        bundledCjkPath.takeIf { !isXiaomiFamilyPlayerDevice() }.orEmpty()
     }
-    val effectiveLyricFontPath = remember(lyricFontPath, defaultLyricFontPath) {
-        lyricFontPath.ifBlank { defaultLyricFontPath.orEmpty() }
+    val migratedLegacyCjkPath = remember(lyricFontPath) {
+        lyricFontPath.takeUnless { it.contains("Inter", ignoreCase = true) }.orEmpty()
     }
-    val effectiveLyricFontWeightValue = remember(lyricFontWeightValue, lyricFontPath, defaultLyricFontPath) {
-        when {
-            lyricFontPath.isNotBlank() -> lyricFontWeightValue
-            defaultLyricFontPath != null -> 800
-            else -> lyricFontWeightValue
-        }
+    val effectiveWesternPath = lyricWesternFontPath.ifBlank { bundledInterPath }
+    val effectiveCjkPath = lyricCjkFontPath.ifBlank {
+        migratedLegacyCjkPath.ifBlank { defaultCjkPath.ifBlank { SYSTEM_FONT_PATH } }
     }
-    val defaultLyricFontFamily = remember(preferBundledLyricFontByDefault, context) {
-        if (!preferBundledLyricFontByDefault) {
-            null
-        } else {
-            bundledMiSansSemiboldFontFamily(context)
-        }
+    val effectiveLyricFontPath = remember(effectiveWesternPath, effectiveCjkPath) {
+        ScriptFontPaths(effectiveWesternPath, effectiveCjkPath).encode()
     }
-    val lyricFontFamily = remember(effectiveLyricFontPath, effectiveLyricFontWeightValue, defaultLyricFontFamily) {
+    val effectiveLyricFontWeightValue = lyricFontWeightValue
+    val lyricFontFamily = remember(effectiveLyricFontPath, effectiveLyricFontWeightValue) {
         effectiveLyricFontPath.toPlayerLyricFontFamily(
             weight = effectiveLyricFontWeightValue,
             italic = false
-        ) ?: defaultLyricFontFamily
+        )
     }
     val lyricFontWeight = remember(effectiveLyricFontWeightValue) {
         FontWeight(effectiveLyricFontWeightValue.coerceIn(100, 900))

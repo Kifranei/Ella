@@ -168,7 +168,6 @@ class PlaybackService : MediaLibraryService() {
             onLyricInfoChanged = { song, lyricInfoJson ->
                 sessionPresentationPlayer?.setOplusLyric(song?.playbackStackKey(), lyricInfoJson)
                 updateMediaButtonPreferences()
-                notificationProvider.refresh()
             }
         )
         var webDavConfig = currentWebDavConfig(settingsManager)
@@ -615,7 +614,9 @@ class PlaybackService : MediaLibraryService() {
             title = args.getString(EXTRA_NOTIFICATION_LYRIC_TEXT),
             secondaryText = args.getString(EXTRA_NOTIFICATION_LYRIC_SECONDARY_TEXT)
         )
-        notificationProvider.refresh()
+        // Flyme's hidden ticker path already refreshes the app notification from the same lyric
+        // snapshot. Other devices still need one explicit refresh for the app-owned media card.
+        if (PlaybackTickerState.current() == null) notificationProvider.refresh()
         return true
     }
 
@@ -1095,11 +1096,21 @@ class PlaybackService : MediaLibraryService() {
             val metadata = player.mediaMetadata
             val tickerPayload = PlaybackTickerState.current()
             val largeIcon = resolveLargeIcon(metadata)
+            // Render the app-owned card from the ticker snapshot. Session metadata is published
+            // separately for MiPlay/Flyme/Bluetooth clients. Reading the session copy here caused
+            // two card rebuilds for each line and visible flashing on ColorOS media controls.
+            val contentTitle = tickerPayload?.text
+                ?: metadata.title?.takeIf { it.isNotBlank() }
+                ?: service.getString(R.string.app_name)
+            val contentText = tickerPayload?.translation
+                ?: metadata.artist?.takeIf { it.isNotBlank() }
+                ?: metadata.albumTitle
+                ?: ""
             val builder = NotificationCompat.Builder(service, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_flyme_ticker)
                 .setLargeIcon(largeIcon)
-                .setContentTitle(metadata.title?.takeIf { it.isNotBlank() } ?: service.getString(R.string.app_name))
-                .setContentText(metadata.artist?.takeIf { it.isNotBlank() } ?: metadata.albumTitle ?: "")
+                .setContentTitle(contentTitle)
+                .setContentText(contentText)
                 .setTicker(tickerPayload?.text)
                 .setContentIntent(mediaSession.sessionActivity)
                 .setDeleteIntent(actionFactory.createNotificationDismissalIntent(mediaSession))

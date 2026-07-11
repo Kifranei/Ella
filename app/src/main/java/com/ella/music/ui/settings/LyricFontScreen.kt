@@ -58,7 +58,10 @@ fun LyricFontScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
-    val selectedFontPath by settingsManager.lyricFontPath.collectAsState(initial = "")
+    val westernFontName by settingsManager.lyricWesternFontName.collectAsState(initial = "")
+    val westernFontPath by settingsManager.lyricWesternFontPath.collectAsState(initial = "")
+    val cjkFontName by settingsManager.lyricCjkFontName.collectAsState(initial = "")
+    val cjkFontPath by settingsManager.lyricCjkFontPath.collectAsState(initial = "")
     val lyricFontWeight by settingsManager.lyricFontWeight.collectAsState(initial = 800)
     val lyricFontItalic by settingsManager.lyricFontItalic.collectAsState(initial = false)
     val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = false)
@@ -67,10 +70,46 @@ fun LyricFontScreen(
     var fonts by remember { mutableStateOf<List<FontChoice>>(emptyList()) }
     var systemFonts by remember { mutableStateOf<List<FontChoice>>(emptyList()) }
     var showSystemFontPicker by remember { mutableStateOf(false) }
+    var activeTarget by remember { mutableStateOf(LyricFontTarget.Western) }
     val isDark = MiuixTheme.colorScheme.background.luminance() < 0.5f
     val pageBackground = if (isDark) Color(0xFF101014) else Color(0xFFF4F4F7)
+    val selectedFontPath = if (activeTarget == LyricFontTarget.Western) westernFontPath else cjkFontPath
     val currentSystemFont = remember(selectedFontPath, systemFonts) {
         systemFonts.firstOrNull { it.path == selectedFontPath }
+    }
+    val westernDisplayName = westernFontName.ifBlank {
+        stringResource(R.string.settings_lyric_font_western_default)
+    }
+    val cjkDisplayName = cjkFontName.ifBlank {
+        stringResource(R.string.settings_lyric_font_cjk_default)
+    }
+    val defaultChoice = FontChoice(
+        name = if (activeTarget == LyricFontTarget.Western) {
+            stringResource(R.string.settings_lyric_font_western_default)
+        } else {
+            stringResource(R.string.settings_lyric_font_cjk_default)
+        },
+        path = DEFAULT_FONT_CHOICE_PATH,
+        source = stringResource(R.string.settings_lyric_font_source_builtin),
+        sourceRank = -1
+    )
+
+    suspend fun applyFont(font: FontChoice) {
+        if (activeTarget == LyricFontTarget.Western) {
+            settingsManager.setLyricWesternFont(font.name, font.path)
+        } else {
+            settingsManager.setLyricCjkFont(font.name, font.path)
+        }
+        notifyDesktopLyricFontChanged(context, settingsManager)
+    }
+
+    suspend fun clearActiveFont() {
+        if (activeTarget == LyricFontTarget.Western) {
+            settingsManager.clearLyricWesternFont()
+        } else {
+            settingsManager.clearLyricCjkFont()
+        }
+        notifyDesktopLyricFontChanged(context, settingsManager)
     }
 
     LaunchedEffect(Unit) {
@@ -87,8 +126,7 @@ fun LyricFontScreen(
             runCatching {
                 withContext(Dispatchers.IO) { copyImportedFont(context, uri) }
             }.onSuccess { font ->
-                settingsManager.setLyricFont(font.name, font.path)
-                notifyDesktopLyricFontChanged(context, settingsManager)
+                applyFont(font)
                 fonts = withContext(Dispatchers.IO) { collectFontChoices(context) }
                 Toast.makeText(
                     context,
@@ -137,6 +175,18 @@ fun LyricFontScreen(
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
+                LyricFontTargetCard(
+                    title = stringResource(R.string.settings_lyric_font_western),
+                    currentName = westernDisplayName,
+                    selected = activeTarget == LyricFontTarget.Western,
+                    onClick = { activeTarget = LyricFontTarget.Western }
+                )
+                LyricFontTargetCard(
+                    title = stringResource(R.string.settings_lyric_font_cjk),
+                    currentName = cjkDisplayName,
+                    selected = activeTarget == LyricFontTarget.Cjk,
+                    onClick = { activeTarget = LyricFontTarget.Cjk }
+                )
                 SettingsCardGroup {
                     SwitchPreference(
                         title = stringResource(R.string.settings_lyric_share_use_lyric_font),
@@ -179,6 +229,25 @@ fun LyricFontScreen(
                 LyricFontListTitle()
             }
 
+            item {
+                FontChoiceItem(
+                    font = defaultChoice,
+                    currentWeight = lyricFontWeight,
+                    italic = false,
+                    selected = selectedFontPath.isBlank(),
+                    onClick = {
+                        scope.launch {
+                            clearActiveFont()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_lyric_font_applied, defaultChoice.name),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                )
+            }
+
             items(fonts, key = { it.path }) { font ->
                 FontChoiceItem(
                     font = font,
@@ -187,8 +256,7 @@ fun LyricFontScreen(
                     selected = selectedFontPath == font.path,
                     onClick = {
                         scope.launch {
-                            settingsManager.setLyricFont(font.name, font.path)
-                            notifyDesktopLyricFontChanged(context, settingsManager)
+                            applyFont(font)
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.settings_lyric_font_applied, font.name),
@@ -203,8 +271,13 @@ fun LyricFontScreen(
                                     deleteImportedFont(font)
                                 }
 
-                                if (selectedFontPath == font.path) {
-                                    settingsManager.clearLyricFont()
+                                if (westernFontPath == font.path) {
+                                    settingsManager.clearLyricWesternFont()
+                                }
+                                if (cjkFontPath == font.path) {
+                                    settingsManager.clearLyricCjkFont()
+                                }
+                                if (westernFontPath == font.path || cjkFontPath == font.path) {
                                     notifyDesktopLyricFontChanged(context, settingsManager)
                                 }
 
@@ -268,8 +341,7 @@ fun LyricFontScreen(
                             selected = selectedFontPath == font.path,
                             onClick = {
                                 scope.launch {
-                                    settingsManager.setLyricFont(font.name, font.path)
-                                    notifyDesktopLyricFontChanged(context, settingsManager)
+                                    applyFont(font)
                                     showSystemFontPicker = false
                                     Toast.makeText(
                                         context,
@@ -285,6 +357,13 @@ fun LyricFontScreen(
         }
     }
 }
+
+private enum class LyricFontTarget {
+    Western,
+    Cjk
+}
+
+private const val DEFAULT_FONT_CHOICE_PATH = "__lyric_slot_default__"
 
 private suspend fun notifyDesktopLyricFontChanged(
     context: Context,

@@ -68,7 +68,7 @@ internal fun CoverPlayerPage(
     dynamicCoverFailedPath: String?,
     dynamicCoverEnabled: Boolean,
     dynamicCoverCustomFolders: List<String>,
-    dynamicCoverVideoVisible: Boolean,
+    musicVideoVisible: Boolean,
     immersiveAlbumCover: Boolean,
     playerBackgroundEnabled: Boolean,
     playerBackgroundUri: String,
@@ -135,7 +135,7 @@ internal fun CoverPlayerPage(
     onVisualizerOpacityChange: (Int) -> Unit,
     onPlayerKeepScreenOnChange: (Boolean) -> Unit,
     onDynamicCoverFailed: (String) -> Unit,
-    onToggleDynamicCoverVideo: () -> Unit,
+    onToggleMusicVideo: () -> Unit,
     onMatchDynamicCover: () -> Unit,
     onToggleMenu: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -217,8 +217,8 @@ internal fun CoverPlayerPage(
     // composition janked every song change (even when no cover exists). Resolve it off the main
     // thread, only while the player page is shown. Clear the previous source first so a song
     // switch never keeps rendering the old video's PlayerView while the next source is resolving.
-    val dynamicCoverSource by produceState<DynamicCoverSource?>(
-        initialValue = null,
+    val videoSources by produceState(
+        initialValue = PlayerVideoSources(),
         dynamicCoverEnabled,
         dynamicCoverCustomFolders,
         dynamicCoverSongKey,
@@ -226,21 +226,28 @@ internal fun CoverPlayerPage(
     ) {
         val current = song
         if (current == null) {
-            value = null
+            value = PlayerVideoSources()
         } else {
-            value = null
+            value = PlayerVideoSources()
             value = withContext(Dispatchers.IO) {
-                current.dynamicCoverSource(
-                    context,
-                    includeExternalFiles = dynamicCoverEnabled,
-                    customRootPaths = dynamicCoverCustomFolders
-                )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                PlayerVideoSources(
+                    dynamicCover = current.dynamicCoverSource(
+                        context,
+                        includeExternalFiles = dynamicCoverEnabled,
+                        customRootPaths = dynamicCoverCustomFolders
+                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath },
+                    musicVideo = current.musicVideoSource(
+                        context,
+                        customRootPaths = dynamicCoverCustomFolders
+                    )?.takeUnless { it.failureKey == dynamicCoverFailedPath }
+                )
             }
         }
     }
     // Stable local so the null-checked usages below can smart-cast (delegated props can't).
-    val resolvedDynamicCover = dynamicCoverSource
-    val displayedDynamicCover = resolvedDynamicCover.takeIf { dynamicCoverVideoVisible }
+    val resolvedDynamicCover = videoSources.dynamicCover
+    val resolvedMusicVideo = videoSources.musicVideo
+    val displayedDynamicCover = if (musicVideoVisible) resolvedMusicVideo else resolvedDynamicCover
     val portraitDynamicCover = displayedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
     val coverSwipeModifier = if (coverSwipeEnabled) {
         rememberCoverSwipeModifier(
@@ -630,7 +637,7 @@ internal fun CoverPlayerPage(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }
-                            if (resolvedDynamicCover != null) {
+                            if (resolvedMusicVideo != null) {
                                 Box(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -638,12 +645,12 @@ internal fun CoverPlayerPage(
                                         .size(42.dp)
                                         .clip(CircleShape)
                                         .background(pagePalette.middle.copy(alpha = 0.62f))
-                                        .clickable(onClick = onToggleDynamicCoverVideo),
+                                        .clickable(onClick = onToggleMusicVideo),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "MV",
-                                        fontSize = 12.sp,
+                                        text = if (musicVideoVisible) "♫" else "MV",
+                                        fontSize = if (musicVideoVisible) 18.sp else 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = pagePalette.onBackground.copy(alpha = 0.94f)
                                     )

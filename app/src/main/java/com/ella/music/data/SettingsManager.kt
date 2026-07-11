@@ -242,6 +242,10 @@ class SettingsManager(private val context: Context) {
         val KEY_BLUETOOTH_AUTO_PLAY = booleanPreferencesKey("bluetooth_auto_play")
         val KEY_LYRIC_FONT_NAME = stringPreferencesKey("lyric_font_name")
         val KEY_LYRIC_FONT_PATH = stringPreferencesKey("lyric_font_path")
+        val KEY_LYRIC_WESTERN_FONT_NAME = stringPreferencesKey("lyric_western_font_name")
+        val KEY_LYRIC_WESTERN_FONT_PATH = stringPreferencesKey("lyric_western_font_path")
+        val KEY_LYRIC_CJK_FONT_NAME = stringPreferencesKey("lyric_cjk_font_name")
+        val KEY_LYRIC_CJK_FONT_PATH = stringPreferencesKey("lyric_cjk_font_path")
         val KEY_LYRIC_FONT_WEIGHT = intPreferencesKey("lyric_font_weight")
         val KEY_LYRIC_FONT_SCALE = intPreferencesKey("lyric_font_scale")
         val KEY_LYRIC_SECONDARY_FONT_SCALE = intPreferencesKey("lyric_secondary_font_scale")
@@ -1052,6 +1056,10 @@ class SettingsManager(private val context: Context) {
     }
     val lyricFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_NAME] ?: "" }
     val lyricFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_FONT_PATH] ?: "" }
+    val lyricWesternFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_WESTERN_FONT_NAME] ?: "" }
+    val lyricWesternFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_WESTERN_FONT_PATH] ?: "" }
+    val lyricCjkFontName: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_CJK_FONT_NAME] ?: "" }
+    val lyricCjkFontPath: Flow<String> = context.dataStore.data.map { it[KEY_LYRIC_CJK_FONT_PATH] ?: "" }
     val lyricFontWeight: Flow<Int> = context.dataStore.data.map { it[KEY_LYRIC_FONT_WEIGHT] ?: 800 }
     val lyricFontScale: Flow<Int> = context.dataStore.data.map {
         (it[KEY_LYRIC_FONT_SCALE] ?: 100).coerceIn(LYRIC_FONT_SCALE_MIN, LYRIC_FONT_SCALE_ULTRA_WIDE_MAX)
@@ -2044,6 +2052,34 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun setLyricWesternFont(name: String, path: String) {
+        context.dataStore.edit {
+            it[KEY_LYRIC_WESTERN_FONT_NAME] = name.ifBlank { "Inter" }
+            it[KEY_LYRIC_WESTERN_FONT_PATH] = path
+        }
+    }
+
+    suspend fun clearLyricWesternFont() {
+        context.dataStore.edit {
+            it.remove(KEY_LYRIC_WESTERN_FONT_NAME)
+            it.remove(KEY_LYRIC_WESTERN_FONT_PATH)
+        }
+    }
+
+    suspend fun setLyricCjkFont(name: String, path: String) {
+        context.dataStore.edit {
+            it[KEY_LYRIC_CJK_FONT_NAME] = name.ifBlank { context.getString(R.string.settings_default_custom_font_name) }
+            it[KEY_LYRIC_CJK_FONT_PATH] = path
+        }
+    }
+
+    suspend fun clearLyricCjkFont() {
+        context.dataStore.edit {
+            it.remove(KEY_LYRIC_CJK_FONT_NAME)
+            it.remove(KEY_LYRIC_CJK_FONT_PATH)
+        }
+    }
+
     suspend fun setLyricFontWeight(weight: Int) {
         context.dataStore.edit { it[KEY_LYRIC_FONT_WEIGHT] = weight.coerceIn(100, 900) }
     }
@@ -2600,6 +2636,10 @@ class SettingsManager(private val context: Context) {
             setString(KEY_LYRIC_LINE_BLACKLIST)
             setString(KEY_LYRIC_FONT_NAME)
             setString(KEY_LYRIC_FONT_PATH)
+            setString(KEY_LYRIC_WESTERN_FONT_NAME)
+            setString(KEY_LYRIC_WESTERN_FONT_PATH)
+            setString(KEY_LYRIC_CJK_FONT_NAME)
+            setString(KEY_LYRIC_CJK_FONT_PATH)
             setString(KEY_LYRIC_SHARE_CUSTOM_INFO)
             setString(KEY_STARTUP_POSTER_URI)
             setString(KEY_APP_WALLPAPER_URI)

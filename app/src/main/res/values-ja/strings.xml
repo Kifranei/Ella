@@ -810,6 +810,11 @@
     <string name="settings_playlist_special_entries">プレイリストページにお気に入りと5つ星を表示</string>
     <string name="settings_playlist_special_entries_summary">オフではカスタムプレイリストのみ表示。お気に入りと評価はライブラリでフィルター可能</string>
     <string name="settings_lyric_font">歌詞フォント</string>
+    <string name="settings_lyric_font_western">欧文フォント</string>
+    <string name="settings_lyric_font_cjk">日中韓フォント</string>
+    <string name="settings_lyric_font_western_default">既定の欧文フォント（Inter）</string>
+    <string name="settings_lyric_font_cjk_default">既定の日中韓フォント</string>
+    <string name="settings_lyric_font_target_summary">現在：%1$s。タップして下の一覧から個別に選択</string>
     <string name="settings_lyric_font_import">フォントをインポート</string>
     <string name="settings_lyric_font_list">フォント一覧</string>
     <string name="settings_lyric_font_system_default_summary">アプリのデフォルトフォントで歌詞を描画</string>

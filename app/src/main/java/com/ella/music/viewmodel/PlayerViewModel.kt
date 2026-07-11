@@ -1237,8 +1237,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun seekTo(positionMs: Long) {
+        val target = playerManager.seekTo(positionMs) ?: return
+        applySeekSideEffects(target)
+    }
+
+    fun seekToProgress(progress: Float, fallbackDurationMs: Long) {
+        val target = playerManager.seekToProgress(progress, fallbackDurationMs) ?: return
+        applySeekSideEffects(target)
+    }
+
+    private fun applySeekSideEffects(positionMs: Long) {
         manualSeekAfterPreviousButton = true
-        playerManager.seekTo(positionMs)
         lyriconBridge.seekTo(positionMs)
 
         val lyrics = _lyrics.value
