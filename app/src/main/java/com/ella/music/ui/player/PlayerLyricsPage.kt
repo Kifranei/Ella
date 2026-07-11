@@ -46,6 +46,7 @@ internal fun LyricsPlayerPage(
     showTranslation: Boolean,
     showPronunciation: Boolean,
     keepScreenOn: Boolean,
+    useAppleMusicStyle: Boolean,
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
@@ -183,32 +184,54 @@ internal fun LyricsPlayerPage(
                     )
             ) {
                 if (!lyricsLoading) {
-                    SmoothLyricView(
-                        songId = song?.id ?: 0L,
-                        songTitle = song?.title.orEmpty(),
-                        songArtist = song?.artist.orEmpty(),
-                        lyrics = lyrics,
-                        currentIndex = currentLyricIndex,
-                        currentPositionMs = currentPositionMs,
-                        isPlaying = isPlaying,
-                        showTranslation = showTranslation,
-                        showPronunciation = showPronunciation,
-                        fontScale = fontScale,
-                        fontPath = fontPath,
-                        fontWeight = fontWeight,
-                        italic = italic,
-                        lyricTextAlign = lyricTextAlign,
-                        primaryTextSizeSp = primaryTextSizeSp,
-                        secondaryFontScale = secondaryFontScale,
-                        secondaryTextSizeSp = secondaryTextSizeSp,
-                        contentColor = palette.onBackground,
-                        // Keep far lines sharp over a busy custom wallpaper so they stay readable.
-                        nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
-                        onLineClick = onLineClick,
-                        onLineDoubleClick = onLineDoubleClick,
-                        onLineLongClick = onLineLongClick,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (useAppleMusicStyle) {
+                        AppleMusicLyricsView(
+                            lyrics = lyrics,
+                            currentIndex = currentLyricIndex,
+                            currentPositionMs = currentPositionMs,
+                            showTranslation = showTranslation,
+                            showPronunciation = showPronunciation,
+                            fontFamily = fontFamily,
+                            fontWeight = fontWeight,
+                            fontScale = fontScale,
+                            secondaryFontScale = secondaryFontScale,
+                            primaryTextSizeSp = primaryTextSizeSp,
+                            secondaryTextSizeSp = secondaryTextSizeSp,
+                            lyricTextAlign = lyricTextAlign,
+                            contentColor = palette.onBackground,
+                            onLineClick = onLineClick,
+                            onLineDoubleClick = onLineDoubleClick,
+                            onLineLongClick = onLineLongClick,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        SmoothLyricView(
+                            songId = song?.id ?: 0L,
+                            songTitle = song?.title.orEmpty(),
+                            songArtist = song?.artist.orEmpty(),
+                            lyrics = lyrics,
+                            currentIndex = currentLyricIndex,
+                            currentPositionMs = currentPositionMs,
+                            isPlaying = isPlaying,
+                            showTranslation = showTranslation,
+                            showPronunciation = showPronunciation,
+                            fontScale = fontScale,
+                            fontPath = fontPath,
+                            fontWeight = fontWeight,
+                            italic = italic,
+                            lyricTextAlign = lyricTextAlign,
+                            primaryTextSizeSp = primaryTextSizeSp,
+                            secondaryFontScale = secondaryFontScale,
+                            secondaryTextSizeSp = secondaryTextSizeSp,
+                            contentColor = palette.onBackground,
+                            // Keep far lines sharp over a busy custom wallpaper so they stay readable.
+                            nonCurrentLineBlurEnabled = !useCustomPlayerBackground,
+                            onLineClick = onLineClick,
+                            onLineDoubleClick = onLineDoubleClick,
+                            onLineLongClick = onLineLongClick,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }

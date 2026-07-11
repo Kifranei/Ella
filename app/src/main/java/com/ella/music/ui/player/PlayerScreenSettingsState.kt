@@ -46,6 +46,7 @@ internal data class PlayerScreenSettings(
     val sleepTimerCustomMinutes: Int = 45,
     val sleepTimerStopAfterCurrent: Boolean = false,
     val lyricPageKeepScreenOn: Boolean = false,
+    val appleMusicLyricsPage: Boolean = false,
     val lyricPerspectiveEffect: Boolean = false,
     val lyricPerspectiveYAngle: Int = 25,
     val playerLyricTextAlign: Int = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT
@@ -136,6 +137,7 @@ private data class PlayerSettingsGroupC(
 
 private data class PlayerSettingsGroupD(
     val lyricPageKeepScreenOn: Boolean,
+    val appleMusicLyricsPage: Boolean,
     val lyricPerspectiveEffect: Boolean,
     val lyricPerspectiveYAngle: Int,
     val playerLyricTextAlign: Int
@@ -260,11 +262,12 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
         }
         val groupD = combine(
             settingsManager.lyricPageKeepScreenOn,
+            settingsManager.appleMusicLyricsPage,
             settingsManager.lyricPerspectiveEffect,
             settingsManager.lyricPerspectiveYAngle,
             settingsManager.playerLyricTextAlign
-        ) { keepScreenOn, perspective, perspectiveYAngle, lyricTextAlign ->
-            PlayerSettingsGroupD(keepScreenOn, perspective, perspectiveYAngle, lyricTextAlign)
+        ) { keepScreenOn, appleMusicPage, perspective, perspectiveYAngle, lyricTextAlign ->
+            PlayerSettingsGroupD(keepScreenOn, appleMusicPage, perspective, perspectiveYAngle, lyricTextAlign)
         }
         combine(groupA, groupB, groupC, groupD) { a, b, c, d ->
             PlayerScreenSettings(
@@ -295,6 +298,7 @@ internal fun rememberPlayerScreenSettings(settingsManager: SettingsManager): Pla
                 sleepTimerCustomMinutes = c.sleepTimerCustomMinutes,
                 sleepTimerStopAfterCurrent = c.sleepTimerStopAfterCurrent,
                 lyricPageKeepScreenOn = d.lyricPageKeepScreenOn,
+                appleMusicLyricsPage = d.appleMusicLyricsPage,
                 lyricPerspectiveEffect = d.lyricPerspectiveEffect,
                 lyricPerspectiveYAngle = d.lyricPerspectiveYAngle,
                 playerLyricTextAlign = d.playerLyricTextAlign

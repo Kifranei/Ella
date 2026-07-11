@@ -1689,4 +1689,6 @@
     <string name="remote_server_name_label">이름(선택)</string>
     <string name="remote_server_empty">추가된 서버가 없습니다</string>
     <string name="remote_server_delete_message">서버 “%1$s”을(를) 삭제할까요?</string>
+    <string name="settings_apple_music_lyrics_page">Apple Music 스타일 가사 페이지</string>
+    <string name="settings_apple_music_lyrics_page_summary">스프링 전환과 글로우가 적용된 내장 포커스 가사를 사용합니다. 끄면 기존 Lyricon 페이지를 사용합니다</string>
 </resources>

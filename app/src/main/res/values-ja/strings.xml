@@ -1689,4 +1689,6 @@
     <string name="remote_server_name_label">名前（任意）</string>
     <string name="remote_server_empty">まだサーバーがありません</string>
     <string name="remote_server_delete_message">サーバー「%1$s」を削除しますか？</string>
+    <string name="settings_apple_music_lyrics_page">Apple Music風歌詞ページ</string>
+    <string name="settings_apple_music_lyrics_page_summary">フォーカス歌詞、ばね遷移、グローを備えた内蔵ページを使用します。オフで従来のLyriconページに戻ります</string>
 </resources>

@@ -48,6 +48,7 @@ internal fun SettingsLyricsSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
+    val appleMusicLyricsPage by settingsManager.appleMusicLyricsPage.collectAsState(initial = false)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
 
@@ -60,6 +61,14 @@ internal fun SettingsLyricsSection(
             )
             SettingsPlayerLyricAlignmentPreference()
             SettingsPlayerLyricSizingControls()
+            SwitchPreference(
+                title = stringResource(R.string.settings_apple_music_lyrics_page),
+                summary = stringResource(R.string.settings_apple_music_lyrics_page_summary),
+                checked = appleMusicLyricsPage,
+                onCheckedChange = { enabled ->
+                    scope.launch { settingsManager.setAppleMusicLyricsPage(enabled) }
+                }
+            )
             SwitchPreference(
                 title = stringResource(R.string.settings_ignore_lyric_header_tags),
                 summary = stringResource(R.string.settings_ignore_lyric_header_tags_summary),

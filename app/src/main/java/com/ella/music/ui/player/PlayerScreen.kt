@@ -259,6 +259,7 @@ fun PlayerScreen(
     val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
     val showLyricPronunciation by playerViewModel.showLyricPronunciation.collectAsState()
     val lyricPageKeepScreenOn = playerSettings.lyricPageKeepScreenOn
+    val appleMusicLyricsPage = playerSettings.appleMusicLyricsPage
     val lyricPerspectiveEffect = playerSettings.lyricPerspectiveEffect
     val lyricPerspectiveYAngle = playerSettings.lyricPerspectiveYAngle
     val playerLyricTextAlign = playerSettings.playerLyricTextAlign
@@ -654,6 +655,7 @@ fun PlayerScreen(
                         showLyricTranslation = showLyricTranslation,
                         showLyricPronunciation = showLyricPronunciation,
                         lyricPageKeepScreenOn = lyricPageKeepScreenOn,
+                        appleMusicLyricsPage = appleMusicLyricsPage,
                         lyricFormatAvailability = lyricFormatAvailability,
                         preferTtmlLyrics = preferTtmlLyrics,
                         lyricSourceMode = lyricSourceMode,

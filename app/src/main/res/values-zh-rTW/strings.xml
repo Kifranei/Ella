@@ -1714,4 +1714,6 @@
     <string name="remote_server_name_label">名稱（可選）</string>
     <string name="remote_server_empty">還沒有新增伺服器</string>
     <string name="remote_server_delete_message">確定刪除伺服器「%1$s」嗎？</string>
+    <string name="settings_apple_music_lyrics_page">Apple Music 風格歌詞頁</string>
+    <string name="settings_apple_music_lyrics_page_summary">使用內建焦點歌詞、彈簧轉場與光暈效果；關閉後使用原有 Lyricon 歌詞頁</string>
 </resources>

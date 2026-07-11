@@ -1689,4 +1689,6 @@
     <string name="remote_server_name_label">Name (optional)</string>
     <string name="remote_server_empty">Noch keine Server hinzugefügt</string>
     <string name="remote_server_delete_message">Server „%1$s“ löschen?</string>
+    <string name="settings_apple_music_lyrics_page">Lyrics-Seite im Apple-Music-Stil</string>
+    <string name="settings_apple_music_lyrics_page_summary">Nutze integrierte Fokus-Lyrics mit Federübergängen und Leuchten; deaktivieren für die ursprüngliche Lyricon-Seite</string>
 </resources>

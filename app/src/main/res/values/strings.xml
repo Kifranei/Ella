@@ -1729,4 +1729,6 @@
     <string name="miui_uninstall_title">就要说再见了吗？</string>
     <string name="miui_uninstall_content">谢谢你陪 Halcyon 走过这一程，愿旋律仍在你心里回响。</string>
 
+    <string name="settings_apple_music_lyrics_page">Apple Music 风格歌词页</string>
+    <string name="settings_apple_music_lyrics_page_summary">使用内建焦点歌词、弹簧过渡和光晕效果；关闭后使用原词幕歌词页</string>
 </resources>

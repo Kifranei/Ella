@@ -146,6 +146,7 @@ class SettingsManager(private val context: Context) {
         val KEY_LYRIC_PRONUNCIATION_BELOW = booleanPreferencesKey("lyric_pronunciation_below")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
+        val KEY_APPLE_MUSIC_LYRICS_PAGE = booleanPreferencesKey("apple_music_lyrics_page")
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
         val KEY_MINI_PLAYER_LYRIC_SECONDARY = intPreferencesKey("mini_player_lyric_secondary")
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
@@ -734,6 +735,8 @@ class SettingsManager(private val context: Context) {
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val lyricPageKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
+    val appleMusicLyricsPage: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APPLE_MUSIC_LYRICS_PAGE] ?: false }
     val miniPlayerLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRIC_TRANSLATION] ?: true }
     val miniPlayerLyricSecondary: Flow<Int> = context.dataStore.data.map {
@@ -1421,6 +1424,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setLyricPageKeepScreenOn(enabled: Boolean) {
         context.dataStore.edit { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] = enabled }
+    }
+
+    suspend fun setAppleMusicLyricsPage(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APPLE_MUSIC_LYRICS_PAGE] = enabled }
     }
 
     suspend fun setLyricPerspectiveEffect(enabled: Boolean) {
@@ -2488,6 +2495,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_AUDIO_FOCUS_DISABLED)
             setBoolean(KEY_LYRIC_PAGE_TRANSLATION)
             setBoolean(KEY_LYRIC_PAGE_KEEP_SCREEN_ON)
+            setBoolean(KEY_APPLE_MUSIC_LYRICS_PAGE)
             setBoolean(KEY_LYRIC_FONT_ITALIC)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_PAGE)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_DESKTOP)
