@@ -163,7 +163,7 @@ fun LyricFontScreen(
                 .padding(horizontal = 12.dp),
             contentPadding = WindowInsets.navigationBars
                 .asPaddingValues()
-                .let { PaddingValues(bottom = it.calculateBottomPadding() + 24.dp) }
+                .let { PaddingValues(bottom = it.calculateBottomPadding() + 96.dp) }
         ) {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -209,7 +209,8 @@ fun LyricFontScreen(
                     )
                 }
                 LyricFontWeightCard(
-                    selectedFontPath = selectedFontPath,
+                    westernFontPath = westernFontPath,
+                    cjkFontPath = cjkFontPath,
                     lyricFontWeight = lyricFontWeight,
                     onWeightChange = { weight ->
                         scope.launch {

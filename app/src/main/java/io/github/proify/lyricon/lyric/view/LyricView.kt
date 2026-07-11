@@ -1248,7 +1248,11 @@ class LyricView @JvmOverloads constructor(
         // 但卡拉OK直接用 baseline 绘制，不含 topPad，所以需要分开处理
         val topPad = mainPaint.fontMetrics.let { it.top - it.ascent }.coerceAtLeast(0f)
         val mainBaseline = mainTopY + topPad + (-mainPaint.fontMetrics.ascent)
-        if (!singleLineMarqueeEnabled && !entry.words.isNullOrEmpty() && isHighlighted) {
+        // Draw karaoke word layout for any line that has word timings, not just the highlighted
+        // line. This keeps non-current lines on the same line breaks as the current line, since
+        // drawTextAligned uses StaticLayout which can break words differently than the word-by-word
+        // karaoke layout used for the highlighted line.
+        if (!singleLineMarqueeEnabled && !entry.words.isNullOrEmpty()) {
             drawKaraokeWords(canvas, entry, index, textStartX, mainBaseline, entry.alignedRight, entry.centered)
         } else {
             val paint = when {
@@ -1562,7 +1566,7 @@ class LyricView @JvmOverloads constructor(
         val words = wordsOverride ?: (if (useSecondary) entry.secondaryWords else entry.words) ?: return
         val karaokePos = currentKaraokePosition()
         if (alignedRight) {
-            drawAlignedKaraokeWords(canvas, entry, words, startX, baseline, karaokePos, useSecondary, textOverride)
+            drawAlignedKaraokeWords(canvas, entry, words, lineIndex, startX, baseline, karaokePos, useSecondary, textOverride)
             return
         }
         val availW = (width - paddingLeft - paddingRight - TEXT_EDGE_SAFE_INSET_DP * density).coerceAtLeast(1f)
@@ -1573,7 +1577,7 @@ class LyricView @JvmOverloads constructor(
             drawTextAligned(
                 canvas = canvas,
                 text = displayText,
-                paint = activePaint,
+                paint = if (isLineHighlighted(lineIndex)) activePaint else inactivePaint,
                 startX = startX,
                 baseline = baseline,
                 alignedRight = alignedRight,
@@ -1602,7 +1606,11 @@ class LyricView @JvmOverloads constructor(
             canvas.drawText(info.text, info.drawX(), info.y, inactivePaint)
         }
 
-        val sweepFraction = calculateSweepFraction(entry, karaokePos, words, activePaint)
+        val sweepFraction = if (isLineHighlighted(lineIndex)) {
+            calculateSweepFraction(entry, karaokePos, words, activePaint)
+        } else {
+            0f
+        }
         if (sweepFraction > 0f) {
             val lineGroups = wordInfos.groupBy { it.visualLine }.toSortedMap()
             val lineWidths = lineGroups.mapValues { (_, infos) -> infos.sumOf { it.w.toDouble() }.toFloat() }
@@ -1751,6 +1759,7 @@ class LyricView @JvmOverloads constructor(
         canvas: Canvas,
         entry: LineEntry,
         words: List<LyricWord>,
+        lineIndex: Int,
         startX: Float,
         baseline: Float,
         karaokePos: Long,
@@ -1764,15 +1773,21 @@ class LyricView @JvmOverloads constructor(
         val availW = (width - paddingLeft - paddingRight - TEXT_EDGE_SAFE_INSET_DP * density).toInt().coerceAtLeast(1)
         if (availW <= 0) return
 
+        val isHighlighted = isLineHighlighted(lineIndex)
         val activeLayout = buildLayout(text, activePaint, availW, alignedRight = true)
         val inactiveLayout = buildLayout(text, inactivePaint, availW, alignedRight = true)
-        val progress = calculateKaraokeCharProgress(entry, words, karaokePos)
         val translateY = baseline - activeLayout.getLineBaseline(0).toFloat()
 
         canvas.save()
         canvas.translate(startX, translateY)
         inactiveLayout.draw(canvas)
 
+        if (!isHighlighted) {
+            canvas.restore()
+            return
+        }
+
+        val progress = calculateKaraokeCharProgress(entry, words, karaokePos)
         val activeWordText = progress.activeWordText
         val activeWord = progress.activeWord
         drawAlignedCompletedText(

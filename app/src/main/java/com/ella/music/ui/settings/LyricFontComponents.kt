@@ -24,6 +24,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.components.ScriptFontPaths
+import com.ella.music.ui.components.loadScriptAwareTypeface
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -93,7 +95,8 @@ internal fun SystemDefaultFontCard(
 
 @Composable
 internal fun LyricFontWeightCard(
-    selectedFontPath: String,
+    westernFontPath: String,
+    cjkFontPath: String,
     lyricFontWeight: Int,
     onWeightChange: (Int) -> Unit
 ) {
@@ -110,6 +113,17 @@ internal fun LyricFontWeightCard(
         }
     }
     val safeWeight = localWeight.coerceIn(100, 900)
+    // Preview should render with the full Western + CJK script-aware typeface, so the English
+    // part of the sample can reflect the variable weight axis (e.g. Inter at weight 100) while
+    // CJK characters still use the selected CJK font. Using only the active target path made the
+    // whole preview fall back to a single font and masked weight changes on variable fonts.
+    val previewTypeface = remember(westernFontPath, cjkFontPath, safeWeight) {
+        val paths = ScriptFontPaths(westernFontPath, cjkFontPath)
+        runCatching {
+            loadScriptAwareTypeface(paths, safeWeight, italic = false, boldFallback = false)
+        }.getOrNull()
+    }
+    val previewFamily = previewTypeface?.let { FontFamily(it) }
     Card(
         modifier = Modifier.padding(vertical = 4.dp)
     ) {
@@ -134,7 +148,7 @@ internal fun LyricFontWeightCard(
                     text = stringResource(R.string.settings_lyric_font_preview_sample),
                     fontSize = 18.sp,
                     fontWeight = FontWeight(safeWeight),
-                    fontFamily = previewFontFamily(selectedFontPath, safeWeight, false),
+                    fontFamily = previewFamily,
                     color = MiuixTheme.colorScheme.onSurface
                 )
             }
