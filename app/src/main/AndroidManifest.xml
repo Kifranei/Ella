@@ -93,12 +93,12 @@
         </activity>
 
         <activity-alias
-            android:name=".DefaultLauncherAlias"
+            android:name="com.ella.music.DefaultLauncherAlias"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
+            android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -106,12 +106,12 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".AnimeLauncherAlias"
+            android:name="com.ella.music.AnimeLauncherAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_anime"
             android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
+            android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -119,12 +119,12 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".BlackHairLauncherAlias"
+            android:name="com.ella.music.BlackHairLauncherAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_black_hair"
             android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
+            android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -132,12 +132,12 @@
         </activity-alias>
 
         <activity-alias
-            android:name=".LoliLauncherAlias"
+            android:name="com.ella.music.LoliLauncherAlias"
             android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_loli"
             android:label="@string/app_name"
-            android:targetActivity=".MainActivity">
+            android:targetActivity="com.ella.music.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

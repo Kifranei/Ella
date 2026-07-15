@@ -3,6 +3,8 @@ package com.ella.music.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
+import com.ella.music.MainActivity
 
 object AppIconManager {
 
@@ -18,22 +20,22 @@ object AppIconManager {
 
         setAliasEnabled(
             packageManager = packageManager,
-            componentName = ComponentName(packageName, "$packageName$DEFAULT_ALIAS"),
+            componentName = launcherAliasComponent(packageName, DEFAULT_ALIAS),
             enabled = normalizedStyle == SettingsManager.APP_ICON_STYLE_DEFAULT
         )
         setAliasEnabled(
             packageManager = packageManager,
-            componentName = ComponentName(packageName, "$packageName$ANIME_ALIAS"),
+            componentName = launcherAliasComponent(packageName, ANIME_ALIAS),
             enabled = normalizedStyle == SettingsManager.APP_ICON_STYLE_ANIME
         )
         setAliasEnabled(
             packageManager = packageManager,
-            componentName = ComponentName(packageName, "$packageName$BLACK_HAIR_ALIAS"),
+            componentName = launcherAliasComponent(packageName, BLACK_HAIR_ALIAS),
             enabled = normalizedStyle == SettingsManager.APP_ICON_STYLE_BLACK_HAIR
         )
         setAliasEnabled(
             packageManager = packageManager,
-            componentName = ComponentName(packageName, "$packageName$LOLI_ALIAS"),
+            componentName = launcherAliasComponent(packageName, LOLI_ALIAS),
             enabled = normalizedStyle == SettingsManager.APP_ICON_STYLE_LOLI
         )
     }
@@ -56,11 +58,28 @@ object AppIconManager {
         } else {
             PackageManager.COMPONENT_ENABLED_STATE_DISABLED
         }
-        if (packageManager.getComponentEnabledSetting(componentName) == targetState) return
-        packageManager.setComponentEnabledSetting(
-            componentName,
-            targetState,
-            PackageManager.DONT_KILL_APP
-        )
+        runCatching {
+            // A repackaged build can have a different applicationId while the component class
+            // remains in Halcyon's source namespace. Missing/rewritten aliases must never crash
+            // Application.onCreate; icon switching simply becomes unavailable for that package.
+            packageManager.getActivityInfo(componentName, PackageManager.MATCH_DISABLED_COMPONENTS)
+            if (packageManager.getComponentEnabledSetting(componentName) != targetState) {
+                packageManager.setComponentEnabledSetting(
+                    componentName,
+                    targetState,
+                    PackageManager.DONT_KILL_APP
+                )
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Launcher alias unavailable: ${componentName.className}", error)
+        }
     }
+
+    private fun launcherAliasComponent(applicationId: String, aliasSuffix: String): ComponentName =
+        ComponentName(applicationId, launcherAliasClassName(aliasSuffix))
+
+    internal fun launcherAliasClassName(aliasSuffix: String): String =
+        "${MainActivity::class.java.packageName}$aliasSuffix"
+
+    private const val TAG = "AppIconManager"
 }
