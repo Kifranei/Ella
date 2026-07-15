@@ -913,6 +913,13 @@
     <string name="settings_desktop_lyric_opacity">Непрозрачность текста на рабочем столе %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Уменьшите это значение, чтобы текст стал светлее; значение сохраняется даже при блокировке</string>
     <string name="settings_desktop_lyric_color">Настольный лирический цвет</string>
+    <string name="settings_status_lyric_font_scale">Размер текста в строке состояния %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">Отдельно настроить размер основной строки плавающего текста</string>
+    <string name="settings_status_lyric_translation_scale">Размер дополнительной строки %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">Отдельно настроить размер перевода или произношения</string>
+    <string name="settings_status_lyric_opacity">Непрозрачность текста в строке состояния %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">Настроить только общую непрозрачность плавающего текста в строке состояния</string>
+    <string name="settings_status_lyric_color">Цвет текста в строке состояния</string>
     <string name="settings_enable_super_lyric">Включить SuperLyric</string>
     <string name="settings_enable_super_lyric_summary">Публикуйте тексты пословно в экосистеме SuperLyric через SuperLyricApi.</string>
     <string name="settings_super_lyric_translation">Отправить перевод на SuperLyric</string>

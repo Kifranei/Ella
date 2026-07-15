@@ -915,6 +915,13 @@
     <string name="settings_desktop_lyric_opacity">デスクトップ歌詞の透明度 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">低くすると歌詞が薄くなりますが、ロック状態でも維持されます</string>
     <string name="settings_desktop_lyric_color">デスクトップ歌詞の色</string>
+    <string name="settings_status_lyric_font_scale">ステータスバー歌詞サイズ %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">フローティングステータスバー歌詞のメイン行サイズを個別に調整します</string>
+    <string name="settings_status_lyric_translation_scale">ステータスバー副行サイズ %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">翻訳または発音行のサイズを個別に調整します</string>
+    <string name="settings_status_lyric_opacity">ステータスバー歌詞の不透明度 %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">フローティングステータスバー歌詞全体の不透明度のみを調整します</string>
+    <string name="settings_status_lyric_color">ステータスバー歌詞の色</string>
     <string name="settings_enable_super_lyric">SuperLyric を有効化</string>
     <string name="settings_enable_super_lyric_summary">SuperLyricApi 経由で SuperLyric エコシステムに単語単位の歌詞を公開</string>
     <string name="settings_super_lyric_translation">SuperLyric に翻訳を送信</string>

@@ -915,6 +915,13 @@
     <string name="settings_desktop_lyric_opacity">Deckkraft der Desktop-Lyrics %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Verringern, damit der Liedtext dezenter wirkt; der Wert bleibt auch im gesperrten Zustand erhalten</string>
     <string name="settings_desktop_lyric_color">Farbe der Desktop-Lyrics</string>
+    <string name="settings_status_lyric_font_scale">Größe der Statusleisten-Lyrics %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">Größe der Hauptzeile der schwebenden Statusleisten-Lyrics separat anpassen</string>
+    <string name="settings_status_lyric_translation_scale">Größe der zweiten Statusleistenzeile %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">Größe der Übersetzung oder Aussprache der Statusleisten-Lyrics separat anpassen</string>
+    <string name="settings_status_lyric_opacity">Deckkraft der Statusleisten-Lyrics %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">Nur die gesamte Deckkraft der schwebenden Statusleisten-Lyrics anpassen</string>
+    <string name="settings_status_lyric_color">Farbe der Statusleisten-Lyrics</string>
     <string name="settings_enable_super_lyric">SuperLyric aktivieren</string>
     <string name="settings_enable_super_lyric_summary">Wortgenaue Liedtexte über SuperLyricApi im SuperLyric-Ökosystem veröffentlichen</string>
     <string name="settings_super_lyric_translation">Übersetzung an SuperLyric senden</string>

@@ -59,11 +59,19 @@ internal fun SettingsDesktopLyricControls(
     val desktopLyricStatusBarSecondary by settingsManager.desktopLyricStatusBarSecondary.collectSettingsState(initialValue = SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF)
     val desktopLyricStatusBarSecondaryOpacity by settingsManager.desktopLyricStatusBarSecondaryOpacity.collectSettingsState(initialValue = 67)
     val desktopLyricStatusBarMergeSecondary by settingsManager.desktopLyricStatusBarMergeSecondary.collectSettingsState(initialValue = false)
+    val desktopLyricStatusBarFontScale by settingsManager.desktopLyricStatusBarFontScale.collectSettingsState(initialValue = 100)
+    val desktopLyricStatusBarTranslationScale by settingsManager.desktopLyricStatusBarTranslationScale.collectSettingsState(initialValue = 90)
+    val desktopLyricStatusBarOpacity by settingsManager.desktopLyricStatusBarOpacity.collectSettingsState(initialValue = 100)
+    val desktopLyricStatusBarTextColor by settingsManager.desktopLyricStatusBarTextColor.collectSettingsState(initialValue = -1)
     val desktopLyricLocked by settingsManager.desktopLyricLocked.collectSettingsState(initialValue = false)
     val desktopLyricFontScale by settingsManager.desktopLyricFontScale.collectSettingsState(initialValue = 100)
     val desktopLyricTranslationScale by settingsManager.desktopLyricTranslationScale.collectSettingsState(initialValue = 110)
     val desktopLyricOpacity by settingsManager.desktopLyricOpacity.collectSettingsState(initialValue = 100)
     val desktopLyricTextColor by settingsManager.desktopLyricTextColor.collectSettingsState(initialValue = -1)
+    val activeLyricFontScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarFontScale else desktopLyricFontScale
+    val activeLyricTranslationScale = if (desktopLyricStatusBarMode) desktopLyricStatusBarTranslationScale else desktopLyricTranslationScale
+    val activeLyricOpacity = if (desktopLyricStatusBarMode) desktopLyricStatusBarOpacity else desktopLyricOpacity
+    val activeLyricTextColor = if (desktopLyricStatusBarMode) desktopLyricStatusBarTextColor else desktopLyricTextColor
     val desktopLyricColorPresets = listOf(
         stringResource(R.string.settings_color_white) to android.graphics.Color.WHITE,
         stringResource(R.string.settings_color_silver_gray) to android.graphics.Color.rgb(191, 191, 191),
@@ -81,7 +89,7 @@ internal fun SettingsDesktopLyricControls(
         desktopLyricColorPresets.map { DropdownItem(title = it.first) }
     }
     val selectedDesktopLyricColorIndex =
-        desktopLyricColorPresets.indexOfFirst { it.second == desktopLyricTextColor }.takeIf { it >= 0 } ?: 0
+        desktopLyricColorPresets.indexOfFirst { it.second == activeLyricTextColor }.takeIf { it >= 0 } ?: 0
     var showColorPickerSheet by remember { mutableStateOf(false) }
     val statusLyricPositionLeft = stringResource(R.string.settings_status_position_left)
     val statusLyricPositionCenter = stringResource(R.string.settings_status_position_center)
@@ -358,52 +366,81 @@ internal fun SettingsDesktopLyricControls(
     )
 
     SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_desktop_lyric_font_scale, desktopLyricFontScale),
-        summary = stringResource(R.string.settings_desktop_lyric_font_scale_summary),
-        value = desktopLyricFontScale,
+        title = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale else R.string.settings_desktop_lyric_font_scale,
+            activeLyricFontScale
+        ),
+        summary = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_font_scale_summary else R.string.settings_desktop_lyric_font_scale_summary
+        ),
+        value = activeLyricFontScale,
         valueRange = 80..220,
-        valueText = "${desktopLyricFontScale.coerceIn(80, 220)}%",
+        valueText = "${activeLyricFontScale.coerceIn(80, 220)}%",
         enabled = desktopLyricEnabled,
         onValueChange = { scale ->
-                scope.launch {
+            scope.launch {
+                if (desktopLyricStatusBarMode) {
+                    settingsManager.setDesktopLyricStatusBarFontScale(scale)
+                } else {
                     settingsManager.setDesktopLyricFontScale(scale)
-                    applyDesktopLyricSettings()
                 }
+                applyDesktopLyricSettings()
+            }
         }
     )
 
     SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_desktop_lyric_translation_scale, desktopLyricTranslationScale),
-        summary = stringResource(R.string.settings_desktop_lyric_translation_scale_summary),
-        value = desktopLyricTranslationScale,
+        title = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale else R.string.settings_desktop_lyric_translation_scale,
+            activeLyricTranslationScale
+        ),
+        summary = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_translation_scale_summary else R.string.settings_desktop_lyric_translation_scale_summary
+        ),
+        value = activeLyricTranslationScale,
         valueRange = 80..220,
-        valueText = "${desktopLyricTranslationScale.coerceIn(80, 220)}%",
+        valueText = "${activeLyricTranslationScale.coerceIn(80, 220)}%",
         enabled = desktopLyricEnabled,
         onValueChange = { scale ->
-                scope.launch {
+            scope.launch {
+                if (desktopLyricStatusBarMode) {
+                    settingsManager.setDesktopLyricStatusBarTranslationScale(scale)
+                } else {
                     settingsManager.setDesktopLyricTranslationScale(scale)
-                    applyDesktopLyricSettings()
                 }
+                applyDesktopLyricSettings()
+            }
         }
     )
 
     SettingsIntSliderPreference(
-        title = stringResource(R.string.settings_desktop_lyric_opacity, desktopLyricOpacity),
-        summary = stringResource(R.string.settings_desktop_lyric_opacity_summary),
-        value = desktopLyricOpacity,
+        title = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity else R.string.settings_desktop_lyric_opacity,
+            activeLyricOpacity
+        ),
+        summary = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_opacity_summary else R.string.settings_desktop_lyric_opacity_summary
+        ),
+        value = activeLyricOpacity,
         valueRange = 35..100,
-        valueText = "${desktopLyricOpacity.coerceIn(35, 100)}%",
+        valueText = "${activeLyricOpacity.coerceIn(35, 100)}%",
         enabled = desktopLyricEnabled,
         onValueChange = { opacity ->
-                scope.launch {
+            scope.launch {
+                if (desktopLyricStatusBarMode) {
+                    settingsManager.setDesktopLyricStatusBarOpacity(opacity)
+                } else {
                     settingsManager.setDesktopLyricOpacity(opacity)
-                    applyDesktopLyricSettings()
                 }
+                applyDesktopLyricSettings()
+            }
         }
     )
 
     WindowSpinnerPreference(
-        title = stringResource(R.string.settings_desktop_lyric_color),
+        title = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_color else R.string.settings_desktop_lyric_color
+        ),
         summary = stringResource(
             R.string.settings_current_value,
             desktopLyricColorPresets[selectedDesktopLyricColorIndex].first
@@ -414,7 +451,11 @@ internal fun SettingsDesktopLyricControls(
         onSelectedIndexChange = { index ->
             val color = desktopLyricColorPresets.getOrNull(index)?.second ?: android.graphics.Color.WHITE
             scope.launch {
-                settingsManager.setDesktopLyricTextColor(color)
+                if (desktopLyricStatusBarMode) {
+                    settingsManager.setDesktopLyricStatusBarTextColor(color)
+                } else {
+                    settingsManager.setDesktopLyricTextColor(color)
+                }
                 applyDesktopLyricSettings()
             }
         }
@@ -422,18 +463,20 @@ internal fun SettingsDesktopLyricControls(
 
     ArrowPreference(
         title = stringResource(R.string.common_custom),
-        summary = String.format("#%06X", 0xFFFFFF and desktopLyricTextColor),
+        summary = String.format("#%06X", 0xFFFFFF and activeLyricTextColor),
         enabled = desktopLyricEnabled,
         onClick = { showColorPickerSheet = true }
     )
 
     EllaMiuixBottomSheet(
         show = showColorPickerSheet,
-        title = stringResource(R.string.settings_desktop_lyric_color),
+        title = stringResource(
+            if (desktopLyricStatusBarMode) R.string.settings_status_lyric_color else R.string.settings_desktop_lyric_color
+        ),
         onDismissRequest = { showColorPickerSheet = false }
     ) {
-        var pickerColor by remember(showColorPickerSheet) {
-            mutableStateOf(Color(desktopLyricTextColor))
+        var pickerColor by remember(showColorPickerSheet, activeLyricTextColor) {
+            mutableStateOf(Color(activeLyricTextColor))
         }
         Column(
             modifier = Modifier
@@ -451,7 +494,11 @@ internal fun SettingsDesktopLyricControls(
                 onClick = {
                     showColorPickerSheet = false
                     scope.launch {
-                        settingsManager.setDesktopLyricTextColor(pickerColor.toArgb())
+                        if (desktopLyricStatusBarMode) {
+                            settingsManager.setDesktopLyricStatusBarTextColor(pickerColor.toArgb())
+                        } else {
+                            settingsManager.setDesktopLyricTextColor(pickerColor.toArgb())
+                        }
                         applyDesktopLyricSettings()
                     }
                 },

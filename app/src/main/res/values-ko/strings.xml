@@ -915,6 +915,13 @@
     <string name="settings_desktop_lyric_opacity">데스크톱 가사 불투명도 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">가사를 더 가볍게 만들려면 이 값을 줄이세요. 잠겨 있어도 값은 유지됩니다.</string>
     <string name="settings_desktop_lyric_color">데스크톱 가사 색상</string>
+    <string name="settings_status_lyric_font_scale">상태 표시줄 가사 크기 %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">플로팅 상태 표시줄 가사의 기본 줄 크기를 별도로 조절합니다</string>
+    <string name="settings_status_lyric_translation_scale">상태 표시줄 보조 줄 크기 %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">번역 또는 발음 줄 크기를 별도로 조절합니다</string>
+    <string name="settings_status_lyric_opacity">상태 표시줄 가사 불투명도 %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">플로팅 상태 표시줄 가사의 전체 불투명도만 조절합니다</string>
+    <string name="settings_status_lyric_color">상태 표시줄 가사 색상</string>
     <string name="settings_enable_super_lyric">SuperLyric 활성화</string>
     <string name="settings_enable_super_lyric_summary">SuperLyricApi를 통해 SuperLyric 생태계에 단어별 가사 게시</string>
     <string name="settings_super_lyric_translation">SuperLyric로 번역 보내기</string>

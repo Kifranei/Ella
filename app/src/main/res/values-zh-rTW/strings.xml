@@ -935,6 +935,13 @@
     <string name="settings_desktop_lyric_opacity">桌面歌詞透明度 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">調低後歌詞會更淡，鎖定狀態也會保留</string>
     <string name="settings_desktop_lyric_color">桌面歌詞顏色</string>
+    <string name="settings_status_lyric_font_scale">狀態列歌詞大小 %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">單獨調整懸浮狀態列歌詞的主行尺寸</string>
+    <string name="settings_status_lyric_translation_scale">狀態列副行大小 %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">單獨調整懸浮狀態列歌詞的翻譯或注音尺寸</string>
+    <string name="settings_status_lyric_opacity">狀態列歌詞透明度 %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">僅調整懸浮狀態列歌詞的整體透明度</string>
+    <string name="settings_status_lyric_color">狀態列歌詞顏色</string>
     <string name="settings_enable_super_lyric">啟用 SuperLyric</string>
     <string name="settings_enable_super_lyric_summary">透過 SuperLyricApi 向 SuperLyric 生態發布逐字歌詞</string>
     <string name="settings_super_lyric_translation">傳送翻譯到 SuperLyric</string>

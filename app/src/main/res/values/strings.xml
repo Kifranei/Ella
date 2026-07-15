@@ -1153,6 +1153,13 @@
     <string name="settings_desktop_lyric_opacity">桌面歌词透明度 %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">调低后歌词会更淡，锁定状态也会保留</string>
     <string name="settings_desktop_lyric_color">桌面歌词颜色</string>
+    <string name="settings_status_lyric_font_scale">状态栏歌词大小 %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">单独调节悬浮状态栏歌词的主行尺寸</string>
+    <string name="settings_status_lyric_translation_scale">状态栏副行大小 %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">单独调节悬浮状态栏歌词的翻译或注音尺寸</string>
+    <string name="settings_status_lyric_opacity">状态栏歌词透明度 %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">仅调整悬浮状态栏歌词的整体透明度</string>
+    <string name="settings_status_lyric_color">状态栏歌词颜色</string>
     <string name="settings_enable_super_lyric">启用 SuperLyric</string>
     <string name="settings_enable_super_lyric_summary">通过 SuperLyricApi 向 SuperLyric 生态发布逐字歌词</string>
     <string name="settings_super_lyric_translation">SuperLyric 传递翻译</string>

@@ -118,6 +118,10 @@ class SettingsManager(private val context: Context) {
         val KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY = intPreferencesKey("desktop_lyric_status_bar_secondary")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY_OPACITY = intPreferencesKey("desktop_lyric_status_bar_secondary_opacity")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY = booleanPreferencesKey("desktop_lyric_status_bar_merge_secondary")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_FONT_SCALE = intPreferencesKey("desktop_lyric_status_bar_font_scale")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_status_bar_translation_scale")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY = intPreferencesKey("desktop_lyric_status_bar_opacity")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR = intPreferencesKey("desktop_lyric_status_bar_text_color")
         val KEY_DESKTOP_LYRIC_LOCKED = booleanPreferencesKey("desktop_lyric_locked")
         val KEY_DESKTOP_LYRIC_FONT_SCALE = intPreferencesKey("desktop_lyric_font_scale")
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
@@ -612,6 +616,10 @@ class SettingsManager(private val context: Context) {
     val desktopLyricStatusBarSecondary get() = desktopLyricSettings.desktopLyricStatusBarSecondary
     val desktopLyricStatusBarSecondaryOpacity get() = desktopLyricSettings.desktopLyricStatusBarSecondaryOpacity
     val desktopLyricStatusBarMergeSecondary get() = desktopLyricSettings.desktopLyricStatusBarMergeSecondary
+    val desktopLyricStatusBarFontScale get() = desktopLyricSettings.desktopLyricStatusBarFontScale
+    val desktopLyricStatusBarTranslationScale get() = desktopLyricSettings.desktopLyricStatusBarTranslationScale
+    val desktopLyricStatusBarOpacity get() = desktopLyricSettings.desktopLyricStatusBarOpacity
+    val desktopLyricStatusBarTextColor get() = desktopLyricSettings.desktopLyricStatusBarTextColor
     val desktopLyricLocked get() = desktopLyricSettings.desktopLyricLocked
     val desktopLyricFontScale get() = desktopLyricSettings.desktopLyricFontScale
     val desktopLyricTranslationScale get() = desktopLyricSettings.desktopLyricTranslationScale
@@ -633,6 +641,10 @@ class SettingsManager(private val context: Context) {
     suspend fun setDesktopLyricStatusBarSecondary(mode: Int) = desktopLyricSettings.setDesktopLyricStatusBarSecondary(mode)
     suspend fun setDesktopLyricStatusBarSecondaryOpacity(opacity: Int) = desktopLyricSettings.setDesktopLyricStatusBarSecondaryOpacity(opacity)
     suspend fun setDesktopLyricStatusBarMergeSecondary(enabled: Boolean) = desktopLyricSettings.setDesktopLyricStatusBarMergeSecondary(enabled)
+    suspend fun setDesktopLyricStatusBarFontScale(scale: Int) = desktopLyricSettings.setDesktopLyricStatusBarFontScale(scale)
+    suspend fun setDesktopLyricStatusBarTranslationScale(scale: Int) = desktopLyricSettings.setDesktopLyricStatusBarTranslationScale(scale)
+    suspend fun setDesktopLyricStatusBarOpacity(opacity: Int) = desktopLyricSettings.setDesktopLyricStatusBarOpacity(opacity)
+    suspend fun setDesktopLyricStatusBarTextColor(color: Int) = desktopLyricSettings.setDesktopLyricStatusBarTextColor(color)
     suspend fun setDesktopLyricLocked(locked: Boolean) = desktopLyricSettings.setDesktopLyricLocked(locked)
     suspend fun setDesktopLyricFontScale(scale: Int) = desktopLyricSettings.setDesktopLyricFontScale(scale)
     suspend fun setDesktopLyricTranslationScale(scale: Int) = desktopLyricSettings.setDesktopLyricTranslationScale(scale)
@@ -2622,6 +2634,10 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_VERTICAL_ALIGN)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY)
             setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY_OPACITY)
+            setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_FONT_SCALE)
+            setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_TRANSLATION_SCALE)
+            setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY)
+            setInt(KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR)
             setInt(KEY_SLEEP_TIMER_CUSTOM_MINUTES)
             setInt(KEY_APP_WALLPAPER_OPACITY)
             setInt(KEY_APP_WALLPAPER_DIM)

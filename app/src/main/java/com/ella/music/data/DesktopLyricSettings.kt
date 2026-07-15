@@ -23,6 +23,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
         val KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY = intPreferencesKey("desktop_lyric_status_bar_secondary")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY_OPACITY = intPreferencesKey("desktop_lyric_status_bar_secondary_opacity")
         val KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY = booleanPreferencesKey("desktop_lyric_status_bar_merge_secondary")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_FONT_SCALE = intPreferencesKey("desktop_lyric_status_bar_font_scale")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_status_bar_translation_scale")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY = intPreferencesKey("desktop_lyric_status_bar_opacity")
+        val KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR = intPreferencesKey("desktop_lyric_status_bar_text_color")
         val KEY_DESKTOP_LYRIC_LOCKED = booleanPreferencesKey("desktop_lyric_locked")
         val KEY_DESKTOP_LYRIC_FONT_SCALE = intPreferencesKey("desktop_lyric_font_scale")
         val KEY_DESKTOP_LYRIC_TRANSLATION_SCALE = intPreferencesKey("desktop_lyric_translation_scale")
@@ -45,6 +49,10 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
     val desktopLyricStatusBarSecondary: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY] ?: SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF).coerceIn(0, 2) }
     val desktopLyricStatusBarSecondaryOpacity: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_SECONDARY_OPACITY] ?: 67).coerceIn(20, 100) }
     val desktopLyricStatusBarMergeSecondary: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY] ?: false }
+    val desktopLyricStatusBarFontScale: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_FONT_SCALE] ?: 100).coerceIn(80, 220) }
+    val desktopLyricStatusBarTranslationScale: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_TRANSLATION_SCALE] ?: 90).coerceIn(80, 220) }
+    val desktopLyricStatusBarOpacity: Flow<Int> = dataStore.data.map { (it[KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY] ?: 100).coerceIn(35, 100) }
+    val desktopLyricStatusBarTextColor: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR] ?: -1 }
     val desktopLyricLocked: Flow<Boolean> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_LOCKED] ?: false }
     val desktopLyricFontScale: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_FONT_SCALE] ?: 100 }
     val desktopLyricTranslationScale: Flow<Int> = dataStore.data.map { it[KEY_DESKTOP_LYRIC_TRANSLATION_SCALE] ?: 90 }
@@ -103,6 +111,22 @@ internal class DesktopLyricSettings(private val dataStore: DataStore<Preferences
 
     suspend fun setDesktopLyricStatusBarMergeSecondary(enabled: Boolean) {
         dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_MERGE_SECONDARY] = enabled }
+    }
+
+    suspend fun setDesktopLyricStatusBarFontScale(scale: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_FONT_SCALE] = scale.coerceIn(80, 220) }
+    }
+
+    suspend fun setDesktopLyricStatusBarTranslationScale(scale: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_TRANSLATION_SCALE] = scale.coerceIn(80, 220) }
+    }
+
+    suspend fun setDesktopLyricStatusBarOpacity(opacity: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_OPACITY] = opacity.coerceIn(35, 100) }
+    }
+
+    suspend fun setDesktopLyricStatusBarTextColor(color: Int) {
+        dataStore.edit { it[KEY_DESKTOP_LYRIC_STATUS_BAR_TEXT_COLOR] = color }
     }
 
     suspend fun setDesktopLyricLocked(locked: Boolean) {

@@ -915,6 +915,13 @@
     <string name="settings_desktop_lyric_opacity">Opacité des paroles flottantes %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Réduisez cette valeur pour rendre les paroles plus légères ; la valeur est conservée même verrouillée</string>
     <string name="settings_desktop_lyric_color">Couleur des paroles flottantes</string>
+    <string name="settings_status_lyric_font_scale">Taille des paroles de la barre d’état %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">Régler séparément la taille de la ligne principale des paroles flottantes</string>
+    <string name="settings_status_lyric_translation_scale">Taille de la ligne secondaire %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">Régler séparément la taille de la traduction ou de la prononciation</string>
+    <string name="settings_status_lyric_opacity">Opacité des paroles de la barre d’état %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">Régler uniquement l’opacité globale des paroles flottantes de la barre d’état</string>
+    <string name="settings_status_lyric_color">Couleur des paroles de la barre d’état</string>
     <string name="settings_enable_super_lyric">Activer SuperLyric</string>
     <string name="settings_enable_super_lyric_summary">Publier les paroles mot à mot dans l’écosystème SuperLyric via SuperLyricApi</string>
     <string name="settings_super_lyric_translation">Envoyer la traduction à SuperLyric</string>

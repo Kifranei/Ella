@@ -1033,6 +1033,13 @@
     <string name="settings_desktop_lyric_opacity">Desktop lyric opacity %1$d%%</string>
     <string name="settings_desktop_lyric_opacity_summary">Reduce this to make the lyric lighter; the value is kept even when locked</string>
     <string name="settings_desktop_lyric_color">Desktop lyric color</string>
+    <string name="settings_status_lyric_font_scale">Status lyric size %1$d%%</string>
+    <string name="settings_status_lyric_font_scale_summary">Adjust the main floating status lyric size independently</string>
+    <string name="settings_status_lyric_translation_scale">Status secondary size %1$d%%</string>
+    <string name="settings_status_lyric_translation_scale_summary">Adjust the floating status lyric translation or pronunciation size independently</string>
+    <string name="settings_status_lyric_opacity">Status lyric opacity %1$d%%</string>
+    <string name="settings_status_lyric_opacity_summary">Adjust only the overall opacity of floating status lyrics</string>
+    <string name="settings_status_lyric_color">Status lyric color</string>
     <string name="settings_enable_super_lyric">Enable SuperLyric</string>
     <string name="settings_enable_super_lyric_summary">Publish per-word lyrics to the SuperLyric ecosystem through SuperLyricApi</string>
     <string name="settings_super_lyric_translation">Send translation to SuperLyric</string>
