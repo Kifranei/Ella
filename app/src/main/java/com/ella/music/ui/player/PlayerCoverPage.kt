@@ -93,6 +93,7 @@ internal fun CoverPlayerPage(
     showTranslation: Boolean,
     showPronunciation: Boolean,
     lyricPageKeepScreenOn: Boolean,
+    appleMusicWordLiftEnabled: Boolean,
     lyricFormatAvailability: MusicRepository.LyricFormatAvailability,
     preferTtmlLyrics: Boolean?,
     lyricSourceMode: Int,
@@ -317,6 +318,7 @@ internal fun CoverPlayerPage(
                 currentLyricIndex = currentLyricIndex,
                 showTranslation = showTranslation,
                 showPronunciation = showPronunciation,
+                appleMusicWordLiftEnabled = appleMusicWordLiftEnabled,
                 fontFamily = fontFamily,
                 fontPath = fontPath,
                 fontWeight = fontWeight,
@@ -483,22 +485,20 @@ internal fun CoverPlayerPage(
                         if (effectiveMiniLyricLine != null) {
                             Spacer(modifier = Modifier.height(6.dp))
                             MiniLyricsPreview(
-                                songId = song?.id ?: 0L,
-                                songTitle = song?.title.orEmpty(),
-                                songArtist = song?.artist.orEmpty(),
                                 lyrics = lyrics,
                                 currentIndex = currentLyricIndex,
                                 showTranslation = showTranslation,
                                 showPronunciation = showPronunciation,
                                 currentPositionMs = currentPosition,
                                 isPlaying = isPlaying,
-                                fontPath = fontPath,
+                                fontFamily = fontFamily,
                                 fontWeight = fontWeight,
                                 fontScale = fontScale,
                                 secondaryFontScale = secondaryFontScale,
                                 lyricTextAlign = lyricTextAlign,
                                 compact = compactWindow,
                                 contentColor = pagePalette.onBackground,
+                                wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -674,22 +674,20 @@ internal fun CoverPlayerPage(
                         if (effectiveMiniLyricLine != null) {
                             Spacer(modifier = Modifier.height(8.dp))
                             MiniLyricsPreview(
-                                songId = song?.id ?: 0L,
-                                songTitle = song?.title.orEmpty(),
-                                songArtist = song?.artist.orEmpty(),
                                 lyrics = lyrics,
                                 currentIndex = currentLyricIndex,
                                 showTranslation = showTranslation,
                                 showPronunciation = showPronunciation,
                                 currentPositionMs = currentPosition,
                                 isPlaying = isPlaying,
-                                fontPath = fontPath,
+                                fontFamily = fontFamily,
                                 fontWeight = fontWeight,
                                 fontScale = fontScale,
                                 secondaryFontScale = secondaryFontScale,
                                 lyricTextAlign = lyricTextAlign,
                                 compact = compactWindow,
                                 contentColor = pagePalette.onBackground,
+                                wordLiftEnabled = appleMusicWordLiftEnabled,
                                 onLineClick = { onShowLyrics() },
                                 modifier = Modifier
                                     .fillMaxWidth()

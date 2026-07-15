@@ -1381,7 +1381,6 @@
     <string name="about_summary_superlyricapi">SuperLyric 歌詞發佈 API（LGPL-2.1）</string>
     <string name="about_summary_lyricgetter">Lyric Getter 原文歌詞傳遞 API（LGPL-2.1）</string>
     <string name="about_summary_lyrico">歌曲標籤讀取與應用日誌頁面參考（Apache-2.0）</string>
-    <string name="about_summary_accompanist_lyrics_ui">逐字卡拉OK歌詞渲染與動畫效果（Apache-2.0）</string>
     <string name="about_summary_163keydecrypter">網易雲音樂 163 key 解密流程參考（MIT）</string>
     <string name="about_summary_kyant_backdrop">液態玻璃與背景模糊效果（Apache-2.0）</string>
     <string name="about_summary_coil">Kotlin 圖片載入函式庫（Apache-2.0）</string>
@@ -1714,6 +1713,18 @@
     <string name="remote_server_name_label">名稱（可選）</string>
     <string name="remote_server_empty">還沒有新增伺服器</string>
     <string name="remote_server_delete_message">確定刪除伺服器「%1$s」嗎？</string>
-    <string name="settings_apple_music_lyrics_page">Apple Music 風格歌詞頁</string>
-    <string name="settings_apple_music_lyrics_page_summary">使用內建焦點歌詞、彈簧轉場與光暈效果；關閉後使用原有 Lyricon 歌詞頁</string>
+    <string name="settings_apple_music_lyrics_word_lift">歌詞逐詞上浮</string>
+    <string name="settings_apple_music_lyrics_word_lift_summary">演唱時讓目前單詞輕微上浮；關閉後仍保留逐字羽化與長音發光</string>
+    <string name="folder_playlist_detail_summary_sorted">%1$d 首歌曲 · %2$d 個關聯資料夾 · %3$s</string>
+    <string name="folder_playlist_list_summary_sorted">%1$d 個資料夾播放清單 · %2$s</string>
+    <string name="folder_playlist_selected_playlists">已選擇 %1$d 個資料夾播放清單</string>
+    <string name="player_lyric_style_settings">歌詞樣式</string>
+    <string name="playlist_drag_selection_count">項目：%1$d</string>
+    <string name="remote_playlist_favorites">%1$s 收藏</string>
+    <string name="remote_source_opensubsonic">OpenSubsonic</string>
+    <string name="settings_full_tag_search">完整標籤搜尋</string>
+    <string name="settings_full_tag_search_summary_off">關閉後直接從 Android 媒體庫掃描，僅搜尋基本中繼資料</string>
+    <string name="settings_full_tag_search_summary_on">掃描時讀取完整音訊標籤；搜尋包含作曲者、作詞者、註解、別名與自訂標籤</string>
+    <string name="settings_player_dynamic_flow">Apple Music 背景動態效果</string>
+    <string name="settings_player_dynamic_flow_summary">關閉後保留 Apple Music 背景樣式，但不再持續流動；僅對 Apple Music 背景生效</string>
 </resources>

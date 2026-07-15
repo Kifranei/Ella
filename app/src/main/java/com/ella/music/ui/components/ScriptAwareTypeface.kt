@@ -68,6 +68,24 @@ internal fun loadScriptAwareTypeface(
     }
 }
 
+/** Loads either a single custom font or the encoded western/CJK fallback pair. */
+internal fun loadAndroidTypeface(
+    fontPath: String,
+    weight: Int,
+    italic: Boolean,
+    boldFallback: Boolean
+): Typeface {
+    ScriptFontPaths.decode(fontPath)?.let { paths ->
+        return loadScriptAwareTypeface(paths, weight, italic, boldFallback)
+    }
+    val safeWeight = weight.coerceIn(100, 900)
+    val base = fontPath
+        .takeIf(::isReadableFontPath)
+        ?.let { path -> runCatching { Typeface.createFromFile(path) }.getOrNull() }
+        ?: if (boldFallback) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+    return Typeface.create(base, safeWeight, italic)
+}
+
 private fun fontFamilyFromPath(path: String, weight: Int, slant: Int): FontFamily? {
     if (!isReadableFontPath(path)) return null
     return runCatching {

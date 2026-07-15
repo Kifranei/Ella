@@ -80,8 +80,8 @@ fun LyricFontScreen(
     val currentSystemFont = remember(selectedFontPath, systemFonts) {
         systemFonts.firstOrNull { it.path == selectedFontPath }
     }
-    val westernDisplayName = westernFontName.ifBlank { "MiSans SemiBold" }
-    val cjkDisplayName = cjkFontName.ifBlank { "MiSans SemiBold" }
+    val westernDisplayName = westernFontName.ifBlank { "MiSans Bold" }
+    val cjkDisplayName = cjkFontName.ifBlank { "MiSans Bold" }
 
     suspend fun applyFont(font: FontChoice) {
         if (activeTarget == LyricFontTarget.Western) {

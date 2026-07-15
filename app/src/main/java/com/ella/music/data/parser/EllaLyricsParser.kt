@@ -237,13 +237,23 @@ internal object EllaLyricsParser {
             .toList()
         if (markers.isEmpty()) return emptyList()
 
+        val relativeTiming = markers.first().timeMs < lineStartMs &&
+            abs(markers.first().timeMs - lineStartMs) > 2_000L
         val words = mutableListOf<LyricWord>()
-        var activeStart = lineStartMs
+        var activeStart = if (relativeTiming) 0L else lineStartMs
         var textStart = 0
+        var pendingLeadingSpace = false
 
         markers.forEach { marker ->
             if (marker.timeMs < activeStart) return@forEach
-            val text = content.substring(textStart, marker.startIndex).cleanTimedLyricSegment()
+            val rawText = content.substring(textStart, marker.startIndex)
+            var text = rawText.cleanTimedLyricSegment()
+            if (text.isBlank() && rawText.any(Char::isWhitespace)) {
+                pendingLeadingSpace = true
+            } else if (pendingLeadingSpace && text.firstOrNull()?.isWhitespace() != true) {
+                text = " $text"
+                pendingLeadingSpace = false
+            }
             if (text.isNotBlank()) {
                 words += LyricWord(
                     text = text,
@@ -255,19 +265,21 @@ internal object EllaLyricsParser {
             textStart = marker.endIndex
         }
 
-        content.substring(textStart).cleanTimedLyricSegment().takeIf { it.isNotBlank() }?.let { tail ->
+        var tail = content.substring(textStart).cleanTimedLyricSegment()
+        if (pendingLeadingSpace && tail.isNotBlank() && tail.firstOrNull()?.isWhitespace() != true) {
+            tail = " $tail"
+        }
+        tail.takeIf { it.isNotBlank() }?.let {
             words += LyricWord(
-                text = tail,
+                text = it,
                 startMs = activeStart,
-                endMs = activeStart + estimateDuration(tail)
+                endMs = activeStart + estimateDuration(it)
             )
         }
 
         if (words.isEmpty()) return emptyList()
 
-        val firstStart = words.first().startMs
-        val relative = firstStart < lineStartMs && abs(firstStart - lineStartMs) > 2_000L
-        return if (relative) {
+        return if (relativeTiming) {
             words.map { it.copy(startMs = it.startMs + lineStartMs, endMs = it.endMs + lineStartMs) }
         } else {
             words
@@ -359,7 +371,17 @@ internal object EllaLyricsParser {
                 val displayAgentName = agentIds.resolveTtmlAgentNames(agentInfo)
                 val words = mutableListOf<LyricWord>()
                 val rubyPronunciationWords = mutableListOf<LyricWord>()
-                val text = collectTtmlMainText(p, words, end, rubyPronunciationWords).cleanLyricText()
+                val collectedText = collectTtmlMainText(p, words, end, rubyPronunciationWords).cleanLyricText()
+                val text = if (
+                    collectedText.isNotBlank() &&
+                    !collectedText.contains(' ') &&
+                    !collectedText.hasCjk() &&
+                    words.size > 1
+                ) {
+                    words.joinToString(" ") { it.text.cleanLyricText() }.cleanLyricText()
+                } else {
+                    collectedText
+                }
                 val displayText = text.takeUnless { it.isIgnorableLyricText() }.orEmpty()
                 val displayWords = words.toTtmlDisplayWords(
                     lineText = displayText,
@@ -848,7 +870,7 @@ internal object EllaLyricsParser {
             if (i + 1 < lines.size) {
                 val next = lines[i + 1]
                 val timeGap = next.timeMs - current.timeMs
-                if (timeGap in 0..500 && next.endMs != null && next.endMs!! >= current.timeMs) {
+                if (timeGap in 0..500 && next.endMs?.let { it >= current.timeMs } == true) {
                     val currentText = current.text.cleanLyricText()
                     val nextText = next.text.cleanLyricText()
                     val nextIsCjk = nextText.hasCjk()
@@ -1045,16 +1067,13 @@ internal object EllaLyricsParser {
 
     private fun String.preformatTtml(): String =
         // Move trailing whitespace (spaces) from inside spans to between spans,
-        // and normalize inter-span whitespace (including XML indentation with newlines)
-        // to a single space. cleanLyricText() removes unwanted CJK-CJK spaces later.
+        // but leave XML indentation alone so it cannot become visible lyric whitespace.
         replace(Regex("""[ \t]+</span>\s*<span"""), "</span> <span")
-            .replace(Regex("""</span>\s+<span"""), "</span> <span")
             .replace(",</span><span", ",</span> <span")
 
     private fun String.cleanLyricText(): String =
         decodeHtmlCompat()
             .replace(Regex("""[ \t\r\n]+"""), " ")
-            .replace(Regex("""(?<=[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]) (?=[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af])"""), "")
             .trim()
 
     private fun String.cleanLyricSecondaryText(): String =
@@ -1136,9 +1155,8 @@ internal object EllaLyricsParser {
     private fun String.withoutFormattingWhitespace(): String =
         if (isBlank()) {
             // Preserve at least one space from whitespace-only text nodes that contain
-            // regular space characters — these may represent inter-word gaps between spans.
-            // Pure newlines/tabs (no spaces) are formatting indentation only.
-            if (any { it == ' ' || it == '\u00A0' }) " " else ""
+            // regular spaces on the same line. Newlines/tabs denote XML formatting indentation.
+            if (none { it == '\n' || it == '\r' || it == '\t' } && any { it == ' ' || it == '\u00A0' }) " " else ""
         } else {
             this
         }
@@ -1157,6 +1175,12 @@ internal object EllaLyricsParser {
         if (isEmpty() || lineText.isBlank()) return this
         val normalized = lineText.cleanLyricText()
         if (normalized.hasCjk()) return withSpacing(normalized)
+        val existingText = joinToString("") { it.text }.cleanLyricText()
+        if (existingText == normalized) {
+            return mapIndexed { index, word ->
+                if (index == lastIndex) word.copy(text = word.text.trimEnd()) else word
+            }
+        }
         // If the line text has no spaces but we have multiple words, the text was likely
         // concatenated from TTML spans without inter-span whitespace (e.g. x-bg spans that
         // are directly adjacent). Don't try token matching — it would collapse all words
@@ -1198,12 +1222,23 @@ internal object EllaLyricsParser {
     ): List<LyricWord> {
         if (lineText.isBlank()) return emptyList()
         if (forceLineTiming) return emptyList()
-        val displayWords = toDisplayWords(lineText)
+        val displayWords = toDisplayWords(lineText).moveTrailingSpacesToFollowingWord()
         val onlyWord = displayWords.singleOrNull() ?: return displayWords
         val sameText = onlyWord.text.cleanLyricText() == lineText.cleanLyricText()
         val sameStart = abs(onlyWord.startMs - lineStart) <= 25L
         val sameEnd = lineEnd == null || abs(onlyWord.endMs - lineEnd) <= 25L
         return if (sameText && sameStart && sameEnd) emptyList() else displayWords
+    }
+
+    private fun List<LyricWord>.moveTrailingSpacesToFollowingWord(): List<LyricWord> {
+        var pendingSpace = ""
+        return map { word ->
+            val textWithoutTrailingSpace = word.text.trimEnd(Char::isWhitespace)
+            val trailingSpace = word.text.substring(textWithoutTrailingSpace.length)
+            val adjusted = word.copy(text = pendingSpace + textWithoutTrailingSpace)
+            pendingSpace = trailingSpace
+            adjusted
+        }
     }
 
     private fun List<LyricWord>.withSpacing(lineText: String): List<LyricWord> {

@@ -56,7 +56,6 @@ import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.DefaultAlbumCover
 import com.ella.music.ui.components.SafeCoverImage
-import com.ella.music.ui.components.SmoothLyricView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
@@ -84,6 +83,7 @@ internal fun LandscapeCoverPlayerPage(
     currentLyricIndex: Int,
     showTranslation: Boolean,
     showPronunciation: Boolean,
+    appleMusicWordLiftEnabled: Boolean,
     fontFamily: FontFamily?,
     fontPath: String,
     fontWeight: FontWeight,
@@ -184,7 +184,6 @@ internal fun LandscapeCoverPlayerPage(
     }
     val lyricPrimaryTextSize = primaryTextSizeSp
     val lyricSecondaryTextSize = secondaryTextSizeSp
-    val lyricAnchorOffset = if (ultraWideLandscape) -0.03f else -0.08f
     val lyricTopPadding = if (ultraWideLandscape) 0.dp else 8.dp
     val foregroundDynamicCoverSource = dynamicCoverSource?.takeUnless { it.preferLandscapeBackground }
 
@@ -207,6 +206,7 @@ internal fun LandscapeCoverPlayerPage(
             currentLyricIndex = currentLyricIndex,
             showTranslation = showTranslation,
             showPronunciation = showPronunciation,
+            appleMusicWordLiftEnabled = appleMusicWordLiftEnabled,
             fontFamily = fontFamily,
             fontPath = fontPath,
             fontWeight = fontWeight,
@@ -473,34 +473,35 @@ internal fun LandscapeCoverPlayerPage(
                         )
                 ) {
                     if (hasLyrics) {
-                        SmoothLyricView(
-                            songId = song?.id ?: 0L,
-                            songTitle = song?.title.orEmpty(),
-                            songArtist = song?.artist.orEmpty(),
-                            lyrics = lyrics,
-                            currentIndex = currentLyricIndex,
-                            currentPositionMs = currentPosition,
-                            isPlaying = isPlaying,
-                            showTranslation = showTranslation,
-                            showPronunciation = showPronunciation,
-                            fontScale = fontScale,
-                            secondaryFontScale = secondaryFontScale,
-                            fontPath = fontPath,
-                            fontWeight = fontWeight,
-                            lyricTextAlign = lyricTextAlign,
-                            primaryTextSizeSp = lyricPrimaryTextSize,
-                            secondaryTextSizeSp = lyricSecondaryTextSize,
-                            anchorOffsetRatio = lyricAnchorOffset,
-                            topContentPadding = lyricTopPadding,
-                            contentColor = palette.onBackground,
-                            // A custom wallpaper is a busy background; blurring far lines makes them
-                            // unreadable, so keep all lines sharp when one is set.
-                            nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
-                            onLineClick = onLyricLineClick,
-                            onLineLongClick = onLyricLineLongClick,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight()
+                        AppleMusicLyricsView(
+                                lyrics = lyrics,
+                                currentIndex = currentLyricIndex,
+                                currentPositionMs = currentPosition,
+                                isPlaying = isPlaying,
+                                showTranslation = showTranslation,
+                                showPronunciation = showPronunciation,
+                                fontFamily = fontFamily,
+                                fontWeight = fontWeight,
+                                fontScale = fontScale,
+                                secondaryFontScale = secondaryFontScale,
+                                primaryTextSizeSp = lyricPrimaryTextSize,
+                                secondaryTextSizeSp = lyricSecondaryTextSize,
+                                lyricTextAlign = lyricTextAlign,
+                                contentColor = palette.onBackground,
+                                wordLiftEnabled = appleMusicWordLiftEnabled,
+                                onLineClick = onLyricLineClick,
+                                onLineDoubleClick = {},
+                                onLineLongClick = onLyricLineLongClick,
+                                topContentPadding = lyricTopPadding,
+                                bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
+                                lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
+                                focusOffsetRatio = if (ultraWideLandscape) 0.20f else 0.22f,
+                                // A custom wallpaper is a busy background; blurring far lines makes
+                                // them unreadable, so keep all lines sharp when one is set.
+                                nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight()
                         )
                     }
                 }
@@ -541,6 +542,7 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
     currentLyricIndex: Int,
     showTranslation: Boolean,
     showPronunciation: Boolean,
+    appleMusicWordLiftEnabled: Boolean,
     fontFamily: FontFamily?,
     fontPath: String,
     fontWeight: FontWeight,
@@ -792,30 +794,31 @@ private fun CompactPhoneLandscapeCoverPlayerPage(
                         )
                 ) {
                     if (lyrics.isNotEmpty()) {
-                        SmoothLyricView(
-                            songId = song?.id ?: 0L,
-                            songTitle = song?.title.orEmpty(),
-                            songArtist = song?.artist.orEmpty(),
-                            lyrics = lyrics,
-                            currentIndex = currentLyricIndex,
-                            currentPositionMs = currentPosition,
-                            isPlaying = isPlaying,
-                            showTranslation = showTranslation,
-                            showPronunciation = showPronunciation,
-                            fontScale = fontScale,
-                            secondaryFontScale = secondaryFontScale,
-                            fontPath = fontPath,
-                            fontWeight = fontWeight,
-                            lyricTextAlign = lyricTextAlign,
-                            primaryTextSizeSp = primaryTextSizeSp,
-                            secondaryTextSizeSp = secondaryTextSizeSp,
-                            anchorOffsetRatio = -0.08f,
-                            topContentPadding = 0.dp,
-                            contentColor = palette.onBackground,
-                            nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
-                            onLineClick = onLyricLineClick,
-                            onLineLongClick = onLyricLineLongClick,
-                            modifier = Modifier.fillMaxSize()
+                        AppleMusicLyricsView(
+                                lyrics = lyrics,
+                                currentIndex = currentLyricIndex,
+                                currentPositionMs = currentPosition,
+                                isPlaying = isPlaying,
+                                showTranslation = showTranslation,
+                                showPronunciation = showPronunciation,
+                                fontFamily = fontFamily,
+                                fontWeight = fontWeight,
+                                fontScale = fontScale,
+                                secondaryFontScale = secondaryFontScale,
+                                primaryTextSizeSp = primaryTextSizeSp,
+                                secondaryTextSizeSp = secondaryTextSizeSp,
+                                lyricTextAlign = lyricTextAlign,
+                                contentColor = palette.onBackground,
+                                wordLiftEnabled = appleMusicWordLiftEnabled,
+                                onLineClick = onLyricLineClick,
+                                onLineDoubleClick = {},
+                                onLineLongClick = onLyricLineLongClick,
+                                topContentPadding = 0.dp,
+                                bottomContentPadding = 28.dp,
+                                lineSpacing = 18.dp,
+                                focusOffsetRatio = 0.18f,
+                                nonCurrentLineBlurEnabled = customBackgroundUri.isBlank() && !lyricPerspectiveEffect,
+                                modifier = Modifier.fillMaxSize()
                         )
                     } else if (!lyricsLoading) {
                         Text(

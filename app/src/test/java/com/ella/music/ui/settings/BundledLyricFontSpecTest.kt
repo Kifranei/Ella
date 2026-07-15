@@ -7,10 +7,10 @@ import org.junit.Test
 class BundledLyricFontSpecTest {
     @Test
     fun interIsAvailableAsABundledLyricFont() {
-        val inter = BUNDLED_FONT_SPECS.single { it.displayName == "Inter" }
+        val inter = BUNDLED_FONT_SPECS.single { it.displayName == "Inter Bold" }
 
-        assertEquals("InterVariable.ttf", inter.fileName)
-        assertEquals("fonts/InterVariable.ttf", inter.assetPath)
+        assertEquals("Inter-Bold.ttf", inter.fileName)
+        assertEquals("fonts/Inter-Bold.ttf", inter.assetPath)
     }
 
     @Test

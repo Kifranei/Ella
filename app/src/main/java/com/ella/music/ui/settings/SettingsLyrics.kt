@@ -48,7 +48,7 @@ internal fun SettingsLyricsSection(
     val settingsManager = remember { SettingsManager.getInstance(context) }
     val lyricLineBlacklist by settingsManager.lyricLineBlacklist.collectAsState(initial = emptyList())
     val ignoreLyricHeaderTags by settingsManager.ignoreLyricHeaderTags.collectAsState(initial = true)
-    val appleMusicLyricsPage by settingsManager.appleMusicLyricsPage.collectAsState(initial = false)
+    val appleMusicLyricsWordLift by settingsManager.appleMusicLyricsWordLift.collectAsState(initial = true)
     var showBlacklistSheet by remember { mutableStateOf(false) }
     var blacklistDraft by remember(lyricLineBlacklist) { mutableStateOf(lyricLineBlacklist.joinToString("\n")) }
 
@@ -62,11 +62,11 @@ internal fun SettingsLyricsSection(
             SettingsPlayerLyricAlignmentPreference()
             SettingsPlayerLyricSizingControls()
             SwitchPreference(
-                title = stringResource(R.string.settings_apple_music_lyrics_page),
-                summary = stringResource(R.string.settings_apple_music_lyrics_page_summary),
-                checked = appleMusicLyricsPage,
+                title = stringResource(R.string.settings_apple_music_lyrics_word_lift),
+                summary = stringResource(R.string.settings_apple_music_lyrics_word_lift_summary),
+                checked = appleMusicLyricsWordLift,
                 onCheckedChange = { enabled ->
-                    scope.launch { settingsManager.setAppleMusicLyricsPage(enabled) }
+                    scope.launch { settingsManager.setAppleMusicLyricsWordLift(enabled) }
                 }
             )
             SwitchPreference(

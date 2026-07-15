@@ -34,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
-import com.ella.music.ui.components.SmoothLyricView
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Photos
@@ -54,6 +53,7 @@ internal fun LandscapeLyricsOverlay(
     repeatMode: Int,
     showTranslation: Boolean,
     showPronunciation: Boolean,
+    appleMusicWordLiftEnabled: Boolean,
     fontFamily: FontFamily?,
     fontPath: String,
     fontWeight: FontWeight,
@@ -92,7 +92,6 @@ internal fun LandscapeLyricsOverlay(
     val rightPaneWeight = if (ultraWideLandscape) 0.72f else 0.67f
     val paneSpacer = if (ultraWideLandscape) 24.dp else 34.dp
     val coverMaxSize = if (ultraWideLandscape) 280.dp else 400.dp
-    val lyricAnchorOffset = if (ultraWideLandscape) -0.03f else -0.06f
     val topButtonPaddingTop = if (ultraWideLandscape) 18.dp else 26.dp
     val topButtonSize = if (ultraWideLandscape) 48.dp else 56.dp
     val topIconSize = if (ultraWideLandscape) 24.dp else 26.dp
@@ -206,31 +205,33 @@ internal fun LandscapeLyricsOverlay(
                         lyricTextAlign = lyricTextAlign
                     )
             ) {
-                SmoothLyricView(
-                    songId = song?.id ?: 0L,
-                    songTitle = song?.title.orEmpty(),
-                    songArtist = song?.artist.orEmpty(),
-                    lyrics = lyrics,
-                    currentIndex = currentLyricIndex,
-                    currentPositionMs = currentPosition,
-                    isPlaying = isPlaying,
-                    showTranslation = showTranslation,
-                    showPronunciation = showPronunciation,
-                    fontScale = fontScale,
-                    secondaryFontScale = secondaryFontScale,
-                    fontPath = fontPath,
-                    fontWeight = fontWeight,
-                    lyricTextAlign = lyricTextAlign,
-                    primaryTextSizeSp = primaryTextSizeSp,
-                    secondaryTextSizeSp = secondaryTextSizeSp,
-                    anchorOffsetRatio = lyricAnchorOffset,
-                    topContentPadding = if (ultraWideLandscape) 4.dp else 12.dp,
-                    nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
-                    onLineClick = onLineClick,
-                    onLineLongClick = onLineLongClick,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight()
+                AppleMusicLyricsView(
+                        lyrics = lyrics,
+                        currentIndex = currentLyricIndex,
+                        currentPositionMs = currentPosition,
+                        isPlaying = isPlaying,
+                        showTranslation = showTranslation,
+                        showPronunciation = showPronunciation,
+                        fontFamily = fontFamily,
+                        fontWeight = fontWeight,
+                        fontScale = fontScale,
+                        secondaryFontScale = secondaryFontScale,
+                        primaryTextSizeSp = primaryTextSizeSp,
+                        secondaryTextSizeSp = secondaryTextSizeSp,
+                        lyricTextAlign = lyricTextAlign,
+                        contentColor = palette.onBackground,
+                        wordLiftEnabled = appleMusicWordLiftEnabled,
+                        onLineClick = onLineClick,
+                        onLineDoubleClick = {},
+                        onLineLongClick = onLineLongClick,
+                        topContentPadding = if (ultraWideLandscape) 4.dp else 12.dp,
+                        bottomContentPadding = if (ultraWideLandscape) 32.dp else 44.dp,
+                        lineSpacing = if (ultraWideLandscape) 18.dp else 21.dp,
+                        focusOffsetRatio = if (ultraWideLandscape) 0.20f else 0.22f,
+                        nonCurrentLineBlurEnabled = !lyricPerspectiveEffect,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight()
                 )
             }
         }

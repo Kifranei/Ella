@@ -146,7 +146,7 @@ class SettingsManager(private val context: Context) {
         val KEY_LYRIC_PRONUNCIATION_BELOW = booleanPreferencesKey("lyric_pronunciation_below")
         val KEY_LYRIC_PAGE_TRANSLATION = booleanPreferencesKey("lyric_page_translation")
         val KEY_LYRIC_PAGE_KEEP_SCREEN_ON = booleanPreferencesKey("lyric_page_keep_screen_on")
-        val KEY_APPLE_MUSIC_LYRICS_PAGE = booleanPreferencesKey("apple_music_lyrics_page")
+        val KEY_APPLE_MUSIC_LYRICS_WORD_LIFT = booleanPreferencesKey("apple_music_lyrics_word_lift")
         val KEY_MINI_PLAYER_LYRIC_TRANSLATION = booleanPreferencesKey("mini_player_lyric_translation")
         val KEY_MINI_PLAYER_LYRIC_SECONDARY = intPreferencesKey("mini_player_lyric_secondary")
         val KEY_MINI_PLAYER_COVER_ROTATION = booleanPreferencesKey("mini_player_cover_rotation")
@@ -735,8 +735,8 @@ class SettingsManager(private val context: Context) {
     val lyricPageTranslation: Flow<Boolean> = context.dataStore.data.map { it[KEY_LYRIC_PAGE_TRANSLATION] ?: true }
     val lyricPageKeepScreenOn: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] ?: false }
-    val appleMusicLyricsPage: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_APPLE_MUSIC_LYRICS_PAGE] ?: false }
+    val appleMusicLyricsWordLift: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_APPLE_MUSIC_LYRICS_WORD_LIFT] ?: true }
     val miniPlayerLyricTranslation: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_MINI_PLAYER_LYRIC_TRANSLATION] ?: true }
     val miniPlayerLyricSecondary: Flow<Int> = context.dataStore.data.map {
@@ -1426,8 +1426,8 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_LYRIC_PAGE_KEEP_SCREEN_ON] = enabled }
     }
 
-    suspend fun setAppleMusicLyricsPage(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_APPLE_MUSIC_LYRICS_PAGE] = enabled }
+    suspend fun setAppleMusicLyricsWordLift(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_APPLE_MUSIC_LYRICS_WORD_LIFT] = enabled }
     }
 
     suspend fun setLyricPerspectiveEffect(enabled: Boolean) {
@@ -2495,11 +2495,13 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_AUDIO_FOCUS_DISABLED)
             setBoolean(KEY_LYRIC_PAGE_TRANSLATION)
             setBoolean(KEY_LYRIC_PAGE_KEEP_SCREEN_ON)
-            setBoolean(KEY_APPLE_MUSIC_LYRICS_PAGE)
+            setBoolean(KEY_APPLE_MUSIC_LYRICS_WORD_LIFT)
+            setBoolean(KEY_LYRIC_PRONUNCIATION_BELOW)
             setBoolean(KEY_LYRIC_FONT_ITALIC)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_PAGE)
             setBoolean(KEY_LYRIC_FONT_APPLY_TO_DESKTOP)
             setBoolean(KEY_LYRIC_PERSPECTIVE_EFFECT)
+            setBoolean(KEY_FULL_TAG_SEARCH_ENABLED)
             setBoolean(KEY_MINI_PLAYER_LYRIC_TRANSLATION)
             setBoolean(KEY_MINI_PLAYER_COVER_ROTATION)
             setBoolean(KEY_MINI_PLAYER_LYRICS_ENABLED)
@@ -2529,6 +2531,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_ADD_TO_PLAYLIST_APPEND_TO_END)
             setBoolean(KEY_SHOW_ALBUM_ARTISTS)
             setBoolean(KEY_HOME_TILE_PIN_BUTTONS_VISIBLE)
+            setBoolean(KEY_HOME_TILE_GRADIENT_ENABLED)
             setBoolean(KEY_USE_ANDROID_MEDIA_LIBRARY)
             setBoolean(KEY_INITIAL_SCAN_PROMPT_HANDLED)
             setBoolean(KEY_LOCAL_PLAYLIST_SCAN_PROMPT_HANDLED)
@@ -2546,15 +2549,24 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_MCP_SERVER_ENABLED)
             setBoolean(KEY_SLEEP_TIMER_STOP_AFTER_CURRENT)
             setBoolean(KEY_EQ_ENABLED)
+            setBoolean(KEY_COMP_ENABLED)
             setBoolean(KEY_BASS_BOOST_ENABLED)
             setBoolean(KEY_VIRTUALIZER_ENABLED)
             setBoolean(KEY_LYRIC_SHARE_USE_LYRIC_FONT)
             setBoolean(KEY_WEBDAV_AUTO_BACKUP_ENABLED)
+            setBoolean(KEY_USB_DAC_MODE)
 
             setInt(KEY_THEME_MODE)
             setInt(KEY_MONET_COLOR_MODE)
             setInt(KEY_PLAYER_BACKGROUND_THEME)
             setInt(KEY_EQ_PRESET)
+            setInt(KEY_EQ_Q)
+            setInt(KEY_TONE_BASS_DB)
+            setInt(KEY_TONE_TREBLE_DB)
+            setInt(KEY_COMP_THRESHOLD_DB)
+            setInt(KEY_COMP_RATIO)
+            setInt(KEY_COMP_MAKEUP_DB)
+            setInt(KEY_STEREO_WIDTH)
             setInt(KEY_BASS_BOOST_STRENGTH)
             setInt(KEY_VIRTUALIZER_STRENGTH)
             setInt(KEY_REVERB_PRESET)
@@ -2565,6 +2577,8 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_STARTUP_PLAY_MODE)
             setInt(KEY_COLOROS_LOCK_SCREEN_LYRIC_MODE)
             setInt(KEY_LYRIC_SOURCE_MODE)
+            setInt(KEY_LYRIC_PARSER_ENGINE)
+            setInt(KEY_PLAYER_TITLE_POSITION)
             setInt(KEY_PLAYER_LYRIC_TEXT_ALIGN)
             setInt(KEY_DESKTOP_LYRIC_FONT_SCALE)
             setInt(KEY_DESKTOP_LYRIC_WIDTH)
@@ -2584,6 +2598,7 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_LYRIC_COMPACT_SECONDARY_TEXT_SIZE)
             setInt(KEY_LYRIC_WIDE_PRIMARY_TEXT_SIZE)
             setInt(KEY_LYRIC_WIDE_SECONDARY_TEXT_SIZE)
+            setInt(KEY_LYRIC_PERSPECTIVE_Y_ANGLE)
             setInt(KEY_SORT_LIBRARY_SONG)
             setInt(KEY_SORT_ALBUM_LIST)
             setInt(KEY_SORT_ARTIST_LIST)
@@ -2592,6 +2607,9 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_SORT_ARTIST_DETAIL_ALBUM)
             setInt(KEY_SORT_FOLDER_LIST)
             setInt(KEY_SORT_FOLDER_DETAIL_SONG)
+            setInt(KEY_SORT_FOLDER_PLAYLIST_LIST)
+            setInt(KEY_SORT_FOLDER_PLAYLIST_DETAIL_SONG)
+            setInt(KEY_SORT_FOLDER_PLAYLIST_DETAIL_FOLDER)
             setInt(KEY_SORT_PLAYLIST_LIST)
             setInt(KEY_SORT_PLAYLIST_DETAIL_SONG)
             setInt(KEY_CATEGORY_GRID_COLUMNS)
@@ -2613,9 +2631,11 @@ class SettingsManager(private val context: Context) {
             setInt(KEY_AUDIO_VISUALIZER_OPACITY)
             setInt(KEY_HOME_CARD_OPACITY)
             setString(KEY_HOME_TILE_COLORS)
+            setString(KEY_HOME_TILE_GRADIENT_START_COLOR)
             setString(KEY_HOME_ONLINE_TILE_ORDER)
             setString(KEY_HOME_HIDDEN_ONLINE_TILES)
             setString(KEY_FOLDER_PLAYLISTS)
+            setString(KEY_LIBRARY_SOURCE)
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_SPEED)
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_BLUR)
             setInt(KEY_PLAYER_BEAUTIFUL_LYRICS_BRIGHTNESS)

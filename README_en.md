@@ -251,7 +251,7 @@ The Halcyon main project is licensed under **Apache-2.0**. Third-party component
 - **LX Music Mobile** — Provides LX Music API compatibility implementation and testing reference.
 - **RawS Music** — Reference for the 10-band equalizer, BiQuad parametric EQ, and DSP core.
 - **Light Cone Music** — Interface design and feature implementation reference.
-- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, 163KeyDecrypter, Kyant Backdrop, Coil, OkHttp, Reorderable, accompanist-lyrics-core, accompanist-lyrics-ui, Beautiful Lyrics, RawS Music, and other open source projects used by Halcyon.
+- Thanks to Miuix, Media3, FFmpeg, Lyricon, SuperLyricApi, LyricGetter-API, lyrico-audiotag / Lyrico, TagLib, 163KeyDecrypter, Kyant Backdrop, Coil, OkHttp, Reorderable, accompanist-lyrics-core, Beautiful Lyrics, RawS Music, and other open source projects used by Halcyon.
 
 ---
 

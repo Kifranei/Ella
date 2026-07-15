@@ -154,8 +154,8 @@ internal data class BundledFontSpec(
 )
 
 internal val BUNDLED_FONT_SPECS = listOf(
-    BundledFontSpec("Inter", "InterVariable.ttf", "fonts/InterVariable.ttf"),
-    BundledFontSpec("MiSans SemiBold", "MiSans-Semibold.ttf", "fonts/MiSans-Semibold.ttf")
+    BundledFontSpec("Inter Bold", "Inter-Bold.ttf", "fonts/Inter-Bold.ttf"),
+    BundledFontSpec("MiSans Bold", "MiSans-Bold.ttf", "fonts/MiSans-Bold.ttf")
 )
 
 private fun Context.resolveDisplayName(uri: Uri): String {

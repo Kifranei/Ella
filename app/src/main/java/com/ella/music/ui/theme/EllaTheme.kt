@@ -29,7 +29,7 @@ const val MONET_COVER = 2    // seed from the current song cover
 fun EllaTheme(
     themeMode: Int = THEME_FOLLOW_SYSTEM,
     appFontPath: String = "",
-    appFontWeight: Int = 800,
+    appFontWeight: Int = 700,
     monetMode: Int = MONET_OFF,
     keyColor: Color? = null,
     systemDarkOverride: Boolean? = null,
@@ -64,7 +64,7 @@ fun EllaTheme(
     }
     val context = LocalContext.current
     val appFontFamily = remember(context) {
-        bundledMiSansSemiboldFontFamily(context)
+        bundledMiSansBoldFontFamily(context)
     }
     val customAppFontFamily = remember(appFontPath, appFontWeight) {
         appFontPath.toCustomAppFontFamily(appFontWeight)

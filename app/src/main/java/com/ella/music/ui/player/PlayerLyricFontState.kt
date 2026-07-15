@@ -51,11 +51,11 @@ internal fun rememberPlayerLyricFontState(
     val lyricShareUseLyricFont by settingsManager.lyricShareUseLyricFont.collectAsState(initial = false)
     val lyricFontApplyToPage by settingsManager.lyricFontApplyToPage.collectAsState(initial = true)
     val bundledInterPath = remember(context) { ensureBundledInterPath(context) }
-    val bundledCjkPath = remember(context) { ensureBundledMiSansSemiboldPath(context) }
+    val bundledCjkPath = remember(context) { ensureBundledMiSansBoldPath(context) }
     val migratedLegacyCjkPath = remember(lyricFontPath) {
         lyricFontPath.takeUnless { it.contains("Inter", ignoreCase = true) }.orEmpty()
     }
-    val effectiveWesternPath = lyricWesternFontPath.ifBlank { bundledCjkPath }
+    val effectiveWesternPath = lyricWesternFontPath.ifBlank { bundledInterPath }
     val effectiveCjkPath = lyricCjkFontPath.ifBlank {
         migratedLegacyCjkPath.ifBlank { bundledCjkPath }
     }
@@ -117,10 +117,9 @@ internal fun rememberPlayerLyricFontState(
     }
 
     return PlayerLyricFontState(
-        // fontFamily drives the PlayerSongMetaText group (song title + artist + annotation) on
-        // the player/lyrics pages. fontPath drives the lyric body (SmoothLyricView). Both honour
-        // the "apply font to page" toggle — when off, the entire page (title, artist, AND lyrics)
-        // falls back to the global/system font so the switch is actually effective.
+        // fontFamily drives both metadata and the Compose lyric surfaces. fontPath remains for
+        // the system desktop overlay's script-aware Typeface loader. Both honour the relevant
+        // apply-font switches and fall back to the global/system font when disabled.
         fontFamily = if (lyricFontApplyToPage) lyricFontFamily else null,
         fontPath = if (lyricFontApplyToPage) effectiveLyricFontPath else "",
         fontWeight = lyricFontWeight,

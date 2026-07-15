@@ -200,12 +200,12 @@ internal fun String.toPlayerLyricTypeface(weight: Int): Typeface? {
     }.getOrNull()
 }
 
-internal fun ensureBundledMiSansSemiboldPath(context: Context): String {
+internal fun ensureBundledMiSansBoldPath(context: Context): String {
     val bundledDir = File(context.filesDir, "lyric_builtin_fonts").apply { mkdirs() }
-    val target = File(bundledDir, "MiSans-Semibold.ttf")
+    val target = File(bundledDir, "MiSans-Bold.ttf")
     if (!target.exists() || target.length() <= 0L) {
         runCatching {
-            context.assets.open("fonts/MiSans-Semibold.ttf").use { input ->
+            context.assets.open("fonts/MiSans-Bold.ttf").use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             }
         }.onFailure {
@@ -274,10 +274,10 @@ internal fun rememberBluetoothOutputName(): String? {
 
 internal fun ensureBundledInterPath(context: Context): String {
     val bundledDir = File(context.filesDir, "lyric_builtin_fonts").apply { mkdirs() }
-    val target = File(bundledDir, "InterVariable.ttf")
+    val target = File(bundledDir, "Inter-Bold.ttf")
     if (!target.exists() || target.length() <= 0L) {
         runCatching {
-            context.assets.open("fonts/InterVariable.ttf").use { input ->
+            context.assets.open("fonts/Inter-Bold.ttf").use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             }
         }.onFailure {

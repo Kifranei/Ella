@@ -261,7 +261,7 @@ fun PlayerScreen(
     val showLyricTranslation by playerViewModel.showLyricTranslation.collectAsState()
     val showLyricPronunciation by playerViewModel.showLyricPronunciation.collectAsState()
     val lyricPageKeepScreenOn = playerSettings.lyricPageKeepScreenOn
-    val appleMusicLyricsPage = playerSettings.appleMusicLyricsPage
+    val appleMusicLyricsWordLift = playerSettings.appleMusicLyricsWordLift
     val lyricPerspectiveEffect = playerSettings.lyricPerspectiveEffect
     val lyricPerspectiveYAngle = playerSettings.lyricPerspectiveYAngle
     val playerLyricTextAlign = playerSettings.playerLyricTextAlign
@@ -595,6 +595,7 @@ fun PlayerScreen(
                         showLyricTranslation = showLyricTranslation,
                         showLyricPronunciation = showLyricPronunciation,
                         lyricPageKeepScreenOn = lyricPageKeepScreenOn,
+                        appleMusicLyricsWordLift = appleMusicLyricsWordLift,
                         lyricFormatAvailability = lyricFormatAvailability,
                         preferTtmlLyrics = preferTtmlLyrics,
                         lyricSourceMode = lyricSourceMode,
@@ -679,7 +680,7 @@ fun PlayerScreen(
                         showLyricTranslation = showLyricTranslation,
                         showLyricPronunciation = showLyricPronunciation,
                         lyricPageKeepScreenOn = lyricPageKeepScreenOn,
-                        appleMusicLyricsPage = appleMusicLyricsPage,
+                        appleMusicLyricsWordLift = appleMusicLyricsWordLift,
                         lyricFormatAvailability = lyricFormatAvailability,
                         preferTtmlLyrics = preferTtmlLyrics,
                         lyricSourceMode = lyricSourceMode,
@@ -775,6 +776,7 @@ fun PlayerScreen(
                 currentLyricIndex = currentLyricIndex,
                 showTranslation = showLyricTranslation,
                 showPronunciation = showLyricPronunciation,
+                appleMusicWordLiftEnabled = appleMusicLyricsWordLift,
                 fontFamily = lyricFontFamily,
                 fontPath = effectiveLyricFontPath,
                 fontWeight = lyricFontWeight,

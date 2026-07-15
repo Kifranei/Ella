@@ -329,11 +329,6 @@ private fun AboutContent(
                         onClick = { uriHandler.openUri("https://github.com/Replica0110/Lyrico") },
                     )
                     BasicComponent(
-                        title = "Accompanist Lyrics UI",
-                        summary = stringResource(R.string.about_summary_accompanist_lyrics_ui),
-                        onClick = { uriHandler.openUri("https://github.com/6xingyv/accompanist-lyrics-ui") },
-                    )
-                    BasicComponent(
                         title = "163KeyDecrypter",
                         summary = stringResource(R.string.about_summary_163keydecrypter),
                         onClick = { uriHandler.openUri("https://github.com/lycode404/163KeyDecrypter") },

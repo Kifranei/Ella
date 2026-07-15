@@ -7,6 +7,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -14,7 +15,6 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.LyricLine
-import com.ella.music.ui.components.SmoothLyricView
 import top.yukonga.miuix.kmp.basic.Text
 
 // Keep the player layout stable when TTML background/translation layers appear or disappear.
@@ -31,22 +31,20 @@ internal fun miniLyricsCompactHeight() = 64.dp
 
 @Composable
 internal fun MiniLyricsPreview(
-    songId: Long,
-    songTitle: String,
-    songArtist: String,
     lyrics: List<LyricLine>,
     currentIndex: Int,
     showTranslation: Boolean,
     showPronunciation: Boolean,
     currentPositionMs: Long,
     isPlaying: Boolean,
-    fontPath: String = "",
+    fontFamily: FontFamily? = null,
     fontWeight: FontWeight = FontWeight.ExtraBold,
     fontScale: Float = 1f,
     secondaryFontScale: Float = 1f,
     lyricTextAlign: Int = SettingsManager.PLAYER_LYRIC_ALIGN_LEFT,
     compact: Boolean = false,
     contentColor: Color = Color.White,
+    wordLiftEnabled: Boolean = true,
     onLineClick: (LyricLine) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -63,37 +61,35 @@ internal fun MiniLyricsPreview(
     // width instead of overflowing, and take less vertical room.
     val primarySizeSp = if (compact) 15.5f else 19f
     val secondarySizeSp = if (compact) 12.8f else 15.5f
-    SmoothLyricView(
-        songId = songId,
-        songTitle = songTitle,
-        songArtist = songArtist,
+    AppleMusicLyricsView(
         lyrics = lyrics,
         currentIndex = safeIndex,
         currentPositionMs = currentPositionMs,
         isPlaying = isPlaying,
         showTranslation = showTranslation,
         showPronunciation = showPronunciation,
-        fontScale = 0.92f,
-        fontPath = fontPath,
+        fontFamily = fontFamily,
         fontWeight = fontWeight,
+        fontScale = fontScale * 0.92f,
+        secondaryFontScale = secondaryFontScale,
         lyricTextAlign = lyricTextAlign,
         primaryTextSizeSp = primarySizeSp,
         secondaryTextSizeSp = secondarySizeSp,
-        secondaryFontScale = 1f,
-        anchorOffsetRatio = -0.01f,
         topContentPadding = 0.dp,
+        bottomContentPadding = if (compact) 20.dp else 86.dp,
+        focusOffsetRatio = if (compact) 0.02f else 0.12f,
         contentColor = contentColor,
         onLineClick = onLineClick,
+        onLineDoubleClick = {},
+        onLineLongClick = {},
+        wordLiftEnabled = wordLiftEnabled,
         nonCurrentLineBlurEnabled = false,
-        nonCurrentLineBlurDistance = Int.MAX_VALUE,
-        lineAlphaAnimationsEnabled = false,
-        autoScrollResumeEnabled = true,
         // The mini preview is tap-to-open only; don't let it scroll on drag.
         userScrollEnabled = false,
-        lineGapDp = when {
-            singleLinePreview -> 4f
-            denseMultiPartPreview -> 4f
-            else -> 7f
+        lineSpacing = when {
+            singleLinePreview -> 4.dp
+            denseMultiPartPreview -> 4.dp
+            else -> 7.dp
         },
         modifier = modifier.fillMaxWidth()
     )

@@ -29,19 +29,12 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.ella.music.R
-import com.ella.music.data.model.LyricLine
-import com.ella.music.data.model.LyricWord
-import com.ella.music.ui.components.buildLyriconRichLineConfig
-import com.ella.music.ui.components.loadAndroidTypeface
 import com.ella.music.ui.components.ScriptFontPaths
-import com.ella.music.ui.components.toLyriconWords
-import com.ella.music.ui.components.toLyriconSong
 import com.ella.music.ui.player.ensureBundledInterPath
-import com.ella.music.ui.player.ensureBundledMiSansSemiboldPath
+import com.ella.music.ui.player.ensureBundledMiSansBoldPath
 import com.google.common.util.concurrent.FutureCallback
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import io.github.proify.lyricon.lyric.view.LyricView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,7 +50,7 @@ class DesktopLyricService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var notificationManager: NotificationManager
     private var rootView: LinearLayout? = null
-    private var lyricView: DesktopSmoothLyricView? = null
+    private var lyricView: DesktopComposeLyricView? = null
     private var controlsView: LinearLayout? = null
     private var playPauseButton: ImageButton? = null
     private var layoutParams: WindowManager.LayoutParams? = null
@@ -88,6 +81,7 @@ class DesktopLyricService : Service() {
     private var lyricFontPath = ""
     private var lyricFontWeight = 800
     private var lyricFontItalic = false
+    private var appleMusicWordLiftEnabled = true
     private var controllerIsPlaying = false
     private var savedX = Int.MIN_VALUE
     private var savedY = Int.MIN_VALUE
@@ -230,7 +224,7 @@ class DesktopLyricService : Service() {
         } else {
             desktopLyricHeight()
         }
-        val lyric = DesktopSmoothLyricView(this).apply {
+        val lyric = DesktopComposeLyricView(this).apply {
             windowTouchHandler = ::onDrag
         }
         val controls = LinearLayout(this).apply {
@@ -639,7 +633,7 @@ class DesktopLyricService : Service() {
         // When "apply font to desktop lyric" is off, pass an empty path so the lyric view falls
         // back to the system default typeface instead of the custom lyric font.
         lyricFontPath = if (settingsManager.lyricFontApplyToDesktop.first()) {
-            val defaultCjkPath = ensureBundledMiSansSemiboldPath(this@DesktopLyricService)
+            val defaultCjkPath = ensureBundledMiSansBoldPath(this@DesktopLyricService)
             val western = settingsManager.lyricWesternFontPath.first()
                 .ifBlank { defaultCjkPath }
             val cjk = settingsManager.lyricCjkFontPath.first()
@@ -650,6 +644,7 @@ class DesktopLyricService : Service() {
         },
         lyricFontWeight = settingsManager.lyricFontWeight.first().coerceIn(100, 900),
         lyricFontItalic = settingsManager.lyricFontItalic.first(),
+        appleMusicWordLiftEnabled = settingsManager.appleMusicLyricsWordLift.first(),
         savedX = settingsManager.desktopLyricX.first(),
         savedY = settingsManager.desktopLyricY.first()
     )
@@ -674,6 +669,7 @@ class DesktopLyricService : Service() {
         lyricFontPath = settings.lyricFontPath
         lyricFontWeight = settings.lyricFontWeight
         lyricFontItalic = settings.lyricFontItalic
+        appleMusicWordLiftEnabled = settings.appleMusicWordLiftEnabled
         savedX = settings.savedX
         savedY = settings.savedY
     }
@@ -737,7 +733,8 @@ class DesktopLyricService : Service() {
             statusBarVerticalAlign = statusBarVerticalAlign,
             lyricFontPath = lyricFontPath,
             lyricFontWeight = lyricFontWeight,
-            lyricFontItalic = lyricFontItalic
+            lyricFontItalic = lyricFontItalic,
+            wordLiftEnabled = appleMusicWordLiftEnabled
         )
         rootView?.alpha = 1f
     }
@@ -817,6 +814,7 @@ class DesktopLyricService : Service() {
         val lyricFontPath: String,
         val lyricFontWeight: Int,
         val lyricFontItalic: Boolean,
+        val appleMusicWordLiftEnabled: Boolean,
         val savedX: Int,
         val savedY: Int
     )
