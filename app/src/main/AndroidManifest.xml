@@ -50,6 +50,7 @@
     <application
         android:name=".EllaApp"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:icon="@mipmap/ic_launcher"

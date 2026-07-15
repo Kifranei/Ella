@@ -1,8 +1,9 @@
 package com.ella.music.ui.player
 
 import android.os.SystemClock
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -32,7 +33,11 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun PlayerDismissMotionHost(
@@ -84,7 +89,36 @@ internal fun PlayerDismissMotionHost(
     DisposableEffect(Unit) {
         onDispose { onDismissProgressChange(0f) }
     }
-    BackHandler(enabled = backEnabled) { dismissWithMotion() }
+    PredictiveBackHandler(enabled = backEnabled) { progress ->
+        try {
+            dragDismissOffset.stop()
+            progress.collect { backEvent ->
+                // Reuse the player's existing vertical-dismiss motion so the destination below
+                // the resident overlay is revealed continuously during the system back gesture.
+                dragDismissOffset.snapTo(
+                    dismissTargetPx * FastOutSlowInEasing.transform(backEvent.progress)
+                )
+            }
+            if (!dismissingPlayer) {
+                dismissingPlayer = true
+                dragDismissOffset.animateTo(
+                    targetValue = dismissTargetPx,
+                    animationSpec = tween(durationMillis = 120, easing = LinearOutSlowInEasing)
+                )
+                latestOnDismiss()
+            }
+        } catch (_: CancellationException) {
+            withContext(NonCancellable) {
+                dragDismissOffset.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+            }
+        }
+    }
 
     Box(
         modifier = modifier

@@ -144,4 +144,13 @@ private object ArtworkModelMemoryCache {
     fun put(key: String, model: Any) {
         cache.put(key, model)
     }
+
+    @Synchronized
+    fun clear() {
+        cache.evictAll()
+    }
+}
+
+internal fun clearArtworkModelMemoryCache() {
+    ArtworkModelMemoryCache.clear()
 }
