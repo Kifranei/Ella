@@ -22,7 +22,6 @@ import com.ella.music.ui.player.clearPlayerPaletteMemoryCache
 internal object HyperOsFairMemoryAdapter {
     private const val TAG = "FairMemory"
     private const val ACTION_TRIM = "itgsa.intent.action.TRIM"
-    private const val ACTION_KILL = "itgsa.intent.action.KILL"
     private const val KEY_COMMON = "common"
     private const val KEY_EXTRA = "extra"
     private const val KEY_NOTIFY_TYPE = "notifyType"
@@ -41,29 +40,40 @@ internal object HyperOsFairMemoryAdapter {
         synchronized(this) {
             if (initialized) return
             val worker = HandlerThread(TAG).apply { start() }
-            val filter = IntentFilter().apply {
-                addAction(ACTION_TRIM)
-                addAction(ACTION_KILL)
+            // HyperOS sends both pressure and kill notifications through the same TRIM action;
+            // `common.action` identifies the actual request. This receiver deliberately remains
+            // runtime-registered, as required by Xiaomi's integration contract.
+            val registered = runCatching {
+                val filter = IntentFilter(ACTION_TRIM)
+                val handler = Handler(worker.looper)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    application.registerReceiver(
+                        receiver,
+                        filter,
+                        null,
+                        handler,
+                        Context.RECEIVER_EXPORTED
+                    )
+                } else {
+                    @Suppress("UnspecifiedRegisterReceiverFlag")
+                    application.registerReceiver(receiver, filter, null, handler)
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Unable to register HyperOS fair-memory receiver", error)
+                AppLogStore.error(application, TAG, "Fair-memory receiver registration failed", error)
+                worker.quitSafely()
+            }.isSuccess
+            if (registered) {
+                initialized = true
+                Log.i(TAG, "Registered dynamic HyperOS fair-memory receiver: $ACTION_TRIM")
+                AppLogStore.info(application, TAG, "Registered HyperOS fair-memory receiver")
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                application.registerReceiver(
-                    receiver,
-                    filter,
-                    null,
-                    Handler(worker.looper),
-                    Context.RECEIVER_EXPORTED
-                )
-            } else {
-                @Suppress("UnspecifiedRegisterReceiverFlag")
-                application.registerReceiver(receiver, filter, null, Handler(worker.looper))
-            }
-            initialized = true
         }
     }
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action != ACTION_TRIM && intent.action != ACTION_KILL) return
+            if (intent.action != ACTION_TRIM) return
             val common = intent.extras?.getBundle(KEY_COMMON) ?: return
             val callback = common.getBinder(KEY_CALLBACK) ?: run {
                 Log.w(TAG, "Fair-memory callback binder missing")
@@ -73,7 +83,7 @@ internal object HyperOsFairMemoryAdapter {
             val notifyId = common.getInt(KEY_NOTIFY_ID)
             val declaredAction = common.getString(KEY_ACTION).orEmpty()
             val reason = common.getString(KEY_REASON).orEmpty()
-            val isKill = intent.action == ACTION_KILL || declaredAction.contains("KILL", ignoreCase = true)
+            val isKill = declaredAction.contains("KILL", ignoreCase = true)
             val extra = intent.extras?.getBundle(KEY_EXTRA)
 
             val result = runCatching {

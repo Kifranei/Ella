@@ -92,6 +92,7 @@ class SettingsManager(private val context: Context) {
         val KEY_AUTO_SCAN = booleanPreferencesKey("auto_scan")
         val KEY_AUTO_SCAN_LOCAL_PLAYLISTS = booleanPreferencesKey("auto_scan_local_playlists")
         val KEY_GAPLESS = booleanPreferencesKey("gapless_playback")
+        val KEY_CROSSFADE_DURATION_MS = intPreferencesKey("crossfade_duration_ms")
         val KEY_THEME_MODE = intPreferencesKey("theme_mode")
         val KEY_MONET_COLOR_MODE = intPreferencesKey("monet_color_mode")
         val KEY_PLAYER_BACKGROUND_THEME = intPreferencesKey("player_background_theme")
@@ -167,6 +168,7 @@ class SettingsManager(private val context: Context) {
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
+        val KEY_PREDICTIVE_BACK_ENABLED = booleanPreferencesKey("predictive_back_enabled")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_AUDIO_VISUALIZER_OPACITY = intPreferencesKey("audio_visualizer_opacity")
@@ -660,6 +662,8 @@ class SettingsManager(private val context: Context) {
     val autoScanLocalPlaylists: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_AUTO_SCAN_LOCAL_PLAYLISTS] ?: false }
     val gaplessPlayback: Flow<Boolean> = context.dataStore.data.map { it[KEY_GAPLESS] ?: true }
+    val crossfadeDurationMs: Flow<Int> = context.dataStore.data
+        .map { (it[KEY_CROSSFADE_DURATION_MS] ?: 0).coerceIn(0, 12_000) }
     val themeMode: Flow<Int> = context.dataStore.data.map { it[KEY_THEME_MODE] ?: 0 }
     val monetColorMode: Flow<Int> = context.dataStore.data.map { it[KEY_MONET_COLOR_MODE] ?: 0 }
     val playerBackgroundTheme: Flow<Int> =
@@ -792,6 +796,9 @@ class SettingsManager(private val context: Context) {
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
+    /** Enables the app's interactive player-dismiss handler for Android predictive back. */
+    val predictiveBackEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_PREDICTIVE_BACK_ENABLED] ?: true }
     val playerDynamicFlowEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED] ?: false }
     val audioVisualizerEnabled: Flow<Boolean> =
@@ -1245,6 +1252,10 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[KEY_GAPLESS] = enabled }
     }
 
+    suspend fun setCrossfadeDurationMs(durationMs: Int) {
+        context.dataStore.edit { it[KEY_CROSSFADE_DURATION_MS] = durationMs.coerceIn(0, 12_000) }
+    }
+
     suspend fun setThemeMode(mode: Int) {
         context.dataStore.edit { it[KEY_THEME_MODE] = mode }
     }
@@ -1488,6 +1499,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setHideSystemBars(enabled: Boolean) {
         context.dataStore.edit { it[KEY_HIDE_SYSTEM_BARS] = enabled }
+    }
+
+    suspend fun setPredictiveBackEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_PREDICTIVE_BACK_ENABLED] = enabled }
     }
 
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean) {
@@ -2486,6 +2501,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_AUTO_SCAN)
             setBoolean(KEY_AUTO_SCAN_LOCAL_PLAYLISTS)
             setBoolean(KEY_GAPLESS)
+            setInt(KEY_CROSSFADE_DURATION_MS)
             setBoolean(KEY_TICKER_ENABLED)
             setBoolean(KEY_TICKER_HIDE_NOTIFICATION)
             setBoolean(KEY_TICKER_HEADS_UP_LYRICS)
@@ -2527,6 +2543,7 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
+            setBoolean(KEY_PREDICTIVE_BACK_ENABLED)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)

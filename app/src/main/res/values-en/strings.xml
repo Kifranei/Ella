@@ -678,6 +678,9 @@
     <string name="settings_system_section">System</string>
     <string name="settings_gapless_playback">Gapless playback</string>
     <string name="settings_gapless_playback_summary">Switch between songs without gaps</string>
+    <string name="settings_crossfade">Crossfade</string>
+    <string name="settings_crossfade_summary">Fade out the current track while fading in the next; 0 seconds turns it off</string>
+    <string name="settings_crossfade_value">%1$d sec</string>
     <string name="settings_startup_play">Autoplay on launch</string>
     <string name="settings_bluetooth_auto_play">Bluetooth auto-play</string>
     <string name="settings_bluetooth_auto_play_summary">Automatically start playback when a Bluetooth audio device connects</string>
@@ -1608,6 +1611,12 @@
     <string name="settings_lyric_plugin_source_imported">Imported</string>
     <string name="settings_hide_system_bars">Hide status &amp; navigation bars</string>
     <string name="settings_hide_system_bars_summary">Full-screen immersive — hides the system status and navigation bars, ideal for car displays</string>
+    <string name="settings_predictive_back">Predictive back animation</string>
+    <string name="settings_predictive_back_summary">Use an interactive back animation on the player screen. Android 13/14 also require the system developer option.</string>
+    <string name="cover_preview_back">Back</string>
+    <string name="cover_preview_share">Share cover</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">Couldn\'t share cover</string>
     <string name="lyric_match_format_enhanced_lrc">Word-by-word ELRC</string>
     <string name="lyric_match_format_plain_lrc">Line LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>
@@ -1733,4 +1742,6 @@
     <string name="settings_apple_music_lyrics_word_lift_summary">Gently lift the current word while it is sung; feathered karaoke and sustained-note glow remain enabled when off</string>
     <string name="settings_player_dynamic_flow">Apple Music animated background</string>
     <string name="settings_player_dynamic_flow_summary">Keep the Apple Music background style but stop its continuous motion when disabled; only affects the Apple Music background</string>
+    <string name="player_enable_lyrics_word_lift">Enable word lift</string>
+    <string name="player_disable_lyrics_word_lift">Disable word lift</string>
 </resources>

@@ -169,6 +169,7 @@ fun PlayerScreen(
     val isLargeScreenDevice = configuration.smallestScreenWidthDp >= 600
     val scope = rememberCoroutineScope()
     val settingsManager = remember { SettingsManager.getInstance(context) }
+    val predictiveBackEnabled by settingsManager.predictiveBackEnabled.collectAsState(initial = true)
     val playerSettings = rememberPlayerScreenSettings(settingsManager)
     val playerTapSeekEnabled = playerSettings.playerTapSeekEnabled
     val playerShowTotalDuration = playerSettings.playerShowTotalDuration
@@ -455,7 +456,7 @@ fun PlayerScreen(
     PlayerDismissMotionHost(
         openToken = openToken,
         onDismissProgressChange = onDismissProgressChange,
-        backEnabled = playerVisible,
+        backEnabled = playerVisible && predictiveBackEnabled,
         onDismiss = {
             playerViewModel.setShowLyrics(false)
             onBack()

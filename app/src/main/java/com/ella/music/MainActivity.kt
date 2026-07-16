@@ -95,7 +95,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.viewModels
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -153,6 +153,12 @@ import top.yukonga.miuix.kmp.window.WindowDialog
 
 class MainActivity : ComponentActivity() {
 
+    // Construct both view models before the first Compose frame. This lets their persisted
+    // library/playback snapshots begin restoring while the window is being created instead of
+    // rendering one empty frame and visibly rebuilding it afterwards.
+    private val startupMainViewModel: MainViewModel by viewModels()
+    private val startupPlayerViewModel: PlayerViewModel by viewModels()
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -196,9 +202,12 @@ class MainActivity : ComponentActivity() {
             window.isNavigationBarContrastEnforced = false
         }
 
+        val preloadedMainViewModel = startupMainViewModel
+        val preloadedPlayerViewModel = startupPlayerViewModel
+
         setContent {
-            val mainVm: MainViewModel = viewModel()
-            val playerVm: PlayerViewModel = viewModel()
+            val mainVm = preloadedMainViewModel
+            val playerVm = preloadedPlayerViewModel
             mainViewModel = mainVm
 
             val settingsManager = remember { SettingsManager.getInstance(this@MainActivity) }
@@ -281,7 +290,6 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 val canScanNow = checkAndRequestPermissions()
-                mainVm.loadCachedLibrary()
                 if (!startupPlaybackHandled) {
                     startupPlaybackHandled = true
                     when (settingsManager.startupPlayMode.first()) {

@@ -743,6 +743,9 @@
     <string name="settings_system_section">系统</string>
     <string name="settings_gapless_playback">无缝播放</string>
     <string name="settings_gapless_playback_summary">歌曲之间无间隙切换</string>
+    <string name="settings_crossfade">交叉淡入淡出</string>
+    <string name="settings_crossfade_summary">在当前歌曲结束前淡出，同时淡入下一首；0 秒为关闭</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
     <string name="settings_startup_play">启动后自动播放</string>
     <string name="settings_bluetooth_auto_play">蓝牙连接自动播放</string>
     <string name="settings_bluetooth_auto_play_summary">蓝牙音频设备连接后自动开始播放</string>
@@ -1729,6 +1732,12 @@
     <string name="lyric_match_remote_not_supported">在线歌曲暂不支持写入歌词</string>
     <string name="settings_hide_system_bars">隐藏状态栏和导航栏</string>
     <string name="settings_hide_system_bars_summary">进入全屏沉浸，隐藏系统状态栏与导航栏，适合车机等场景</string>
+    <string name="settings_predictive_back">预测性返回动画</string>
+    <string name="settings_predictive_back_summary">在播放页使用跟手返回动画；Android 13/14 还需在系统开发者选项中启用预测性返回动画</string>
+    <string name="cover_preview_back">返回</string>
+    <string name="cover_preview_share">分享封面</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">封面分享失败</string>
     <string name="settings_player_bg_theme">播放页背景</string>
 
     <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog (an easter egg). -->
@@ -1737,4 +1746,6 @@
 
     <string name="settings_apple_music_lyrics_word_lift">歌词逐词上浮</string>
     <string name="settings_apple_music_lyrics_word_lift_summary">演唱时让当前单词轻微上浮；关闭后仍保留逐字羽化与长音发光</string>
+    <string name="player_enable_lyrics_word_lift">开启歌词逐词上浮</string>
+    <string name="player_disable_lyrics_word_lift">关闭歌词逐词上浮</string>
 </resources>

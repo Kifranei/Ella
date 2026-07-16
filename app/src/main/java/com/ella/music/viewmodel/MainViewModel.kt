@@ -99,6 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedTab = MutableStateFlow(0)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
     private var scanJob: Job? = null
+    private var cachedLibraryLoadJob: Job? = null
     private var searchSnapshotPrewarmJob: Job? = null
     private var autoScanRequested = false
     private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
@@ -108,6 +109,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             metadataCategoryItemsCache.clear()
             repository.rebuildAlbumAggregation()
         }
+        // Start restoring the persisted library before the first composition. Previously the
+        // activity waited for a post-frame LaunchedEffect, so every cold start rendered empty
+        // collections once and then visibly rebuilt them from cache.
+        loadCachedLibrary()
     }
 
     fun selectTab(index: Int) {
@@ -298,7 +303,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadCachedLibrary() {
-        viewModelScope.launch {
+        if (_libraryCacheLoaded.value || cachedLibraryLoadJob?.isActive == true) return
+        cachedLibraryLoadJob = viewModelScope.launch {
             val source = settingsManager.librarySource.first()
             if (source != SettingsManager.LIBRARY_SOURCE_LOCAL) {
                 // Load the cached remote library instantly on startup (network refresh happens via
