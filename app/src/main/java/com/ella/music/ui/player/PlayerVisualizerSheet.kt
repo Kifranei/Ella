@@ -21,8 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.settings.SettingsIntSliderPreference
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.preference.SliderPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -72,15 +72,14 @@ internal fun VisualizerSheetContent(
         }
     }
     Spacer(modifier = Modifier.height(14.dp))
-    SliderPreference(
+    SettingsIntSliderPreference(
         title = stringResource(R.string.player_visualizer_opacity),
         summary = stringResource(R.string.player_visualizer_opacity_summary),
         valueText = "$opacity%",
-        value = opacity.coerceIn(20, 100).toFloat(),
-        valueRange = 20f..100f,
+        value = opacity.coerceIn(20, 100),
+        valueRange = 20..100,
         steps = 15,
-        showKeyPoints = false,
-        onValueChange = { onOpacityChange(it.toInt().coerceIn(20, 100)) }
+        onValueChange = { onOpacityChange(it.coerceIn(20, 100)) }
     )
     Spacer(modifier = Modifier.height(20.dp))
     Text(

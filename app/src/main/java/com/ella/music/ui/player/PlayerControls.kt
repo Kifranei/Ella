@@ -137,21 +137,24 @@ internal fun PlayerProgressBlock(
     duration: Long,
     audioInfo: AudioInfo?,
     bluetoothDeviceName: String?,
+    playbackModeLabel: String? = null,
     palette: PlayerPalette,
     allowTapSeek: Boolean,
     showTotalDuration: Boolean,
     onSeek: (Float) -> Unit
 ) {
     val context = LocalContext.current
-    var infoMode by remember(audioInfo, bluetoothDeviceName) { mutableStateOf(0) }
-    val infoLabels = remember(audioInfo, bluetoothDeviceName) {
+    var infoMode by remember(audioInfo, bluetoothDeviceName, playbackModeLabel) { mutableStateOf(0) }
+    val infoLabels = remember(audioInfo, bluetoothDeviceName, playbackModeLabel) {
         buildList {
-            audioInfo?.let {
-                val quality = audioQualitySummary(it)
-                add(quality.playerCompactText())
-                quality.detailLabel.takeIf { text -> text.isNotBlank() }?.let(::add)
+            playbackModeLabel?.takeIf { it.isNotBlank() }?.let(::add) ?: run {
+                audioInfo?.let {
+                    val quality = audioQualitySummary(it)
+                    add(quality.playerCompactText())
+                    quality.detailLabel.takeIf { text -> text.isNotBlank() }?.let(::add)
+                }
+                bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let(::add)
             }
-            bluetoothDeviceName?.takeIf { it.isNotBlank() }?.let(::add)
         }.distinct()
     }
     Column(modifier = Modifier.fillMaxWidth()) {

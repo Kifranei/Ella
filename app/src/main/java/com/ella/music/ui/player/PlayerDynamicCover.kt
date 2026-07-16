@@ -27,6 +27,9 @@ import androidx.media3.ui.PlayerView
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.playlistIdentityKey
 import com.ella.music.ui.components.SafeCoverImage
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import androidx.compose.runtime.LaunchedEffect
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -117,14 +120,36 @@ internal fun DynamicCoverVideo(
             override fun onPlayerError(error: PlaybackException) {
                 onPlaybackError()
             }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                MusicVideoPlaybackBridge.publish(source, exoPlayer)
+            }
+
+            override fun onPositionDiscontinuity(
+                oldPosition: Media3Player.PositionInfo,
+                newPosition: Media3Player.PositionInfo,
+                reason: Int
+            ) {
+                MusicVideoPlaybackBridge.publish(source, exoPlayer)
+            }
         }
 
         exoPlayer.addListener(listener)
+        MusicVideoPlaybackBridge.attach(source, exoPlayer)
 
         onDispose {
             DynamicCoverPlaybackMemory.save(playbackMemoryKey, exoPlayer.currentPosition)
             exoPlayer.removeListener(listener)
+            MusicVideoPlaybackBridge.detach(source, exoPlayer)
             exoPlayer.release()
+        }
+    }
+
+    LaunchedEffect(exoPlayer, source) {
+        if (source.role != PlayerVideoRole.MusicVideo) return@LaunchedEffect
+        while (isActive) {
+            MusicVideoPlaybackBridge.publish(source, exoPlayer)
+            delay(100L)
         }
     }
 

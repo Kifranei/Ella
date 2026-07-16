@@ -18,10 +18,13 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +41,7 @@ import com.ella.music.player.AudioEffectSettings
 import com.ella.music.player.AudioEffectState
 import com.ella.music.ui.components.EllaSmallTopAppBar
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Slider
@@ -344,6 +348,19 @@ private fun EqBandColumn(
     onLevelChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var previewLevel by remember(minMb, maxMb) {
+        mutableIntStateOf(levelMb.coerceIn(minMb, maxMb))
+    }
+    LaunchedEffect(levelMb) {
+        if (previewLevel != levelMb.coerceIn(minMb, maxMb)) {
+            previewLevel = levelMb.coerceIn(minMb, maxMb)
+        }
+    }
+    LaunchedEffect(previewLevel) {
+        if (previewLevel == levelMb.coerceIn(minMb, maxMb)) return@LaunchedEffect
+        delay(120L)
+        if (previewLevel != levelMb.coerceIn(minMb, maxMb)) onLevelChange(previewLevel)
+    }
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -356,15 +373,15 @@ private fun EqBandColumn(
         )
         Spacer(modifier = Modifier.height(8.dp))
         VerticalSlider(
-            value = levelMb.toFloat().coerceIn(minMb.toFloat(), maxMb.toFloat()),
-            onValueChange = { onLevelChange(it.roundToInt()) },
+            value = previewLevel.toFloat(),
+            onValueChange = { previewLevel = it.roundToInt().coerceIn(minMb, maxMb) },
             valueRange = minMb.toFloat()..maxMb.toFloat(),
             width = 18.dp,
             modifier = Modifier.height(180.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = gainLabel,
+            text = formatGainDb(previewLevel),
             fontSize = 11.sp,
             color = MiuixTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
@@ -380,6 +397,15 @@ private fun EqControlSlider(
     range: IntRange,
     onChange: (Int) -> Unit
 ) {
+    var previewValue by remember(range) { mutableIntStateOf(value.coerceIn(range)) }
+    LaunchedEffect(value) {
+        if (previewValue != value.coerceIn(range)) previewValue = value.coerceIn(range)
+    }
+    LaunchedEffect(previewValue) {
+        if (previewValue == value.coerceIn(range)) return@LaunchedEffect
+        delay(120L)
+        if (previewValue != value.coerceIn(range)) onChange(previewValue)
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -390,12 +416,21 @@ private fun EqControlSlider(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = title, fontSize = 14.sp, color = MiuixTheme.colorScheme.onSurface)
-            Text(text = valueText, fontSize = 13.sp, color = MiuixTheme.colorScheme.onSurfaceVariantSummary)
+            Text(
+                text = when {
+                    valueText.endsWith(":1") -> "$previewValue:1"
+                    valueText.endsWith(" dB") -> "${if (previewValue > 0) "+" else ""}$previewValue dB"
+                    valueText.matches(Regex("-?\\d+\\.\\d")) -> String.format(Locale.ROOT, "%.1f", previewValue / 100f)
+                    else -> previewValue.toString()
+                },
+                fontSize = 13.sp,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary
+            )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Slider(
-            value = value.toFloat().coerceIn(range.first.toFloat(), range.last.toFloat()),
-            onValueChange = { onChange(it.roundToInt()) },
+            value = previewValue.toFloat(),
+            onValueChange = { previewValue = it.roundToInt().coerceIn(range) },
             valueRange = range.first.toFloat()..range.last.toFloat()
         )
     }

@@ -108,6 +108,9 @@ class PlaybackService : MediaLibraryService() {
         const val ACTION_SKIP_PREVIOUS = "com.ella.music.action.SKIP_PREVIOUS"
         const val ACTION_PLAY_PAUSE = "com.ella.music.action.PLAY_PAUSE"
         const val ACTION_SKIP_NEXT = "com.ella.music.action.SKIP_NEXT"
+        const val ACTION_WIDGET_PREVIOUS = "com.ella.music.action.WIDGET_PREVIOUS"
+        const val ACTION_WIDGET_PLAY_PAUSE = "com.ella.music.action.WIDGET_PLAY_PAUSE"
+        const val ACTION_WIDGET_NEXT = "com.ella.music.action.WIDGET_NEXT"
         private const val TIMING_TAG = "EllaPlaybackTiming"
 
         val bluetoothConnectEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -131,6 +134,7 @@ class PlaybackService : MediaLibraryService() {
 
     private var mediaSession: MediaLibrarySession? = null
     private var sessionPresentationPlayer: SessionPresentationPlayer? = null
+    private var crossfadePlaybackCoordinator: CrossfadePlaybackCoordinator? = null
     private lateinit var notificationProvider: NoArtworkMediaNotificationProvider
     private lateinit var settingsManager: SettingsManager
     private lateinit var musicRepository: MusicRepository
@@ -285,19 +289,44 @@ class PlaybackService : MediaLibraryService() {
             "Audio output backend=${playbackOutputSettings.backend}, bitDepth=${playbackOutputSettings.bitDepth}, sampleRate=${playbackOutputSettings.sampleRate}"
         )
 
+        val mediaAudioAttributes = AudioAttributes.Builder()
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .setUsage(C.USAGE_MEDIA)
+            .build()
         val player = ExoPlayer.Builder(this, renderersFactory)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                handleAudioFocus
-            )
+            .setAudioAttributes(mediaAudioAttributes, handleAudioFocus)
             .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
+            // Local playback only needs a CPU wake lock. Keeping the Wi-Fi lock requested by
+            // WAKE_MODE_NETWORK for every local album was a measurable standby battery drain.
+            // The listener below enables the network wake lock only for remote media.
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .build()
         player.repeatMode = Player.REPEAT_MODE_ALL
+        crossfadePlaybackCoordinator = CrossfadePlaybackCoordinator(
+            context = this,
+            primary = player,
+            dataSourceFactory = dataSourceFactory,
+            audioAttributes = mediaAudioAttributes,
+            secondaryRenderersFactory = {
+                EllaRenderersFactory(this).apply {
+                    setExtensionRendererMode(
+                        when (decoderMode) {
+                            1 -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
+                            2 -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
+                            else -> DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
+                        }
+                    )
+                    setPlaybackOutputSettings(playbackOutputSettings)
+                }
+            },
+            scope = serviceScope
+        )
+        serviceScope.launch {
+            settingsManager.crossfadeDurationMs.collect { durationMs ->
+                crossfadePlaybackCoordinator?.setDuration(durationMs)
+            }
+        }
         PlaybackAudioSession.update(player.audioSessionId)
         audioEffectController.bind(player.audioSessionId)
         serviceScope.launch {
@@ -345,6 +374,7 @@ class PlaybackService : MediaLibraryService() {
                 } else {
                     closeAudioEffectSession()
                 }
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
@@ -355,14 +385,25 @@ class PlaybackService : MediaLibraryService() {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
                 updateMediaButtonPreferences()
                 oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 Log.d(TIMING_TAG, "service media transition reason=$reason mediaId=${mediaItem?.mediaId}")
+                player.setWakeMode(
+                    if (mediaItem?.localConfiguration?.uri?.scheme.equals("http", ignoreCase = true) ||
+                        mediaItem?.localConfiguration?.uri?.scheme.equals("https", ignoreCase = true)
+                    ) {
+                        C.WAKE_MODE_NETWORK
+                    } else {
+                        C.WAKE_MODE_LOCAL
+                    }
+                )
                 sessionPresentationPlayer?.clearNotificationLyric()
                 updateMediaButtonPreferences()
                 oplusLyricHandler.scheduleOplusLyricInfoRefreshBurst(player)
                 publishExternalPlaybackSnapshot(player)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -376,6 +417,7 @@ class PlaybackService : MediaLibraryService() {
                     Player.STATE_ENDED -> Log.d(TIMING_TAG, "player state ENDED mediaId=${player.currentMediaItem?.mediaId}")
                 }
                 publishExternalPlaybackSnapshot(player)
+                PlaybackWidgetUpdater.updateFromPlayer(this@PlaybackService, player)
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -429,9 +471,29 @@ class PlaybackService : MediaLibraryService() {
         return mediaSession
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        mediaSession?.player?.let { player ->
+            when (intent?.action) {
+                ACTION_WIDGET_PREVIOUS -> player.seekToPreviousMediaItem()
+                ACTION_WIDGET_PLAY_PAUSE -> if (player.isPlaying) player.pause() else player.play()
+                ACTION_WIDGET_NEXT -> player.seekToNextMediaItem()
+            }
+            PlaybackWidgetUpdater.updateFromPlayer(this, player)
+        }
+        // Media playback must remain restartable after the system reclaims a background process.
+        // Media3 rebuilds the session from the saved queue when the service is recreated.
+        return START_STICKY
+    }
+
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
-        if (player == null || !player.playWhenReady || player.mediaItemCount == 0) {
+        // During a network rebuffer ExoPlayer can briefly report !isPlaying although the user has
+        // not stopped playback. Do not turn that transient state into a service teardown when the
+        // task is removed; keeping the media session alive also keeps Lyricon/desktop bridges alive.
+        val shouldKeepPlayback = player != null && player.mediaItemCount > 0 &&
+            (player.playWhenReady || player.playbackState == Player.STATE_BUFFERING)
+        if (!shouldKeepPlayback) {
             stopSelf()
         }
     }
@@ -444,6 +506,8 @@ class PlaybackService : MediaLibraryService() {
         }
         audioEffectController.release()
         AudioEffectState.publish(null)
+        crossfadePlaybackCoordinator?.release()
+        crossfadePlaybackCoordinator = null
         mediaSession?.run {
             closeAudioEffectSession()
             player.release()

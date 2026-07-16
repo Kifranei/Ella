@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,7 +31,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
@@ -45,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ella.music.R
+import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.data.model.AudioInfo
 import com.ella.music.data.model.LyricLine
 import com.ella.music.data.model.Song
@@ -57,6 +63,7 @@ import com.ella.music.viewmodel.PlayerViewModel
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 internal fun CoverPlayerPage(
     context: Context,
     mainViewModel: MainViewModel,
@@ -201,6 +208,8 @@ internal fun CoverPlayerPage(
     drawBackground: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val staticCoverPreviewModel = resolveCoverPreviewModel(song, embeddedCover)
+    var previewCoverModel by remember(song?.playlistIdentityKey(), embeddedCover) { mutableStateOf<Any?>(null) }
     val bluetoothDeviceName = rememberBluetoothOutputName()
     val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
         initial = RemoteMusicSourceConfig(RemoteMusicProvider.Navidrome, "")
@@ -249,6 +258,19 @@ internal fun CoverPlayerPage(
     val resolvedDynamicCover = videoSources.dynamicCover
     val resolvedMusicVideo = videoSources.musicVideo
     val displayedDynamicCover = if (musicVideoVisible) resolvedMusicVideo else resolvedDynamicCover
+    val musicVideoPlayback by remember(resolvedMusicVideo?.playbackOwnerKey, resolvedMusicVideo?.failureKey) {
+        MusicVideoPlaybackBridge.snapshot(resolvedMusicVideo)
+    }.collectAsState()
+    // Show MV immediately on toggle, even while ExoPlayer is still discovering its duration.
+    // The seek bar becomes seekable as soon as that duration arrives through the bridge.
+    val controlsMusicVideo = musicVideoVisible && resolvedMusicVideo != null
+    val controlPosition = if (controlsMusicVideo) musicVideoPlayback.positionMs else currentPosition
+    val controlDuration = if (controlsMusicVideo) musicVideoPlayback.durationMs else duration
+    val onControlSeek: (Float) -> Unit = if (controlsMusicVideo) {
+        { progress -> MusicVideoPlaybackBridge.seekToProgress(resolvedMusicVideo, progress) }
+    } else {
+        onSeek
+    }
     val portraitDynamicCover = displayedDynamicCover?.aspectRatio?.let { it < 0.92f } == true
     val coverSwipeModifier = if (coverSwipeEnabled) {
         rememberCoverSwipeModifier(
@@ -385,6 +407,16 @@ internal fun CoverPlayerPage(
                                 clip = true
                             }
                             .clip(immersiveCoverShape)
+                            .then(
+                                if (staticCoverPreviewModel != null) {
+                                    Modifier.combinedClickable(
+                                        onClick = { previewCoverModel = staticCoverPreviewModel },
+                                        onLongClick = { previewCoverModel = staticCoverPreviewModel }
+                                    )
+                                } else {
+                                    Modifier
+                                }
+                            )
                             .then(coverSwipeModifier),
                         contentAlignment = Alignment.Center
                     ) {
@@ -528,14 +560,15 @@ internal fun CoverPlayerPage(
                             Spacer(modifier = Modifier.weight(1f))
                         }
                         PlayerProgressBlock(
-                            currentPosition = currentPosition,
-                            duration = duration,
+                            currentPosition = controlPosition,
+                            duration = controlDuration,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
+                            playbackModeLabel = if (controlsMusicVideo) "MV" else null,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
-                            onSeek = onSeek
+                            onSeek = onControlSeek
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
@@ -608,6 +641,16 @@ internal fun CoverPlayerPage(
                                     clip = true
                                 }
                                 .clip(coverShape)
+                                .then(
+                                    if (staticCoverPreviewModel != null) {
+                                        Modifier.combinedClickable(
+                                            onClick = { previewCoverModel = staticCoverPreviewModel },
+                                            onLongClick = { previewCoverModel = staticCoverPreviewModel }
+                                        )
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .then(coverSwipeModifier),
                             contentAlignment = Alignment.Center
                         ) {
@@ -724,14 +767,15 @@ internal fun CoverPlayerPage(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         PlayerProgressBlock(
-                            currentPosition = currentPosition,
-                            duration = duration,
+                            currentPosition = controlPosition,
+                            duration = controlDuration,
                             audioInfo = audioInfo,
                             bluetoothDeviceName = bluetoothDeviceName,
+                            playbackModeLabel = if (controlsMusicVideo) "MV" else null,
                             palette = pagePalette,
                             allowTapSeek = playerTapSeekEnabled,
                             showTotalDuration = playerShowTotalDuration,
-                            onSeek = onSeek
+                            onSeek = onControlSeek
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         PlayerTransportControls(
@@ -841,6 +885,13 @@ internal fun CoverPlayerPage(
             onCycleRemoteStreamQuality = playerViewModel::cycleRemoteStreamQuality,
             initialPage = actionMenuInitialPage
         )
+        previewCoverModel?.let { coverModel ->
+            CoverPreviewDialog(
+                model = coverModel,
+                title = song?.title.orEmpty(),
+                onDismiss = { previewCoverModel = null }
+            )
+        }
     }
 }
 

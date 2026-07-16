@@ -70,6 +70,7 @@ fun AudioSettingsScreen(
     }
 
     val gaplessPlayback by settingsManager.gaplessPlayback.collectAsState(initial = true)
+    val crossfadeDurationMs by settingsManager.crossfadeDurationMs.collectAsState(initial = 0)
     val replayGainMode by settingsManager.replayGainMode.collectAsState(initial = SettingsManager.REPLAY_GAIN_OFF)
     val resumePlaybackPosition by settingsManager.resumePlaybackPosition.collectAsState(initial = false)
     val audioFocusDisabled by settingsManager.audioFocusDisabled.collectAsState(initial = false)
@@ -371,6 +372,20 @@ fun AudioSettingsScreen(
                         checked = gaplessPlayback,
                         onCheckedChange = {
                             scope.launch { settingsManager.setGaplessPlayback(it) }
+                        }
+                    )
+                    SettingsIntSliderPreference(
+                        title = stringResource(R.string.settings_crossfade),
+                        summary = stringResource(R.string.settings_crossfade_summary),
+                        value = crossfadeDurationMs / 1_000,
+                        valueRange = 0..12,
+                        valueText = stringResource(
+                            R.string.settings_crossfade_value,
+                            crossfadeDurationMs / 1_000
+                        ),
+                        steps = 11,
+                        onValueChange = { seconds ->
+                            scope.launch { settingsManager.setCrossfadeDurationMs(seconds * 1_000) }
                         }
                     )
                     WindowSpinnerPreference(

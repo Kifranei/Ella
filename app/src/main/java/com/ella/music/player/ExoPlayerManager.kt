@@ -139,6 +139,10 @@ class ExoPlayerManager(private val context: Context) {
 
     init {
         _shuffleEnabled.value = loadAppShuffleEnabled()
+        // Keep the player surface populated while MediaController reconnects on a cold process
+        // start. The actual service state still wins once connected; this is only a persisted
+        // visual snapshot, matching the no-flash restoration used by native players.
+        seedSavedPlaybackPreview()
         persistenceScope.launch {
             settingsManager.decoderMode.collect { mode ->
                 decoderModeSetting = mode.coerceIn(DECODER_MODE_SYSTEM, DECODER_MODE_AUTO)
@@ -1814,6 +1818,19 @@ class ExoPlayerManager(private val context: Context) {
         _playbackSpeed.value = saved.speed
         _playbackPitch.value = saved.pitch
         if (saved.songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) savePlaybackQueue(force = true)
+    }
+
+    private fun seedSavedPlaybackPreview() {
+        val saved = loadSavedQueue() ?: return
+        val index = saved.index.takeIf { it in saved.songs.indices } ?: return
+        val current = saved.songs[index]
+        _currentSong.value = current
+        _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
+        _duration.value = current.duration.coerceAtLeast(0L)
+        _repeatMode.value = saved.repeatMode
+        _shuffleEnabled.value = saved.shuffle
+        _playbackSpeed.value = saved.speed.coerceIn(0.5f, 2f)
+        _playbackPitch.value = saved.pitch.coerceIn(0.5f, 2f)
     }
 
     private fun savePlaybackQueue(force: Boolean = false) {

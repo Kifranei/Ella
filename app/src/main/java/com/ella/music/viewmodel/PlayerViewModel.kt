@@ -52,6 +52,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val LYRIC_POSITION_BACKWARD_DRIFT_TOLERANCE_MS = 600L
+// Compose lyrics interpolate between position samples on the display clock. 10 Hz is therefore
+// visually smooth while avoiding a 20 Hz controller query / bridge dispatch loop all day.
+private const val PLAYBACK_POSITION_UPDATE_INTERVAL_MS = 100L
 
 private const val DECODER_MODE_SYSTEM = 0
 private const val DECODER_MODE_FFMPEG_PREFER = 1
@@ -771,7 +774,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     )
                 }
 
-                delay(50)
+                delay(PLAYBACK_POSITION_UPDATE_INTERVAL_MS)
             }
         }
     }
@@ -1332,7 +1335,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Re-establish the media controller if the playback session was torn down in the background. */
     fun ensurePlayerConnected() {
-        playerManager.ensureConnected()
+        // The manager already receives live callbacks while this process stays alive. Asking a
+        // healthy controller to refresh on every resume momentarily republishes the queue/song
+        // state, which made the whole app appear to reload after returning from background.
+        playerManager.ensureConnected(refreshStateIfConnected = false)
         startPositionUpdates()
         viewModelScope.launch {
             repairAutoDecoderChainIfNeeded()
