@@ -9,6 +9,9 @@
     <cache-path
         name="lyric_video_share"
         path="lyric_video_share/" />
+    <cache-path
+        name="cover_share"
+        path="cover_share/" />
     <external-path
         name="external_storage"
         path="." />

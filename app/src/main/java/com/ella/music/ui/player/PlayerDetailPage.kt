@@ -129,7 +129,9 @@ internal fun PlayerDetailPage(
     val genre = song?.genre.orEmpty().trim()
     val genreCategoryName = remember(genre) { splitGenreNames(genre).firstOrNull().orEmpty() }
     val yearSongs = remember(year, effectiveLibrarySongs) {
-        effectiveLibrarySongs.filter { it.year.trim().equals(year, ignoreCase = true) }
+        effectiveLibrarySongs.filter { candidate ->
+            Regex("""\d{4}""").find(candidate.year)?.value == year
+        }
     }
     val genreSongs = remember(genre, effectiveLibrarySongs) {
         effectiveLibrarySongs.filter { it.genre.matchesGenreName(genreCategoryName) }

@@ -57,8 +57,7 @@ internal fun FullBleedCover(
     cornerRadius: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
-    val uri = if ((song?.albumId ?: 0L) > 0) Uri.parse("content://media/external/audio/albumart/${song?.albumId}") else null
-    val coverModel = embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
+    val coverModel = resolveCoverPreviewModel(song, embeddedCover)
     Box(modifier = modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         if (coverModel != null) {
             PlayerCoverImage(
@@ -180,10 +179,7 @@ internal fun AlbumArtView(
     hiResLogoUri: String = "",
     modifier: Modifier = Modifier
 ) {
-    val uri = if ((song?.albumId ?: 0L) > 0) {
-        Uri.parse("content://media/external/audio/albumart/${song?.albumId}")
-    } else null
-    val coverModel = embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
+    val coverModel = resolveCoverPreviewModel(song, embeddedCover)
 
     Box(
         modifier = modifier,
@@ -214,6 +210,15 @@ internal fun AlbumArtView(
             )
         }
     }
+}
+
+internal fun resolveCoverPreviewModel(song: Song?, embeddedCover: Bitmap?): Any? {
+    val uri = if ((song?.albumId ?: 0L) > 0) {
+        Uri.parse("content://media/external/audio/albumart/${song?.albumId}")
+    } else {
+        null
+    }
+    return embeddedCover ?: song?.coverUrl?.takeIf { it.isNotBlank() } ?: uri
 }
 
 @Composable

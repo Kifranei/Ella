@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
+import com.ella.music.data.matchesArtistName
 import com.ella.music.data.model.Song
 import com.ella.music.data.model.albumIdentityId
 import com.ella.music.data.tagIdentityKey
@@ -284,15 +285,21 @@ fun LibrarySearchScreen(
                     .values
                     .map { pairs ->
                         val name = pairs.first().first
-                        val artistSongs = pairs.map { it.second }.distinctBy { it.id }
+                        val participatingSongs = pairs.map { it.second }.distinctBy { it.searchIdentityKey() }
+                        // Album artists may appear on a release even when they do not perform a
+                        // given track. Match the artist page: the song count only includes tracks
+                        // whose *song artist* actually contains this artist.
+                        val artistSongs = participatingSongs.filter { song ->
+                            song.artist.matchesArtistName(name)
+                        }
                         ArtistSearchResult(
                             artist = com.ella.music.data.model.Artist(
                                 name = name,
                                 songCount = artistSongs.size,
-                                albumCount = artistSongs.map { it.album }.distinct().size
+                                albumCount = participatingSongs.map { it.albumIdentityId() }.distinct().size
                             ),
-                            representativeSong = artistSongs.firstOrNull(),
-                            participatedAlbumCount = artistSongs.map { it.albumIdentityId() }.distinct().size
+                            representativeSong = artistSongs.firstOrNull() ?: participatingSongs.firstOrNull(),
+                            participatedAlbumCount = participatingSongs.map { it.albumIdentityId() }.distinct().size
                         )
                     }
                     .sortedBy { it.artist.name.lowercase() }

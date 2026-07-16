@@ -70,6 +70,7 @@ import com.ella.music.ui.components.AppleStylePlayButton
 import com.ella.music.ui.components.ArtistPickerSheet
 import com.ella.music.ui.components.ArtworkUsage
 import com.ella.music.ui.components.ConfirmDangerDialog
+import com.ella.music.ui.components.CoverPreviewDialog
 import com.ella.music.ui.components.CreatePlaylistAndAddSheet
 import com.ella.music.ui.components.createPlaylistOrShowDuplicateToast
 import com.ella.music.ui.components.DefaultAlbumCover
@@ -186,6 +187,7 @@ fun AlbumDetailScreen(
         showDefaultWhenMissing = false
     )
     val albumCoverModel = albumCoverState.model
+    var coverPreviewVisible by remember(albumCoverModel) { mutableStateOf(false) }
     val neteaseAlbumUrl by produceState<String?>(initialValue = null, albumId, albumSongs) {
         value = mainViewModel.getNeteaseAlbumUrlForAlbum(albumId)
     }
@@ -217,14 +219,16 @@ fun AlbumDetailScreen(
                 .joinToString("\n")
         }
     }
-    val albumRecordedYear by produceState<String?>(initialValue = null, albumId, albumSongs) {
+    val albumReleaseDate by produceState<String?>(initialValue = null, albumId, albumSongs, album?.year) {
         value = withContext(Dispatchers.IO) {
             albumSongs
                 .asSequence()
-                .mapNotNull { song -> mainViewModel.getFullAudioTagInfo(song)?.recordedDateYear() }
+                .mapNotNull { song -> mainViewModel.getFullAudioTagInfo(song)?.recordedDate() }
                 .firstOrNull()
+                ?: album?.year?.takeIf { it.isNotBlank() }
         }
     }
+    val albumRecordedYear = remember(albumReleaseDate) { albumReleaseDate?.extractReleaseYear() }
     val albumGenres = remember(albumSongs) {
         albumSongs
             .flatMap { splitGenreNames(it.genre) }
@@ -433,6 +437,7 @@ fun AlbumDetailScreen(
             item {
                 AlbumHeader(
                     album = album,
+                    releaseDate = albumReleaseDate,
                     albumCoverModel = albumCoverModel,
                     songCount = sortedAlbumSongs.size,
                     duration = albumDuration,
@@ -453,6 +458,7 @@ fun AlbumDetailScreen(
                             onNavigateToMetadataCategory("year", year.toString())
                         }
                     },
+                    onCoverClick = { coverPreviewVisible = true },
                     onPlayAll = {
                         if (sortedAlbumSongs.isNotEmpty()) {
                             playerViewModel.setPlaylist(sortedAlbumSongs, 0)
@@ -902,12 +908,35 @@ fun AlbumDetailScreen(
                 finishSelectionMode()
             }
         )
+        if (coverPreviewVisible && albumCoverModel != null) {
+            CoverPreviewDialog(
+                model = albumCoverModel,
+                title = album?.name.orEmpty(),
+                onDismiss = { coverPreviewVisible = false }
+            )
+        }
     }
 }
 
-private fun com.ella.music.data.metadata.AudioTagInfo.recordedDateYear(): String? =
+private fun com.ella.music.data.metadata.AudioTagInfo.recordedDate(): String? =
     (customTags.firstRecordedDateValue() ?: year?.trim())
-        ?.let { Regex("""\d{4}""").find(it)?.value }
+        ?.normalizeAlbumReleaseDate()
+
+private fun String.extractReleaseYear(): String? = Regex("""\d{4}""").find(this)?.value
+
+private fun String.normalizeAlbumReleaseDate(): String {
+    val value = trim()
+    val match = Regex("""(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?""").find(value)
+        ?: return value
+    val year = match.groupValues[1]
+    val month = match.groupValues.getOrNull(2).orEmpty()
+    val day = match.groupValues.getOrNull(3).orEmpty()
+    return buildString {
+        append(year)
+        if (month.isNotBlank()) append("-").append(month.padStart(2, '0'))
+        if (day.isNotBlank()) append("-").append(day.padStart(2, '0'))
+    }
+}
 
 private fun Map<String, List<String>>.firstRecordedDateValue(): String? {
     val targets = setOf(

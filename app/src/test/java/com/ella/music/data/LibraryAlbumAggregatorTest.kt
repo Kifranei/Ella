@@ -65,6 +65,18 @@ class LibraryAlbumAggregatorTest {
     }
 
     @Test
+    fun albumKeepsEarliestCompleteReleaseDate() {
+        val albums = LibraryAlbumAggregator.toAlbums(
+            listOf(
+                song(id = 1, year = "2005-01-28"),
+                song(id = 2, year = "2005-02-03")
+            )
+        )
+
+        assertEquals("2005-01-28", albums.single().year)
+    }
+
+    @Test
     fun metadataAlbumsReuseLibraryAlbumWhenAvailable() {
         val song = song(album = "Library Album", albumArtist = "Library Artist")
         val libraryAlbum = Album(

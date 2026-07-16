@@ -172,7 +172,7 @@ class MusicScanner(private val context: Context) {
             }
             albumArtist = tagInfo.albumArtist.orEmpty()
             genre = tagInfo.genre.orEmpty()
-            year = tagInfo.year.orEmpty().normalizeYear()
+            year = tagInfo.year.orEmpty().normalizeReleaseDate()
             composer = tagInfo.composer.orEmpty()
             lyricist = firstNonBlank(
                 tagInfo.lyricist,
@@ -199,7 +199,7 @@ class MusicScanner(private val context: Context) {
                 if (isMissingAlbumTag(album)) album = wavInfo.album.orEmpty()
                 if (albumArtist.isBlank()) albumArtist = wavInfo.albumArtist.orEmpty()
                 if (genre.isBlank()) genre = wavInfo.genre.orEmpty()
-                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeYear()
+                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeReleaseDate()
                 if (composer.isBlank()) composer = wavInfo.composer.orEmpty()
                 if (lyricist.isBlank()) lyricist = wavInfo.lyricist.orEmpty()
                 trackNumber = trackNumber.takeIf { it > 0 } ?: wavInfo.trackNumber ?: 0
@@ -212,7 +212,7 @@ class MusicScanner(private val context: Context) {
                 if (isMissingAlbumTag(album)) album = wavInfo.album.orEmpty()
                 if (albumArtist.isBlank()) albumArtist = wavInfo.albumArtist.orEmpty()
                 if (genre.isBlank()) genre = wavInfo.genre.orEmpty()
-                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeYear()
+                if (year.isBlank()) year = wavInfo.year.orEmpty().normalizeReleaseDate()
                 if (composer.isBlank()) composer = wavInfo.composer.orEmpty()
                 if (lyricist.isBlank()) lyricist = wavInfo.lyricist.orEmpty()
                 trackNumber = trackNumber.takeIf { it > 0 } ?: wavInfo.trackNumber ?: 0
@@ -932,8 +932,24 @@ class MusicScanner(private val context: Context) {
     private fun String.normalizedPropertyKey(): String =
         lowercase().replace(" ", "").replace("_", "")
 
-    private fun String.normalizeYear(): String =
-        Regex("""\d{4}""").find(this)?.value ?: trim()
+    /**
+     * Keep the full release date from tags instead of dropping it to its year.  Library year
+     * categories extract the first four digits separately, so preserving month/day here keeps
+     * album headers and sort order accurate without splitting the year category.
+     */
+    private fun String.normalizeReleaseDate(): String {
+        val value = trim()
+        val match = Regex("""(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?""").find(value)
+            ?: return value
+        val year = match.groupValues[1]
+        val month = match.groupValues.getOrNull(2).orEmpty()
+        val day = match.groupValues.getOrNull(3).orEmpty()
+        return buildString {
+            append(year)
+            if (month.isNotBlank()) append("-").append(month.padStart(2, '0'))
+            if (day.isNotBlank()) append("-").append(day.padStart(2, '0'))
+        }
+    }
 
     private fun String.looksLikeMojibake(): Boolean {
         val text = trim()

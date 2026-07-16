@@ -416,6 +416,7 @@ private fun AlbumTrackRow(
 @Composable
 internal fun AlbumHeader(
     album: Album?,
+    releaseDate: String?,
     albumCoverModel: Any?,
     songCount: Int,
     duration: Long,
@@ -423,6 +424,7 @@ internal fun AlbumHeader(
     onNeteaseAlbumClick: () -> Unit,
     onAlbumArtistClick: () -> Unit,
     onReleaseYearClick: () -> Unit,
+    onCoverClick: () -> Unit,
     onPlayAll: () -> Unit
 ) {
     val albumArtist = album?.albumArtist?.takeIf { it.isNotBlank() }
@@ -442,7 +444,8 @@ internal fun AlbumHeader(
                 modifier = Modifier
                     .size(124.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MiuixTheme.colorScheme.surfaceContainer),
+                    .background(MiuixTheme.colorScheme.surfaceContainer)
+                    .clickable(onClick = onCoverClick),
                 contentAlignment = Alignment.Center
             ) {
                 if (albumCoverModel != null) {
@@ -482,7 +485,8 @@ internal fun AlbumHeader(
                         modifier = Modifier.clickable(onClick = onAlbumArtistClick)
                     )
                 }
-                val albumYearText = album?.year?.takeIf { it.isNotBlank() }
+                val albumYearText = releaseDate?.takeIf { it.isNotBlank() }
+                    ?: album?.year?.takeIf { it.isNotBlank() }
                 if (albumYearText != null) {
                     Text(
                         text = albumYearText,
