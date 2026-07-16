@@ -55,6 +55,7 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
     private var statusBarSecondaryMode by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_OFF)
     private var statusBarSecondaryOpacity by mutableIntStateOf(67)
     private var statusBarMergeSecondary by mutableStateOf(false)
+    private var statusBarInlineSecondaryText by mutableStateOf("")
     private var statusBarTextAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_ALIGN_LEFT)
     private var statusBarVerticalAlign by mutableIntStateOf(SettingsManager.DESKTOP_LYRIC_STATUS_VERTICAL_TOP)
     private var lyricFontPath by mutableStateOf("")
@@ -192,16 +193,16 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
             isLikelyRomanizationSecondary(backgroundText.ifBlank { text }, backgroundTranslation)
         ) "" else backgroundTranslation
 
-        currentLine = if (statusBarMode) {
-            val mainText = text.ifBlank { backgroundText }.ifBlank { "♪" }
-            val secondaryText = when (statusBarSecondaryMode) {
+        val mainText = text.ifBlank { backgroundText }.ifBlank { "♪" }
+        val statusBarSecondaryText = when (statusBarSecondaryMode) {
                 SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_TRANSLATION -> displayTranslation
                 SettingsManager.DESKTOP_LYRIC_STATUS_SECONDARY_PRONUNCIATION -> inferredPronunciation
                 else -> ""
             }.trim()
+        currentLine = if (statusBarMode) {
             LyricLine(
                 timeMs = inferredStart,
-                text = mergeDesktopStatusBarLyric(mainText, secondaryText, statusBarMergeSecondary),
+                text = mainText,
                 words = if (text.isBlank() && backgroundText.isNotBlank()) backgroundWords else words,
                 translation = if (
                     !statusBarMergeSecondary &&
@@ -235,6 +236,11 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 isTtml = isTtml,
                 endMs = inferredEnd
             )
+        }
+        statusBarInlineSecondaryText = if (statusBarMode && statusBarMergeSecondary) {
+            statusBarSecondaryText
+        } else {
+            ""
         }
     }
 
@@ -293,6 +299,8 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
                 contentColor = Color(textColor).copy(alpha = opacityPercent / 100f),
                 wordLiftEnabled = wordLiftEnabled,
                 singleLine = statusBarMode,
+                inlineStaticSecondaryText = statusBarInlineSecondaryText,
+                statusBarMarquee = statusBarMode,
                 secondaryAlpha = if (statusBarMode) statusBarSecondaryOpacity / 100f else 0.74f,
                 modifier = Modifier.fillMaxWidth()
             )

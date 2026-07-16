@@ -19,8 +19,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -133,6 +135,16 @@ internal fun LyricActionMenu(
         PlayerActionMenuItem(
             text = stringResource(if (showTranslation) R.string.player_hide_translation else R.string.player_show_translation),
             onClick = onToggleTranslation
+        )
+        val wordLiftEnabled by settingsManager.appleMusicLyricsWordLift.collectAsState(initial = true)
+        PlayerActionMenuItem(
+            text = stringResource(
+                if (wordLiftEnabled) R.string.player_disable_lyrics_word_lift
+                else R.string.player_enable_lyrics_word_lift
+            ),
+            onClick = {
+                scope.launch { settingsManager.setAppleMusicLyricsWordLift(!wordLiftEnabled) }
+            }
         )
         PlayerActionMenuItem(
             text = stringResource(if (keepScreenOn) R.string.player_disable_keep_screen_on else R.string.player_enable_keep_screen_on),
@@ -274,6 +286,11 @@ internal fun LyricStyleSettingsContent(
         secondaryTextSizeRange.first.toFloat(),
         secondaryTextSizeRange.last.toFloat()
     )
+    var previewPerspectiveYAngle by remember(perspectiveYAngle) { mutableStateOf(perspectiveYAngle.toFloat()) }
+    var previewFontScale by remember(fontScaleRange) { mutableStateOf(safeFontScale) }
+    var previewPrimaryTextSize by remember(primaryTextSizeRange) { mutableStateOf(safePrimaryTextSize) }
+    var previewSecondaryFontScale by remember(secondaryFontScaleRange) { mutableStateOf(safeSecondaryFontScale) }
+    var previewSecondaryTextSize by remember(secondaryTextSizeRange) { mutableStateOf(safeSecondaryTextSize) }
 
     Column(modifier = modifier) {
         if (showSheetHeader) {
@@ -292,11 +309,12 @@ internal fun LyricStyleSettingsContent(
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             )
             DottedValueSlider(
-                value = perspectiveYAngle.toFloat().coerceIn(0f, 45f),
+                value = previewPerspectiveYAngle.coerceIn(0f, 45f),
                 valueRange = 0f..45f,
                 steps = 9,
-                label = "${perspectiveYAngle}°",
-                onValueChange = { onPerspectiveYAngle(it.toInt()) },
+                label = "${previewPerspectiveYAngle.toInt()}°",
+                onValueChange = { previewPerspectiveYAngle = it },
+                onValueChangeFinished = { onPerspectiveYAngle(it.toInt()) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(82.dp)
@@ -310,11 +328,12 @@ internal fun LyricStyleSettingsContent(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )
         DottedValueSlider(
-            value = safeFontScale,
+            value = previewFontScale,
             valueRange = fontScaleRange.first / 100f..fontScaleRange.last / 100f,
             steps = (fontScaleRange.last - fontScaleRange.first) / 5,
-            label = "${(safeFontScale * 100f).roundToInt()}%",
-            onValueChange = onFontScale,
+            label = "${(previewFontScale * 100f).roundToInt()}%",
+            onValueChange = { previewFontScale = it },
+            onValueChangeFinished = onFontScale,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(82.dp)
@@ -327,11 +346,12 @@ internal fun LyricStyleSettingsContent(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )
         DottedValueSlider(
-            value = safePrimaryTextSize,
+            value = previewPrimaryTextSize,
             valueRange = primaryTextSizeRange.first.toFloat()..primaryTextSizeRange.last.toFloat(),
             steps = primaryTextSizeRange.last - primaryTextSizeRange.first,
-            label = "${safePrimaryTextSize.roundToInt()}sp",
-            onValueChange = onPrimaryTextSize,
+            label = "${previewPrimaryTextSize.roundToInt()}sp",
+            onValueChange = { previewPrimaryTextSize = it },
+            onValueChangeFinished = onPrimaryTextSize,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(82.dp)
@@ -344,11 +364,12 @@ internal fun LyricStyleSettingsContent(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )
         DottedValueSlider(
-            value = safeSecondaryFontScale,
+            value = previewSecondaryFontScale,
             valueRange = secondaryFontScaleRange.first / 100f..secondaryFontScaleRange.last / 100f,
             steps = (secondaryFontScaleRange.last - secondaryFontScaleRange.first) / 5,
-            label = "${(safeSecondaryFontScale * 100f).roundToInt()}%",
-            onValueChange = onSecondaryFontScale,
+            label = "${(previewSecondaryFontScale * 100f).roundToInt()}%",
+            onValueChange = { previewSecondaryFontScale = it },
+            onValueChangeFinished = onSecondaryFontScale,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(82.dp)
@@ -361,11 +382,12 @@ internal fun LyricStyleSettingsContent(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
         )
         DottedValueSlider(
-            value = safeSecondaryTextSize,
+            value = previewSecondaryTextSize,
             valueRange = secondaryTextSizeRange.first.toFloat()..secondaryTextSizeRange.last.toFloat(),
             steps = secondaryTextSizeRange.last - secondaryTextSizeRange.first,
-            label = "${safeSecondaryTextSize.roundToInt()}sp",
-            onValueChange = onSecondaryTextSize,
+            label = "${previewSecondaryTextSize.roundToInt()}sp",
+            onValueChange = { previewSecondaryTextSize = it },
+            onValueChangeFinished = onSecondaryTextSize,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(82.dp)

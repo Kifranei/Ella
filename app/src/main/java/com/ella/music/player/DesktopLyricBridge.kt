@@ -7,6 +7,12 @@ import android.provider.Settings
 import com.ella.music.data.model.LyricLine
 
 class DesktopLyricBridge(private val context: Context) {
+    private companion object {
+        // DesktopComposeLyricView extrapolates from the timestamp at the display refresh rate.
+        // Sending a startService intent at 20 Hz only restarts that interpolation continuously,
+        // costs battery, and can eventually starve other external lyric publishers.
+        const val POSITION_ANCHOR_INTERVAL_MS = 250L
+    }
     private var enabled = false
     private var lastLineKey: String? = null
 
@@ -42,7 +48,7 @@ class DesktopLyricBridge(private val context: Context) {
     ) {
         if (!enabled || !canDrawOverlay()) return
         val lyricLine = line ?: return
-        val key = "${lyricLine.timeMs}:${positionMs / 50}:$showTranslation:$showPronunciation"
+        val key = "${lyricLine.timeMs}:${positionMs / POSITION_ANCHOR_INTERVAL_MS}:$showTranslation:$showPronunciation"
         if (key == lastLineKey) return
         lastLineKey = key
         context.startService(

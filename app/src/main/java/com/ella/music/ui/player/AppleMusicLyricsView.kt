@@ -14,12 +14,12 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
@@ -32,6 +32,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableLongStateOf
@@ -49,7 +50,9 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -101,6 +104,9 @@ internal fun AppleMusicLyricsView(
     userScrollEnabled: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
+        .collectAsState(initial = false)
     if (lyrics.isEmpty()) {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
             BasicText(
@@ -247,6 +253,7 @@ internal fun AppleMusicLyricsView(
                 currentPositionMs = if (lineIsActive) smoothPositionMs else Long.MIN_VALUE,
                 showTranslation = showTranslation,
                 showPronunciation = showPronunciation,
+                pronunciationBelow = pronunciationBelow,
                 fontFamily = fontFamily,
                 fontWeight = fontWeight,
                 fontScale = fontScale,
@@ -282,9 +289,14 @@ internal fun AppleMusicSingleLyricLine(
     contentColor: Color,
     wordLiftEnabled: Boolean,
     singleLine: Boolean,
+    inlineStaticSecondaryText: String = "",
+    statusBarMarquee: Boolean = false,
     secondaryAlpha: Float = 0.74f,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val pronunciationBelow by remember(context) { SettingsManager.getInstance(context).lyricPronunciationBelow }
+        .collectAsState(initial = false)
     val defaultTextAlign = when (lyricTextAlign) {
         SettingsManager.PLAYER_LYRIC_ALIGN_CENTER -> TextAlign.Center
         SettingsManager.PLAYER_LYRIC_ALIGN_RIGHT -> TextAlign.End
@@ -299,6 +311,7 @@ internal fun AppleMusicSingleLyricLine(
         currentPositionMs = currentPositionMs,
         showTranslation = showTranslation,
         showPronunciation = showPronunciation,
+        pronunciationBelow = pronunciationBelow,
         fontFamily = fontFamily,
         fontWeight = fontWeight,
         fontScale = fontScale,
@@ -309,6 +322,8 @@ internal fun AppleMusicSingleLyricLine(
         contentColor = contentColor,
         wordLiftEnabled = wordLiftEnabled,
         singleLine = singleLine,
+        inlineStaticSecondaryText = inlineStaticSecondaryText,
+        statusBarMarquee = statusBarMarquee,
         secondaryAlpha = secondaryAlpha,
         onClick = {},
         onDoubleClick = {},
@@ -384,6 +399,7 @@ private fun AppleMusicLyricLine(
     currentPositionMs: Long,
     showTranslation: Boolean,
     showPronunciation: Boolean,
+    pronunciationBelow: Boolean,
     fontFamily: FontFamily?,
     fontWeight: FontWeight,
     fontScale: Float,
@@ -394,6 +410,8 @@ private fun AppleMusicLyricLine(
     contentColor: Color,
     wordLiftEnabled: Boolean,
     singleLine: Boolean = false,
+    inlineStaticSecondaryText: String = "",
+    statusBarMarquee: Boolean = false,
     secondaryAlpha: Float = 0.74f,
     onClick: () -> Unit,
     onDoubleClick: () -> Unit,
@@ -467,20 +485,55 @@ private fun AppleMusicLyricLine(
         }
     ) {
         val pronunciation = line.pronunciation.orEmpty()
-        if (showPronunciation && pronunciation.isNotBlank()) {
+        val showPronunciationAbove = showPronunciation && pronunciation.isNotBlank() && !pronunciationBelow
+        val showPronunciationBelow = showPronunciation && pronunciation.isNotBlank() && pronunciationBelow
+        if (showPronunciationAbove) {
             BasicText(text = pronunciation, style = secondaryStyle, modifier = Modifier.fillMaxWidth())
         }
-        TimedLyricText(
-            text = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } },
-            words = line.words,
-            positionMs = currentPositionMs,
-            active = active,
-            style = primaryStyle,
-            contentColor = contentColor,
-            wordLiftEnabled = wordLiftEnabled,
-            singleLine = singleLine,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (singleLine && inlineStaticSecondaryText.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TimedLyricText(
+                    text = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } },
+                    words = line.words,
+                    positionMs = currentPositionMs,
+                    active = active,
+                    style = primaryStyle,
+                    contentColor = contentColor,
+                    wordLiftEnabled = wordLiftEnabled,
+                    singleLine = true,
+                    modifier = Modifier
+                )
+                BasicText(
+                    text = " ${inlineStaticSecondaryText.trim()}",
+                    style = primaryStyle.copy(color = contentColor.copy(alpha = primaryStyle.color.alpha))
+                )
+            }
+        } else {
+            TimedLyricText(
+                text = line.text.ifBlank { line.backgroundText.orEmpty().ifBlank { "♪" } },
+                words = line.words,
+                positionMs = currentPositionMs,
+                active = active,
+                style = primaryStyle,
+                contentColor = contentColor,
+                wordLiftEnabled = wordLiftEnabled,
+                singleLine = singleLine,
+                statusBarMarquee = statusBarMarquee,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        if (showPronunciationBelow) {
+            BasicText(
+                text = pronunciation,
+                style = secondaryStyle,
+                modifier = Modifier.fillMaxWidth().padding(top = 5.dp)
+            )
+        }
         line.translation?.takeIf { showTranslation && it.isNotBlank() }?.let { translation ->
             BasicText(
                 text = translation,
@@ -546,11 +599,16 @@ private fun TimedLyricText(
     contentColor: Color,
     wordLiftEnabled: Boolean,
     singleLine: Boolean = false,
+    statusBarMarquee: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val timedWords = remember(text, words) { words.toAppleMusicRenderWords(text) }
     if (timedWords.isEmpty()) {
-        BasicText(text = text, style = style, modifier = modifier)
+        BasicText(
+            text = text,
+            style = style,
+            modifier = modifier.then(if (singleLine && statusBarMarquee) Modifier.basicMarquee() else Modifier)
+        )
         return
     }
     // Keep the timed units as individual layout children. This is the same important distinction
@@ -575,19 +633,81 @@ private fun TimedLyricText(
     }
     if (singleLine) {
         Row(
-            modifier = modifier,
+            modifier = modifier.then(if (statusBarMarquee) Modifier.basicMarquee() else Modifier),
             horizontalArrangement = horizontalArrangement,
             verticalAlignment = Alignment.CenterVertically
         ) {
             content()
         }
     } else {
-        FlowRow(
-            modifier = modifier,
-            horizontalArrangement = horizontalArrangement,
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+        // FlowRow measures each visual row independently. With centered/right-aligned lyrics it
+        // therefore lets wrapped rows acquire a different origin than the first row (especially
+        // visible for a translation below a long English line). Lay rows out ourselves against
+        // the full line width so every row shares the exact same alignment anchor.
+        AppleMusicTimedWordRows(
+            textAlign = style.textAlign,
+            modifier = modifier
         ) {
             content()
+        }
+    }
+}
+
+@Composable
+private fun AppleMusicTimedWordRows(
+    textAlign: TextAlign,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        val availableWidth = constraints.maxWidth
+            .takeUnless { it == androidx.compose.ui.unit.Constraints.Infinity }
+            ?: measurables.sumOf { it.maxIntrinsicWidth(constraints.maxHeight) }
+        val childConstraints = constraints.copy(minWidth = 0, minHeight = 0, maxWidth = availableWidth)
+        val rows = mutableListOf<MutableList<androidx.compose.ui.layout.Placeable>>()
+        val rowWidths = mutableListOf<Int>()
+        val rowHeights = mutableListOf<Int>()
+
+        measurables.forEach { measurable ->
+            val placeable = measurable.measure(childConstraints)
+            val rowIndex = rows.lastIndex
+            val currentWidth = rowWidths.getOrElse(rowIndex) { 0 }
+            val shouldWrap = rowIndex >= 0 && currentWidth > 0 && currentWidth + placeable.width > availableWidth
+            if (shouldWrap) {
+                rows += mutableListOf(placeable)
+                rowWidths += placeable.width
+                rowHeights += placeable.height
+            } else if (rowIndex >= 0) {
+                rows[rowIndex] += placeable
+                rowWidths[rowIndex] = currentWidth + placeable.width
+                rowHeights[rowIndex] = maxOf(rowHeights[rowIndex], placeable.height)
+            } else {
+                rows += mutableListOf(placeable)
+                rowWidths += placeable.width
+                rowHeights += placeable.height
+            }
+        }
+
+        val layoutWidth = availableWidth.coerceIn(constraints.minWidth, constraints.maxWidth)
+        val layoutHeight = rowHeights.sum().coerceIn(constraints.minHeight, constraints.maxHeight)
+        layout(layoutWidth, layoutHeight) {
+            var y = 0
+            rows.indices.forEach { rowIndex ->
+                val rowWidth = rowWidths[rowIndex]
+                var x = when (textAlign) {
+                    TextAlign.End -> (layoutWidth - rowWidth).coerceAtLeast(0)
+                    TextAlign.Center -> ((layoutWidth - rowWidth) / 2).coerceAtLeast(0)
+                    else -> 0
+                }
+                rows[rowIndex].forEach { placeable ->
+                    placeable.placeRelative(x, y)
+                    x += placeable.width
+                }
+                y += rowHeights[rowIndex]
+            }
         }
     }
 }
@@ -741,9 +861,58 @@ private fun List<LyricWord>.toAppleMusicRenderWords(lineText: String): List<Appl
                 )
             }
         } else {
+            // TTML providers sometimes put a short English phrase in a single timed span.
+            // Split it at word boundaries so each word gets its own progressive feather.
             result += AppleMusicRenderWord(word.copy(text = word.text + suffix))
+                .splitEnglishPhraseForAppleMusic()
         }
         cursor = end + suffix.length
+    }
+    return result
+}
+
+private fun AppleMusicRenderWord.splitEnglishPhraseForAppleMusic(): List<AppleMusicRenderWord> {
+    val sourceText = word.text
+    if (!sourceText.any { it in 'a'..'z' || it in 'A'..'Z' } || !sourceText.any(Char::isWhitespace)) {
+        return listOf(this)
+    }
+    val segments = Regex("\\S+\\s*").findAll(sourceText).map { it.value }.toList()
+    if (segments.size < 2) return listOf(this)
+
+    val totalWeight = segments.sumOf { segment ->
+        segment.count { it.isLetterOrDigit() }.coerceAtLeast(1)
+    }.coerceAtLeast(1)
+    val duration = (word.endMs - word.startMs).coerceAtLeast(1L)
+    var elapsed = 0L
+    return segments.mapIndexed { index, segment ->
+        val weight = segment.count { it.isLetterOrDigit() }.coerceAtLeast(1)
+        val startMs = word.startMs + elapsed
+        val endMs = if (index == segments.lastIndex) {
+            word.endMs
+        } else {
+            (word.startMs + (duration * (elapsed + weight) / totalWeight)).coerceAtLeast(startMs + 1L)
+        }
+        elapsed += weight
+        AppleMusicRenderWord(
+            word = LyricWord(text = segment, startMs = startMs, endMs = endMs),
+            // A sustained source span is represented by a glow on the final sung word; this
+            // avoids every word in a phrase receiving the same permanent halo.
+            sustainEndMs = sustainEndMs?.takeIf { index == segments.lastIndex }
+        )
+    }
+}
+
+/** Keep inter-word whitespace on the previous unit so a wrapped row starts at the shared edge. */
+internal fun List<LyricWord>.moveLeadingSpacesToPreviousWord(): List<LyricWord> {
+    val result = mutableListOf<LyricWord>()
+    forEach { word ->
+        val leadingWhitespace = word.text.takeWhile(Char::isWhitespace)
+        if (leadingWhitespace.isNotEmpty() && result.isNotEmpty()) {
+            val previous = result.removeAt(result.lastIndex)
+            result += previous.copy(text = previous.text + leadingWhitespace)
+        }
+        val visibleText = word.text.drop(leadingWhitespace.length)
+        if (visibleText.isNotEmpty()) result += word.copy(text = visibleText)
     }
     return result
 }

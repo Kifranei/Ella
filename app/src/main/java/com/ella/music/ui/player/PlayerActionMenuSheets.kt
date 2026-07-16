@@ -21,6 +21,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -287,6 +291,7 @@ internal fun DottedValueSlider(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     onValueChange: (Float) -> Unit,
+    onValueChangeFinished: ((Float) -> Unit)? = null,
     modifier: Modifier = Modifier,
     label: String? = null
 ) {
@@ -297,7 +302,8 @@ internal fun DottedValueSlider(
     val activeLineColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.88f)
     val activeKnobColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.92f)
 
-    fun update(width: Float, x: Float) {
+    var latestValue by remember(valueRange, steps) { mutableFloatStateOf(safeValue) }
+    fun update(width: Float, x: Float): Float {
         val raw = valueRange.start + (x / width.coerceAtLeast(1f)).coerceIn(0f, 1f) *
             (valueRange.endInclusive - valueRange.start)
         val stepped = if (steps > 0) {
@@ -307,7 +313,9 @@ internal fun DottedValueSlider(
         } else {
             raw
         }
+        latestValue = stepped
         onValueChange(stepped)
+        return stepped
     }
 
     BoxWithConstraints(modifier = modifier) {
@@ -316,10 +324,18 @@ internal fun DottedValueSlider(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(valueRange, steps) {
-                    detectTapGestures { offset -> update(size.width.toFloat(), offset.x) }
+                    detectTapGestures { offset ->
+                        onValueChangeFinished?.invoke(update(size.width.toFloat(), offset.x))
+                    }
                 }
                 .pointerInput(valueRange, steps) {
-                    detectDragGestures { change, _ -> update(size.width.toFloat(), change.position.x) }
+                    detectDragGestures(
+                        onDragEnd = { onValueChangeFinished?.invoke(latestValue) },
+                        onDragCancel = { onValueChangeFinished?.invoke(latestValue) }
+                    ) { change, _ ->
+                        change.consume()
+                        update(size.width.toFloat(), change.position.x)
+                    }
                 }
         ) {
             val centerY = size.height * 0.60f
