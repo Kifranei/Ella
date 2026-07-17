@@ -845,6 +845,7 @@ fun AlbumDetailScreen(
             ) {
                 ArtistPickerSheet(
                     artists = albumArtistChoices,
+                    mainViewModel = mainViewModel,
                     onArtistSelected = { artist ->
                         albumArtistChoices = emptyList()
                         onNavigateToArtist(artist)

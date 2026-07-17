@@ -1041,6 +1041,8 @@
     <string name="player_playback_mode_in_order">通常再生</string>
     <string name="player_locate_current_song">現在の曲を表示</string>
     <string name="player_clear_queue">再生キューをクリア</string>
+    <string name="player_lock_queue">再生キューをロック</string>
+    <string name="player_unlock_queue">再生キューのロックを解除</string>
     <string name="player_remove_from_queue">再生キューから削除</string>
     <string name="player_queue_empty">曲がありません</string>
     <string name="player_sleep_timer_title">スリープタイマー</string>
@@ -1470,6 +1472,9 @@
     <string name="cover_preview_share">カバーを共有</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">カバーを共有できませんでした</string>
+    <string name="cover_preview_save">画像を保存</string>
+    <string name="cover_preview_saved">画像をギャラリーに保存しました</string>
+    <string name="cover_preview_save_failed">画像を保存できませんでした</string>
     <string name="player_enable_lyrics_word_lift">歌詞の単語ごとの浮き上がりを有効化</string>
     <string name="player_disable_lyrics_word_lift">歌詞の単語ごとの浮き上がりを無効化</string>
     <string name="lyric_match_format_enhanced_lrc">文字単位 ELRC</string>

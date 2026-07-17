@@ -105,7 +105,9 @@ internal fun PlayerQueueMenu(
     currentSongKey: String?,
     shuffleEnabled: Boolean,
     repeatMode: Int,
+    queueLocked: Boolean,
     onCyclePlaybackMode: () -> Unit,
+    onToggleQueueLock: () -> Unit,
     onSongClick: (Int) -> Unit,
     onRemoveSong: (Int) -> Unit,
     onMoveSong: (Int, Int) -> Unit,
@@ -126,9 +128,16 @@ internal fun PlayerQueueMenu(
             listState.scrollToItem(currentIndex)
         }
     }
+    LaunchedEffect(queueLocked) {
+        if (queueLocked) {
+            pendingMoveStart = null
+            pendingMoveTarget = null
+        }
+    }
     val reorderableLazyListState = rememberReorderableLazyListState(
         lazyListState = listState,
         onMove = { from, to ->
+            if (queueLocked) return@rememberReorderableLazyListState
             if (from.index !in manualPlaylist.indices || to.index !in manualPlaylist.indices) return@rememberReorderableLazyListState
             manualPlaylist = manualPlaylist.toMutableList().apply {
                 add(to.index, removeAt(from.index))
@@ -178,6 +187,26 @@ internal fun PlayerQueueMenu(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(CircleShape)
+                        .playerNoIndicationClick(onToggleQueueLock),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_desktop_lock),
+                        contentDescription = stringResource(
+                            if (queueLocked) R.string.player_unlock_queue else R.string.player_lock_queue
+                        ),
+                        tint = if (queueLocked) {
+                            MiuixTheme.colorScheme.primary
+                        } else {
+                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                        },
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
                         .playerNoIndicationClick(onAddQueueToPlaylist),
                     contentAlignment = Alignment.Center
                 ) {
@@ -206,19 +235,21 @@ internal fun PlayerQueueMenu(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .playerNoIndicationClick(onClearQueue),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_delete),
-                        contentDescription = stringResource(R.string.player_clear_queue),
-                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                if (!queueLocked) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .playerNoIndicationClick(onClearQueue),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_delete),
+                            contentDescription = stringResource(R.string.player_clear_queue),
+                            tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
@@ -239,21 +270,25 @@ internal fun PlayerQueueMenu(
                         state = reorderableLazyListState,
                         key = item.stableKey
                     ) { isDragging ->
-                        val dragHandleModifier = Modifier.draggableHandle(
-                            dragGestureDetector = LongPressDragHandleGestureDetector,
-                            onDragStopped = {
-                                val move = resolveQueueMoveCommit(
-                                    fromIndex = pendingMoveStart,
-                                    toIndex = pendingMoveTarget,
-                                    queueSize = manualPlaylist.size
-                                )
-                                if (move != null) {
-                                    onMoveSong(move.fromIndex, move.toIndex)
+                        val dragHandleModifier = if (queueLocked) {
+                            Modifier
+                        } else {
+                            Modifier.draggableHandle(
+                                dragGestureDetector = LongPressDragHandleGestureDetector,
+                                onDragStopped = {
+                                    val move = resolveQueueMoveCommit(
+                                        fromIndex = pendingMoveStart,
+                                        toIndex = pendingMoveTarget,
+                                        queueSize = manualPlaylist.size
+                                    )
+                                    if (move != null) {
+                                        onMoveSong(move.fromIndex, move.toIndex)
+                                    }
+                                    pendingMoveStart = null
+                                    pendingMoveTarget = null
                                 }
-                                pendingMoveStart = null
-                                pendingMoveTarget = null
-                            }
-                        )
+                            )
+                        }
                         val queueSong = item.song
                         val isCurrentSong = queueSong.playlistIdentityKey() == currentSongKey
                         Row(
@@ -295,42 +330,44 @@ internal fun PlayerQueueMenu(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .then(dragHandleModifier)
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(
-                                        if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
-                                        else Color.Transparent
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "\u2630",
-                                    fontSize = 15.sp,
-                                    color = if (isDragging) {
-                                        MiuixTheme.colorScheme.primary
-                                    } else {
-                                        MiuixTheme.colorScheme.onSurfaceVariantSummary
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .playerNoIndicationClick { onRemoveSong(index) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_delete),
-                                    contentDescription = stringResource(R.string.player_remove_from_queue),
-                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            if (!queueLocked) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .then(dragHandleModifier)
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(22.dp))
+                                        .background(
+                                            if (isDragging) MiuixTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                            else Color.Transparent
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "\u2630",
+                                        fontSize = 15.sp,
+                                        color = if (isDragging) {
+                                            MiuixTheme.colorScheme.primary
+                                        } else {
+                                            MiuixTheme.colorScheme.onSurfaceVariantSummary
+                                        }
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .playerNoIndicationClick { onRemoveSong(index) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_delete),
+                                        contentDescription = stringResource(R.string.player_remove_from_queue),
+                                        tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }

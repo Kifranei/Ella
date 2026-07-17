@@ -117,6 +117,7 @@ internal fun FloatingBottomControls(
     var queueSongsForNewPlaylist by remember { mutableStateOf<List<Song>?>(null) }
     val playlist by playerViewModel.playlist.collectAsState()
     val shuffleEnabled by playerViewModel.shuffleEnabled.collectAsState()
+    val queueLocked by playerViewModel.queueLocked.collectAsState()
     val repeatMode by playerViewModel.repeatMode.collectAsState()
     val userPlaylists by mainViewModel.playlists.collectAsState()
     val currentSongKey = currentSong?.playlistIdentityKey()
@@ -274,7 +275,9 @@ internal fun FloatingBottomControls(
                 currentSongKey = currentSongKey,
                 shuffleEnabled = shuffleEnabled,
                 repeatMode = repeatMode,
+                queueLocked = queueLocked,
                 onCyclePlaybackMode = { playerViewModel.cyclePlaybackMode() },
+                onToggleQueueLock = { playerViewModel.toggleQueueLock() },
                 onSongClick = { index ->
                     queueSheetExpanded = false
                     playerViewModel.playQueueIndex(index)

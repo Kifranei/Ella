@@ -211,6 +211,7 @@ internal fun CoverPlayerPage(
     val staticCoverPreviewModel = resolveCoverPreviewModel(song, embeddedCover)
     var previewCoverModel by remember(song?.playlistIdentityKey(), embeddedCover) { mutableStateOf<Any?>(null) }
     val bluetoothDeviceName = rememberBluetoothOutputName()
+    val queueLocked by playerViewModel.queueLocked.collectAsState()
     val navidromeConfig by playerViewModel.settingsManager.navidromeConfig.collectAsState(
         initial = RemoteMusicSourceConfig(RemoteMusicProvider.Navidrome, "")
     )
@@ -356,6 +357,7 @@ internal fun CoverPlayerPage(
                 coverSwipeEnabled = coverSwipeEnabled,
                 queueExpanded = queueExpanded,
                 playlist = playlist,
+                queueLocked = queueLocked,
                 audioSessionId = audioSessionId,
                 visualizerEnabled = visualizerEnabled,
                 visualizerOpacity = visualizerOpacity,
@@ -365,6 +367,7 @@ internal fun CoverPlayerPage(
                 onToggleFavorite = onToggleFavorite,
                 onToggleQueue = onToggleQueue,
                 onDismissQueue = onDismissQueue,
+                onToggleQueueLock = playerViewModel::toggleQueueLock,
                 onShowLyrics = onShowLyrics,
                 onLyricLineClick = onLyricLineClick,
                 onLyricLineLongClick = onLyricLineLongClick,
@@ -410,7 +413,7 @@ internal fun CoverPlayerPage(
                             .then(
                                 if (staticCoverPreviewModel != null) {
                                     Modifier.combinedClickable(
-                                        onClick = { previewCoverModel = staticCoverPreviewModel },
+                                        onClick = {},
                                         onLongClick = { previewCoverModel = staticCoverPreviewModel }
                                     )
                                 } else {
@@ -579,7 +582,9 @@ internal fun CoverPlayerPage(
                             queueExpanded = queueExpanded,
                             playlist = playlist,
                             currentSongKey = song?.playlistIdentityKey(),
+                            queueLocked = queueLocked,
                             onCyclePlaybackMode = onCyclePlaybackMode,
+                            onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
                             onPlayPause = onPlayPause,
                             onNext = onNext,
@@ -644,7 +649,7 @@ internal fun CoverPlayerPage(
                                 .then(
                                     if (staticCoverPreviewModel != null) {
                                         Modifier.combinedClickable(
-                                            onClick = { previewCoverModel = staticCoverPreviewModel },
+                                            onClick = {},
                                             onLongClick = { previewCoverModel = staticCoverPreviewModel }
                                         )
                                     } else {
@@ -786,7 +791,9 @@ internal fun CoverPlayerPage(
                             queueExpanded = queueExpanded,
                             playlist = playlist,
                             currentSongKey = song?.playlistIdentityKey(),
+                            queueLocked = queueLocked,
                             onCyclePlaybackMode = onCyclePlaybackMode,
+                            onToggleQueueLock = playerViewModel::toggleQueueLock,
                             onPrevious = onPrevious,
                             onPlayPause = onPlayPause,
                             onNext = onNext,
@@ -811,11 +818,11 @@ internal fun CoverPlayerPage(
         PlayerCoverActionSheet(
             show = menuExpanded,
             song = song,
-            showLyricsDisplayEntry = useWidePlayer || showPlayerKeepScreenOnAction,
+            showLyricsDisplayEntry = useWidePlayer,
             playbackSpeed = playbackSpeed,
             playbackPitch = playbackPitch,
             visualizerEnabled = visualizerEnabled,
-            visualizerAvailable = immersiveAlbumCover || showPlayerKeepScreenOnAction,
+            visualizerAvailable = immersiveAlbumCover,
             visualizerOpacity = visualizerOpacityPercent,
             lyricOffsetMs = lyricOffsetMs,
             showPronunciation = showPronunciation,

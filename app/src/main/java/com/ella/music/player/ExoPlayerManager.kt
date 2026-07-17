@@ -66,6 +66,9 @@ class ExoPlayerManager(private val context: Context) {
     private val _shuffleEnabled = MutableStateFlow(false)
     val shuffleEnabled: StateFlow<Boolean> = _shuffleEnabled.asStateFlow()
 
+    private val _queueLocked = MutableStateFlow(false)
+    val queueLocked: StateFlow<Boolean> = _queueLocked.asStateFlow()
+
     private val _repeatMode = MutableStateFlow(Player.REPEAT_MODE_ALL)
     val repeatMode: StateFlow<Int> = _repeatMode.asStateFlow()
 
@@ -86,7 +89,8 @@ class ExoPlayerManager(private val context: Context) {
         data class SetPlaylist(
             val songs: List<Song>,
             val startIndex: Int,
-            val honorShuffle: Boolean
+            val honorShuffle: Boolean,
+            val resetQueueLock: Boolean
         ) : PendingDecoderAction
 
         data class PlayResolvedVirtual(
@@ -294,6 +298,14 @@ class ExoPlayerManager(private val context: Context) {
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                if (_queueLocked.value) {
+                    if (shuffleModeEnabled) {
+                        _shuffleEnabled.value = true
+                        persistAppShuffleEnabled(true)
+                        mediaController?.shuffleModeEnabled = false
+                    }
+                    return
+                }
                 if (shuffleModeEnabled) {
                     _shuffleEnabled.value = true
                     persistAppShuffleEnabled(true)
@@ -349,7 +361,8 @@ class ExoPlayerManager(private val context: Context) {
                 setPlaylist(
                     songs = pendingDecoder.songs,
                     startIndex = pendingDecoder.startIndex,
-                    honorShuffle = pendingDecoder.honorShuffle
+                    honorShuffle = pendingDecoder.honorShuffle,
+                    resetQueueLock = pendingDecoder.resetQueueLock
                 )
             }
 
@@ -372,7 +385,12 @@ class ExoPlayerManager(private val context: Context) {
                 val pending = pendingPlaylist
                 if (pending != null) {
                     pendingPlaylist = null
-                    setPlaylist(pending.songs, pending.startIndex, honorShuffle = pending.honorShuffle)
+                    setPlaylist(
+                        pending.songs,
+                        pending.startIndex,
+                        honorShuffle = pending.honorShuffle,
+                        resetQueueLock = pending.resetQueueLock
+                    )
                 } else {
                     restoreSavedQueueIfNeeded()
                 }
@@ -397,18 +415,30 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun setPlaylist(songs: List<Song>, startIndex: Int = 0) {
-        setPlaylist(songs, startIndex, honorShuffle = true)
+        setPlaylist(songs, startIndex, honorShuffle = true, resetQueueLock = true)
     }
 
-    private fun setPlaylist(songs: List<Song>, startIndex: Int, honorShuffle: Boolean) {
+    /** Replaces media URLs while preserving the user's current queue lock. */
+    fun replacePlaylistPreservingQueueLock(songs: List<Song>, startIndex: Int = 0) {
+        setPlaylist(songs, startIndex, honorShuffle = false, resetQueueLock = false)
+    }
+
+    private fun setPlaylist(
+        songs: List<Song>,
+        startIndex: Int,
+        honorShuffle: Boolean,
+        resetQueueLock: Boolean
+    ) {
         if (songs.isEmpty()) return
+        if (resetQueueLock) _queueLocked.value = false
         val requestedIndex = startIndex.coerceIn(songs.indices)
         if (prepareAutoDecoderPlayback(
                 song = songs[requestedIndex],
                 action = PendingDecoderAction.SetPlaylist(
                     songs = songs,
                     startIndex = requestedIndex,
-                    honorShuffle = honorShuffle
+                    honorShuffle = honorShuffle,
+                    resetQueueLock = resetQueueLock
                 )
             )
         ) {
@@ -444,7 +474,12 @@ class ExoPlayerManager(private val context: Context) {
             // Reconnect and queue the request so it is applied once the controller is back, and
             // optimistically reflect the requested song in the UI right away.
             ensureConnected()
-            pendingPlaylist = PendingPlaylist(queueSongs, safeIndex, honorShuffle = false)
+            pendingPlaylist = PendingPlaylist(
+                songs = queueSongs,
+                startIndex = safeIndex,
+                honorShuffle = false,
+                resetQueueLock = resetQueueLock
+            )
             _currentSong.value = queueSongs.getOrNull(safeIndex)
             _duration.value = queueSongs.getOrNull(safeIndex)?.duration ?: 0L
             _repeatMode.value = Player.REPEAT_MODE_ALL
@@ -543,11 +578,11 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun addToPlaylist(songs: List<Song>) {
-        if (songs.isEmpty()) return
+        if (_queueLocked.value || songs.isEmpty()) return
         val combined = playlist + songs
         if (combined.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
             val currentIndex = currentQueueIndex(mediaController).coerceAtLeast(0).coerceIn(combined.indices)
-            setPlaylist(combined, currentIndex, honorShuffle = false)
+            setPlaylist(combined, currentIndex, honorShuffle = false, resetQueueLock = false)
             return
         }
         virtualPlaylistCurrentIndex = null
@@ -568,13 +603,13 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun playNext(songs: List<Song>) {
-        if (songs.isEmpty()) return
+        if (_queueLocked.value || songs.isEmpty()) return
         val controller = mediaController
         val insertIndex = playNextInsertIndex(controller, songs.size)
         if (playlist.size + songs.size > LARGE_LIBRARY_SAFE_MODE_THRESHOLD) {
             val combined = playlist.toMutableList().apply { addAll(insertIndex, songs) }
             val currentIndex = currentQueueIndex(controller).coerceAtLeast(0).coerceIn(combined.indices)
-            setPlaylist(combined, currentIndex, honorShuffle = false)
+            setPlaylist(combined, currentIndex, honorShuffle = false, resetQueueLock = false)
             return
         }
         virtualPlaylistCurrentIndex = null
@@ -654,6 +689,10 @@ class ExoPlayerManager(private val context: Context) {
         if (_shuffleEnabled.value != persistedShuffle) {
             _shuffleEnabled.value = persistedShuffle
         }
+        if (_queueLocked.value) {
+            controller.takeIf { it.shuffleModeEnabled }?.shuffleModeEnabled = false
+            return
+        }
         if (!controller.shuffleModeEnabled) return
 
         if (shouldAdoptNativeShuffleAsPending(
@@ -700,7 +739,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun removeFromPlaylist(index: Int) {
-        if (index !in playlist.indices) return
+        if (_queueLocked.value || index !in playlist.indices) return
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
@@ -728,7 +767,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun movePlaylistItem(fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in playlist.indices || toIndex !in playlist.indices || fromIndex == toIndex) return
+        if (_queueLocked.value || fromIndex !in playlist.indices || toIndex !in playlist.indices || fromIndex == toIndex) return
         virtualPlaylistCurrentIndex = null
         clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = true)
         resetPlayNextForwardStack()
@@ -748,6 +787,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     fun clearPlaylist() {
+        if (_queueLocked.value) return
         externalSnapshotGuard = null
         suppressExternalSnapshotsUntilMs = SystemClock.elapsedRealtime() + CLEAR_EXTERNAL_SNAPSHOT_SUPPRESSION_MS
         currentSongRefreshJob?.cancel()
@@ -769,11 +809,30 @@ class ExoPlayerManager(private val context: Context) {
         _isPlaying.value = false
         _playbackState.value = Player.STATE_IDLE
         autoDecoderRetrySongKey = null
+        _queueLocked.value = false
         mediaController?.run {
             stop()
             clearMediaItems()
         }
         clearSavedQueue()
+    }
+
+    fun toggleQueueLock() {
+        setQueueLocked(!_queueLocked.value)
+    }
+
+    /**
+     * Freezes the current playback queue. A pending pseudo-shuffle is materialized before the
+     * lock is applied, so the queue shown to the user is also the order that will keep playing.
+     */
+    fun setQueueLocked(locked: Boolean) {
+        if (_queueLocked.value == locked) return
+        if (locked) {
+            performPendingShuffleReorder(trigger = "queueLock", seekToNextAfterReorder = false)
+            clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = false)
+        }
+        _queueLocked.value = locked
+        savePlaybackQueue(force = true)
     }
 
     fun playSong(song: Song) {
@@ -1034,8 +1093,9 @@ class ExoPlayerManager(private val context: Context) {
     ) {
         val controller = mediaController ?: return
         val previousShuffle = _shuffleEnabled.value
-        var keepNativeShuffleUntilReorder = pendingShuffleReorder && shuffle
-        if (reorderForShuffleChange) {
+        val queueOrderCanChange = reorderForShuffleChange && !_queueLocked.value
+        var keepNativeShuffleUntilReorder = pendingShuffleReorder && shuffle && !_queueLocked.value
+        if (queueOrderCanChange) {
             if (shuffle) {
                 if (!previousShuffle || playlistBeforeShuffle == null) {
                     keepNativeShuffleUntilReorder = markPendingShuffleReorder()
@@ -1457,6 +1517,7 @@ class ExoPlayerManager(private val context: Context) {
 
     private fun shufflePlaylistKeepingCurrent(): Boolean {
         val controller = mediaController ?: return false
+        if (_queueLocked.value) return false
         if (reorderingPlaylistForShuffle) return false
         if (virtualPlaylistCurrentIndex != null || playlist.size <= 1) return false
         if (playlistBeforeShuffle == null) {
@@ -1499,6 +1560,7 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun markPendingShuffleReorder(): Boolean {
+        if (_queueLocked.value) return false
         if (!shouldDeferShuffleReorder(
                 enableShuffle = true,
                 previousShuffle = false,
@@ -1514,6 +1576,10 @@ class ExoPlayerManager(private val context: Context) {
     }
 
     private fun performPendingShuffleReorder(trigger: String, seekToNextAfterReorder: Boolean): Boolean {
+        if (_queueLocked.value) {
+            clearPendingShuffleReorder(disableNativeShuffle = true, clearOriginalOrder = false)
+            return false
+        }
         val controller = mediaController ?: return false
         when (pendingShuffleReorderAction(
             pending = pendingShuffleReorder,
@@ -1814,6 +1880,7 @@ class ExoPlayerManager(private val context: Context) {
         _currentPosition.value = saved.positionMs.coerceAtLeast(0L)
         _repeatMode.value = saved.repeatMode
         _shuffleEnabled.value = saved.shuffle
+        _queueLocked.value = saved.queueLocked
         persistAppShuffleEnabled(saved.shuffle)
         _playbackSpeed.value = saved.speed
         _playbackPitch.value = saved.pitch
@@ -1829,6 +1896,7 @@ class ExoPlayerManager(private val context: Context) {
         _duration.value = current.duration.coerceAtLeast(0L)
         _repeatMode.value = saved.repeatMode
         _shuffleEnabled.value = saved.shuffle
+        _queueLocked.value = saved.queueLocked
         _playbackSpeed.value = saved.speed.coerceIn(0.5f, 2f)
         _playbackPitch.value = saved.pitch.coerceIn(0.5f, 2f)
     }
@@ -1881,7 +1949,8 @@ class ExoPlayerManager(private val context: Context) {
             repeatMode = controller?.repeatMode ?: _repeatMode.value,
             shuffle = _shuffleEnabled.value,
             speed = controller?.playbackParameters?.speed ?: _playbackSpeed.value,
-            pitch = controller?.playbackParameters?.pitch ?: _playbackPitch.value
+            pitch = controller?.playbackParameters?.pitch ?: _playbackPitch.value,
+            queueLocked = _queueLocked.value
         )
     }
 

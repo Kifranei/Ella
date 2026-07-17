@@ -50,6 +50,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -67,7 +72,42 @@ fun main() = application {
             controller.close()
             exitApplication()
         },
-        title = "Halcyon"
+        title = "Halcyon",
+        onPreviewKeyEvent = { event ->
+            if (event.type != KeyEventType.KeyDown) {
+                false
+            } else {
+                when {
+                    event.key == Key.MediaPlayPause ||
+                        event.isCtrlPressed && event.key == Key.Spacebar -> {
+                        controller.togglePlayback()
+                        true
+                    }
+
+                    event.key == Key.MediaNext -> {
+                        controller.next()
+                        true
+                    }
+
+                    event.key == Key.MediaPrevious -> {
+                        controller.previous()
+                        true
+                    }
+
+                    event.isCtrlPressed && event.key == Key.O -> {
+                        controller.chooseAndAddLibraryRoot()
+                        true
+                    }
+
+                    event.isCtrlPressed && event.key == Key.R -> {
+                        controller.rescan()
+                        true
+                    }
+
+                    else -> false
+                }
+            }
+        }
     ) {
         MaterialTheme {
             HalcyonDesktopApp(controller)
@@ -94,8 +134,8 @@ private fun HalcyonDesktopApp(controller: DesktopController) {
                     OutlinedButton(
                         onClick = controller::chooseAndAddLibraryRoot,
                         modifier = Modifier.padding(end = 8.dp)
-                    ) { Text("Add music folder") }
-                    Button(onClick = controller::rescan, enabled = !controller.isScanning) { Text("Scan") }
+                    ) { Text("Add music folder (Ctrl+O)") }
+                    Button(onClick = controller::rescan, enabled = !controller.isScanning) { Text("Scan (Ctrl+R)") }
                 }
             )
             if (controller.isScanning) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -154,11 +194,18 @@ private fun HalcyonDesktopApp(controller: DesktopController) {
             }
             PlayerBar(
                 state = controller.playback,
+                shuffleEnabled = controller.library.shuffleEnabled,
+                repeatMode = controller.library.repeatMode,
+                volume = controller.library.playbackVolume,
                 onPrevious = controller::previous,
                 onToggle = controller::togglePlayback,
                 onNext = controller::next,
                 onSeek = controller::seekTo,
-                onReveal = controller::revealCurrentSong
+                onReveal = controller::revealCurrentSong,
+                onShuffleChange = controller::setShuffleEnabled,
+                onCycleRepeat = controller::cycleRepeatMode,
+                onVolumeChange = controller::setVolume,
+                onVolumeChangeFinished = controller::persistPlaybackOptions
             )
         }
     }
@@ -459,13 +506,22 @@ private fun LyricsPanel(currentSong: DesktopSong?, currentLyric: DesktopLyricLin
 @Composable
 private fun PlayerBar(
     state: DesktopPlaybackState,
+    shuffleEnabled: Boolean,
+    repeatMode: DesktopRepeatMode,
+    volume: Float,
     onPrevious: () -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
     onSeek: (Long) -> Unit,
-    onReveal: () -> Unit
+    onReveal: () -> Unit,
+    onShuffleChange: (Boolean) -> Unit,
+    onCycleRepeat: () -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    onVolumeChangeFinished: () -> Unit
 ) {
     val song = state.song
+    var isSeeking by remember(song?.id) { mutableStateOf(false) }
+    var pendingPosition by remember(song?.id) { mutableStateOf(0f) }
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -478,10 +534,44 @@ private fun PlayerBar(
                 ElevatedButton(onClick = onToggle) { Text(if (state.isPlaying) "Pause" else "Play") }
                 TextButton(onClick = onNext, enabled = song != null) { Text("Next") }
             }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { onShuffleChange(!shuffleEnabled) }) {
+                    Text(if (shuffleEnabled) "Shuffle: on" else "Shuffle: off")
+                }
+                TextButton(onClick = onCycleRepeat) {
+                    Text("Repeat: ${repeatMode.label}")
+                }
+                Spacer(Modifier.width(12.dp))
+                Text("Volume", style = MaterialTheme.typography.labelMedium)
+                Slider(
+                    value = volume,
+                    onValueChange = onVolumeChange,
+                    onValueChangeFinished = onVolumeChangeFinished,
+                    valueRange = 0f..1f,
+                    modifier = Modifier.width(150.dp)
+                )
+                Text("${(volume * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)
+            }
             val duration = song?.durationMs?.takeIf { it > 0L } ?: 1L
             Slider(
-                value = state.positionMs.coerceIn(0L, duration).toFloat(),
-                onValueChange = { onSeek(it.toLong()) },
+                value = if (isSeeking) {
+                    pendingPosition.coerceIn(0f, duration.toFloat())
+                } else {
+                    state.positionMs.coerceIn(0L, duration).toFloat()
+                },
+                onValueChange = { position ->
+                    isSeeking = true
+                    pendingPosition = position
+                },
+                onValueChangeFinished = {
+                    onSeek(pendingPosition.toLong())
+                    isSeeking = false
+                },
                 valueRange = 0f..duration.toFloat(),
                 enabled = song != null && song.durationMs > 0L,
                 modifier = Modifier.fillMaxWidth()

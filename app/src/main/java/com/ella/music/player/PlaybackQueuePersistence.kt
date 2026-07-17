@@ -15,7 +15,8 @@ internal data class SavedQueue(
     val repeatMode: Int,
     val shuffle: Boolean,
     val speed: Float,
-    val pitch: Float
+    val pitch: Float,
+    val queueLocked: Boolean
 )
 
 internal data class PlaybackStateSnapshot(
@@ -24,7 +25,8 @@ internal data class PlaybackStateSnapshot(
     val repeatMode: Int,
     val shuffle: Boolean,
     val speed: Float,
-    val pitch: Float
+    val pitch: Float,
+    val queueLocked: Boolean
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("index", index)
@@ -33,12 +35,14 @@ internal data class PlaybackStateSnapshot(
         .put("shuffle", shuffle)
         .put("speed", speed)
         .put("pitch", pitch)
+        .put("queueLocked", queueLocked)
 }
 
 internal data class PendingPlaylist(
     val songs: List<Song>,
     val startIndex: Int,
-    val honorShuffle: Boolean = true
+    val honorShuffle: Boolean = true,
+    val resetQueueLock: Boolean = true
 )
 
 internal fun playbackQueueJson(snapshot: PlaybackStateSnapshot, songs: List<Song>): JSONObject =
@@ -49,6 +53,7 @@ internal fun playbackQueueJson(snapshot: PlaybackStateSnapshot, songs: List<Song
         .put("shuffle", snapshot.shuffle)
         .put("speed", snapshot.speed)
         .put("pitch", snapshot.pitch)
+        .put("queueLocked", snapshot.queueLocked)
         .put("songs", JSONArray().apply {
             songs.forEach { song -> put(song.toPlaybackQueueJson()) }
         })
@@ -62,6 +67,7 @@ internal fun parseSavedQueue(rawQueue: String, rawState: String?): SavedQueue? =
         var payloadShuffle = false
         var payloadSpeed = 1f
         var payloadPitch = 1f
+        var payloadQueueLocked = false
         var songs = emptyList<Song>()
         var parsedIndexOffset = 0
 
@@ -75,6 +81,7 @@ internal fun parseSavedQueue(rawQueue: String, rawState: String?): SavedQueue? =
                     "shuffle" -> payloadShuffle = json.nextBooleanSafe()
                     "speed" -> payloadSpeed = json.nextDoubleSafe(1.0).toFloat()
                     "pitch" -> payloadPitch = json.nextDoubleSafe(1.0).toFloat()
+                    "queueLocked" -> payloadQueueLocked = json.nextBooleanSafe()
                     "songs" -> {
                         val targetIndex = state?.optInt("index", payloadIndex) ?: payloadIndex
                         val parsed = json.readPlaybackQueueSongWindow(targetIndex)
@@ -97,7 +104,8 @@ internal fun parseSavedQueue(rawQueue: String, rawState: String?): SavedQueue? =
             repeatMode = state?.optInt("repeatMode", payloadRepeatMode) ?: payloadRepeatMode,
             shuffle = state?.optBoolean("shuffle", payloadShuffle) ?: payloadShuffle,
             speed = (state?.optDouble("speed", payloadSpeed.toDouble()) ?: payloadSpeed.toDouble()).toFloat(),
-            pitch = (state?.optDouble("pitch", payloadPitch.toDouble()) ?: payloadPitch.toDouble()).toFloat()
+            pitch = (state?.optDouble("pitch", payloadPitch.toDouble()) ?: payloadPitch.toDouble()).toFloat(),
+            queueLocked = state?.optBoolean("queueLocked", payloadQueueLocked) ?: payloadQueueLocked
         )
     }.getOrNull()
 

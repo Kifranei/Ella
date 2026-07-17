@@ -1041,6 +1041,8 @@
     <string name="player_playback_mode_in_order">순서대로</string>
     <string name="player_locate_current_song">현재 곡 찾기</string>
     <string name="player_clear_queue">재생 대기열 지우기</string>
+    <string name="player_lock_queue">재생 대기열 잠금</string>
+    <string name="player_unlock_queue">재생 대기열 잠금 해제</string>
     <string name="player_remove_from_queue">재생 대기열에서 제거</string>
     <string name="player_queue_empty">곡 없음</string>
     <string name="player_sleep_timer_title">수면 타이머</string>
@@ -1470,6 +1472,9 @@
     <string name="cover_preview_share">커버 공유</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">커버를 공유하지 못했습니다</string>
+    <string name="cover_preview_save">이미지 저장</string>
+    <string name="cover_preview_saved">이미지가 갤러리에 저장되었습니다</string>
+    <string name="cover_preview_save_failed">이미지를 저장하지 못했습니다</string>
     <string name="player_enable_lyrics_word_lift">가사 단어별 떠오름 켜기</string>
     <string name="player_disable_lyrics_word_lift">가사 단어별 떠오름 끄기</string>
     <string name="lyric_match_format_enhanced_lrc">글자별 ELRC</string>

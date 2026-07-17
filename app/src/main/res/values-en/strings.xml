@@ -1169,6 +1169,8 @@
     <string name="player_playback_mode_in_order">In order</string>
     <string name="player_locate_current_song">Locate current song</string>
     <string name="player_clear_queue">Clear queue</string>
+    <string name="player_lock_queue">Lock queue</string>
+    <string name="player_unlock_queue">Unlock queue</string>
     <string name="player_remove_from_queue">Remove from queue</string>
     <string name="player_queue_empty">No songs</string>
     <string name="player_sleep_timer_title">Sleep timer</string>
@@ -1615,6 +1617,9 @@
     <string name="cover_preview_share">Share cover</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">Couldn\'t share cover</string>
+    <string name="cover_preview_save">Save image</string>
+    <string name="cover_preview_saved">Image saved to gallery</string>
+    <string name="cover_preview_save_failed">Couldn\'t save image</string>
     <string name="lyric_match_format_enhanced_lrc">Word-by-word ELRC</string>
     <string name="lyric_match_format_plain_lrc">Line LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>

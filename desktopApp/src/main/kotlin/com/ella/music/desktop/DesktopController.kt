@@ -20,7 +20,7 @@ class DesktopController(
     }
     private val audio = FfmpegAudioEngine(
         onState = { isPlaying, position -> onUi { updatePlayback(isPlaying = isPlaying, positionMs = position) } },
-        onCompleted = { onUi(::next) },
+        onCompleted = { onUi(::onTrackCompleted) },
         onError = { message -> onUi { updatePlayback(error = message, isPlaying = false) } }
     )
 
@@ -41,6 +41,7 @@ class DesktopController(
         private set
 
     init {
+        audio.setVolume(library.playbackVolume)
         if (library.libraryRoots.isNotEmpty()) rescan()
     }
 
@@ -118,7 +119,11 @@ class DesktopController(
     }
 
     fun play(song: DesktopSong, queue: List<DesktopSong> = visibleSongs) {
-        activeQueue = queue.map(DesktopSong::id).ifEmpty { listOf(song.id) }
+        activeQueue = buildQueue(song, queue)
+        startPlayback(song)
+    }
+
+    private fun startPlayback(song: DesktopSong) {
         selectSongMetadata(song)
         playback = DesktopPlaybackState(song = song, isPlaying = true, positionMs = 0L)
         audio.play(song)
@@ -142,6 +147,27 @@ class DesktopController(
     fun next() = advance(1)
 
     fun previous() = advance(-1)
+
+    fun setShuffleEnabled(enabled: Boolean) {
+        if (library.shuffleEnabled == enabled) return
+        library = library.copy(shuffleEnabled = enabled)
+        persist()
+    }
+
+    fun cycleRepeatMode() {
+        library = library.copy(repeatMode = library.repeatMode.next())
+        persist()
+    }
+
+    /** Applies immediately while dragging; call [persistPlaybackOptions] after the drag settles. */
+    fun setVolume(volume: Float) {
+        val next = volume.coerceIn(0f, 1f)
+        if (library.playbackVolume == next) return
+        library = library.copy(playbackVolume = next)
+        audio.setVolume(next)
+    }
+
+    fun persistPlaybackOptions() = persist()
 
     fun createPlaylist(name: String) {
         val sanitized = name.trim()
@@ -181,14 +207,38 @@ class DesktopController(
         runCatching { if (Desktop.isDesktopSupported()) Desktop.getDesktop().open(parent.toFile()) }
     }
 
-    private fun advance(delta: Int) {
+    private fun advance(delta: Int, stopAtEnd: Boolean = false) {
         val queue = activeQueue.ifEmpty { library.songs.map(DesktopSong::id) }
         if (queue.isEmpty()) return
         val currentIndex = playback.song?.id?.let(queue::indexOf)?.takeIf { it >= 0 } ?: if (delta > 0) -1 else 0
-        val nextId = queue[(currentIndex + delta).floorMod(queue.size)]
+        val requestedIndex = currentIndex + delta
+        if (requestedIndex !in queue.indices && library.repeatMode != DesktopRepeatMode.ALL) {
+            if (delta > 0 && stopAtEnd) {
+                audio.stop()
+                updatePlayback(isPlaying = false)
+            }
+            return
+        }
+        val nextId = queue[requestedIndex.floorMod(queue.size)]
         library.songs.firstOrNull { it.id == nextId }?.let { nextSong ->
-            val songs = queue.mapNotNull { id -> library.songs.firstOrNull { it.id == id } }
-            play(nextSong, songs)
+            startPlayback(nextSong)
+        }
+    }
+
+    private fun onTrackCompleted() {
+        if (library.repeatMode == DesktopRepeatMode.ONE) {
+            playback.song?.let(::startPlayback)
+        } else {
+            advance(1, stopAtEnd = true)
+        }
+    }
+
+    private fun buildQueue(song: DesktopSong, queue: List<DesktopSong>): List<String> {
+        val ids = queue.map(DesktopSong::id).distinct().ifEmpty { listOf(song.id) }
+        if (!library.shuffleEnabled) return ids
+        return buildList {
+            add(song.id)
+            addAll(ids.filterNot { it == song.id }.shuffled())
         }
     }
 

@@ -208,7 +208,7 @@ For daily development, use `assembleDebug` for validation. `fastRelease` / relea
 
 The standalone `desktopApp` module keeps the Android app intact and never reads or changes Android app data. It is built with Compose Desktop and packages the FFmpeg runtime for the current target platform, so users do not need a separate FFmpeg installation.
 
-The desktop client currently provides local-folder scanning, MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE playback, tag and artwork reading, album/artist/genre browsing, search, persistent playlists, sidecar LRC/ELRC/TTML lyrics, and an always-on-top lyrics window.
+The desktop client currently provides local-folder scanning, MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE playback, tag and artwork reading, album/artist/genre browsing, search, persistent playlists, sidecar LRC/ELRC/TTML lyrics, and an always-on-top lyrics window. Shuffle, repeat, and volume are persisted; media keys are supported alongside `Ctrl+Space` for play/pause, `Ctrl+O` for adding a folder, and `Ctrl+R` for scanning.
 
 Windows:
 

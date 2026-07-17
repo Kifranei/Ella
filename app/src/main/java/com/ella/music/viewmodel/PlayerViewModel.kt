@@ -95,6 +95,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val currentPosition: StateFlow<Long> = playerManager.currentPosition
     val duration: StateFlow<Long> = playerManager.duration
     val shuffleEnabled: StateFlow<Boolean> = playerManager.shuffleEnabled
+    val queueLocked: StateFlow<Boolean> = playerManager.queueLocked
     val repeatMode: StateFlow<Int> = playerManager.repeatMode
     val playbackSpeed: StateFlow<Float> = playerManager.playbackSpeed
     val playbackPitch: StateFlow<Float> = playerManager.playbackPitch
@@ -163,7 +164,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     queued
                 }
             }
-            playerManager.setPlaylist(updatedQueue, currentIndex)
+            playerManager.replacePlaylistPreservingQueueLock(updatedQueue, currentIndex)
             playerManager.seekTo(position)
             if (!wasPlaying) playerManager.pause()
         }
@@ -1185,6 +1186,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         resolvedStartSong: Song,
         resolver: suspend (Song) -> Song
     ) {
+        playerManager.setQueueLocked(false)
         lazyOnlineQueueController.setQueue(
             songs = songs,
             startIndex = startIndex,
@@ -1273,6 +1275,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun toggleShuffle() = playerManager.toggleShuffle()
     fun toggleRepeat() = playerManager.toggleRepeat()
+    fun toggleQueueLock() = playerManager.toggleQueueLock()
     fun setShuffleMode(mode: Int) {
         viewModelScope.launch {
             settingsManager.setShuffleMode(mode)
@@ -1315,20 +1318,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun addToPlaylist(song: Song) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.addToPlaylist(song)
     }
     fun addToPlaylist(songs: List<Song>) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.addToPlaylist(songs)
     }
 
     fun playNext(song: Song) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.playNext(song)
     }
 
     fun playNext(songs: List<Song>) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.playNext(songs)
     }
@@ -1368,16 +1375,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun removeFromPlaylist(index: Int) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.removeFromPlaylist(index)
     }
 
     fun movePlaylistItem(fromIndex: Int, toIndex: Int) {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.movePlaylistItem(fromIndex, toIndex)
     }
 
     fun clearPlaylist() {
+        if (queueLocked.value) return
         lazyOnlineQueueController.clear()
         playerManager.clearPlaylist()
     }

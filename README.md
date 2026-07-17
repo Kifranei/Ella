@@ -208,7 +208,7 @@ RELEASE_KEY_PASSWORD
 
 桌面版位于独立的 `desktopApp` 模块，保留 Android 版且不会读取或修改 Android 应用数据。它使用 Compose Desktop，并随安装包带上当前平台的 FFmpeg 运行时；无需用户预先安装 FFmpeg。
 
-当前桌面端提供本地文件夹扫描、MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE 播放、标签和封面读取、按专辑/艺术家/流派浏览、搜索、歌单持久化、LRC/ELRC/TTML 边车歌词和悬浮歌词窗口。
+当前桌面端提供本地文件夹扫描、MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE 播放、标签和封面读取、按专辑/艺术家/流派浏览、搜索、歌单持久化、LRC/ELRC/TTML 边车歌词和悬浮歌词窗口。播放队列的随机、循环和音量会持久保存；支持媒体播放键，以及 `Ctrl+Space` 播放/暂停、`Ctrl+O` 添加文件夹和 `Ctrl+R` 扫描。
 
 Windows：
 

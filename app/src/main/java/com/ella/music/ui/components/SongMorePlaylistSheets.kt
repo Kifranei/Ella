@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import com.ella.music.R
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.model.UserPlaylist
-import com.ella.music.data.tagIdentityKey
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -302,16 +301,16 @@ private fun AddPlaylistChip(
 @Composable
 internal fun ArtistPickerContent(
     artists: List<String>,
+    mainViewModel: com.ella.music.viewmodel.MainViewModel,
     onArtistSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     SongSheetColumn {
-        artists.distinctBy { it.tagIdentityKey() }.forEach { artist ->
-            BasicComponent(
-                title = artist,
-                onClick = { onArtistSelected(artist) }
-            )
-        }
+        ArtistPickerRows(
+            artists = artists,
+            mainViewModel = mainViewModel,
+            onArtistSelected = onArtistSelected
+        )
         BasicComponent(
             title = stringResource(R.string.common_cancel),
             onClick = onDismiss

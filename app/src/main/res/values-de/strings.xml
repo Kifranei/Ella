@@ -1041,6 +1041,8 @@
     <string name="player_playback_mode_in_order">Der Reihe nach</string>
     <string name="player_locate_current_song">Aktuellen Titel finden</string>
     <string name="player_clear_queue">Warteschlange leeren</string>
+    <string name="player_lock_queue">Warteschlange sperren</string>
+    <string name="player_unlock_queue">Warteschlange entsperren</string>
     <string name="player_remove_from_queue">Aus Warteschlange entfernen</string>
     <string name="player_queue_empty">Keine Titel</string>
     <string name="player_sleep_timer_title">Sleep-Timer</string>
@@ -1470,6 +1472,9 @@
     <string name="cover_preview_share">Cover teilen</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">Cover konnte nicht geteilt werden</string>
+    <string name="cover_preview_save">Bild speichern</string>
+    <string name="cover_preview_saved">Bild wurde in der Galerie gespeichert</string>
+    <string name="cover_preview_save_failed">Bild konnte nicht gespeichert werden</string>
     <string name="player_enable_lyrics_word_lift">Wortweises Anheben aktivieren</string>
     <string name="player_disable_lyrics_word_lift">Wortweises Anheben deaktivieren</string>
     <string name="lyric_match_format_enhanced_lrc">Wort-für-Wort-ELRC</string>

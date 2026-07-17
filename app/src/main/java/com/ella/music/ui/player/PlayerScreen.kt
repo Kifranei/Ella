@@ -320,7 +320,10 @@ fun PlayerScreen(
         )
         PlayerSurfaceKeepScreenOnEffect(
             view = view,
-            keepScreenOn = (showLyrics && lyricPageKeepScreenOn) || (isLargeScreenDevice && playerKeepScreenOn)
+            // Player always-on is a page-level choice, not a large-screen-only feature. The
+            // same Activity hosts portrait and landscape player layouts, so this also covers
+            // the landscape player while it is visible.
+            keepScreenOn = (showLyrics && lyricPageKeepScreenOn) || playerKeepScreenOn
         )
     }
 
@@ -617,7 +620,7 @@ fun PlayerScreen(
                         playerShowTotalDuration = playerShowTotalDuration,
                         coverSwipeEnabled = coverSwipeEnabled,
                         playerTitlePosition = playerTitlePosition,
-                        showPlayerKeepScreenOnAction = isLargeScreenDevice,
+                        showPlayerKeepScreenOnAction = true,
                         playerKeepScreenOn = playerKeepScreenOn,
                         menuExpanded = uiState.menuExpanded,
                         onMenuExpandedChange = { uiState.menuExpanded = it },

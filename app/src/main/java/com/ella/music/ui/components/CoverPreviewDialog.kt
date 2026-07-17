@@ -1,16 +1,20 @@
 package com.ella.music.ui.components
 
 import android.content.ClipData
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -81,9 +87,15 @@ internal fun CoverPreviewDialog(
     var offset by remember(model) { mutableStateOf(Offset.Zero) }
     var resolution by remember(model) { mutableStateOf<CoverResolution?>(null) }
     var viewportSize by remember(model) { mutableStateOf(ComposeIntSize.Zero) }
+    var doubleTapTargetScale by remember(model) { mutableFloatStateOf(1f) }
+    var doubleTapTargetOffset by remember(model) { mutableStateOf(Offset.Zero) }
+    var doubleTapRequest by remember(model) { mutableIntStateOf(0) }
     val transformState = rememberTransformableState { centroid, zoomChange, panChange, _ ->
         val previousScale = scale
-        val nextScale = (previousScale * zoomChange).coerceIn(COVER_MIN_SCALE, COVER_MAX_SCALE)
+        val nextScale = (previousScale * zoomChange).coerceIn(
+            COVER_MIN_SCALE,
+            COVER_GESTURE_MAX_SCALE
+        )
         val viewportCenter = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
         val focalPoint = centroid.takeIf { it != Offset.Unspecified } ?: viewportCenter
         val scaleRatio = nextScale / previousScale
@@ -103,29 +115,67 @@ internal fun CoverPreviewDialog(
         snapshotFlow { transformState.isTransformInProgress }
             .distinctUntilChanged()
             .collectLatest { transforming ->
-                if (!transforming && scale < 1f) {
+                val settledScale = when {
+                    scale < 1f -> 1f
+                    scale > COVER_MAX_SCALE -> COVER_MAX_SCALE
+                    else -> null
+                }
+                if (!transforming && settledScale != null) {
                     val initialScale = scale
-                    animate(
-                        initialValue = initialScale,
-                        targetValue = 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow
-                        )
-                    ) { value, _ ->
-                        scale = value
-                        offset = offset.coerceWithin(
+                    val initialOffset = offset
+                    val settledOffset = if (settledScale <= 1f) {
+                        Offset.Zero
+                    } else {
+                        initialOffset.coerceWithin(
                             coverPreviewPanBounds(
                                 resolution = resolution,
                                 viewportSize = viewportSize,
-                                scale = value
+                                scale = settledScale
                             )
                         )
                     }
-                    scale = 1f
-                    offset = Offset.Zero
+                    animateCoverTransform(
+                        initialScale = initialScale,
+                        targetScale = settledScale,
+                        initialOffset = initialOffset,
+                        targetOffset = settledOffset
+                    ) { animatedScale, animatedOffset ->
+                        scale = animatedScale
+                        offset = animatedOffset.coerceWithin(
+                            coverPreviewPanBounds(
+                                resolution = resolution,
+                                viewportSize = viewportSize,
+                                scale = animatedScale
+                            )
+                        )
+                    }
+                    scale = settledScale
+                    offset = settledOffset
                 }
             }
+    }
+
+    LaunchedEffect(doubleTapRequest) {
+        if (doubleTapRequest == 0) return@LaunchedEffect
+        val initialScale = scale
+        val initialOffset = offset
+        animateCoverTransform(
+            initialScale = initialScale,
+            targetScale = doubleTapTargetScale,
+            initialOffset = initialOffset,
+            targetOffset = doubleTapTargetOffset
+        ) { animatedScale, animatedOffset ->
+            scale = animatedScale
+            offset = animatedOffset.coerceWithin(
+                coverPreviewPanBounds(
+                    resolution = resolution,
+                    viewportSize = viewportSize,
+                    scale = animatedScale
+                )
+            )
+        }
+        scale = doubleTapTargetScale
+        offset = doubleTapTargetOffset
     }
     val controlsVisible = scale <= 1.01f
 
@@ -167,6 +217,37 @@ internal fun CoverPreviewDialog(
                         // only after the cover has actually been enlarged.
                         canPan = { scale > 1f }
                     )
+                    .pointerInput(model, viewportSize, resolution) {
+                        detectTapGestures(
+                            onDoubleTap = { tapPosition ->
+                                val targetScale = if (scale > 1.01f) {
+                                    1f
+                                } else {
+                                    COVER_DOUBLE_TAP_SCALE
+                                }
+                                val targetOffset = if (targetScale <= 1f) {
+                                    Offset.Zero
+                                } else {
+                                    coverPreviewZoomOffsetForFocalPoint(
+                                        currentOffset = offset,
+                                        currentScale = scale,
+                                        targetScale = targetScale,
+                                        focalPoint = tapPosition,
+                                        viewportSize = viewportSize
+                                    ).coerceWithin(
+                                        coverPreviewPanBounds(
+                                            resolution = resolution,
+                                            viewportSize = viewportSize,
+                                            scale = targetScale
+                                        )
+                                    )
+                                }
+                                doubleTapTargetScale = targetScale
+                                doubleTapTargetOffset = targetOffset
+                                doubleTapRequest++
+                            }
+                        )
+                    }
             )
 
             if (controlsVisible) {
@@ -199,22 +280,42 @@ internal fun CoverPreviewDialog(
                                 .weight(1f)
                                 .padding(horizontal = 16.dp)
                         )
-                        CoverPreviewAction(
-                            text = "↗",
-                            contentDescription = stringResource(R.string.cover_preview_share),
-                            onClick = {
-                                scope.launch {
-                                    val shared = writeAndShareCover(context, model, title)
-                                    if (!shared) {
+                        Row {
+                            CoverPreviewAction(
+                                text = "↓",
+                                contentDescription = stringResource(R.string.cover_preview_save),
+                                onClick = {
+                                    scope.launch {
+                                        val saved = saveCoverToPictures(context, model, title)
                                         Toast.makeText(
                                             context,
-                                            context.getString(R.string.cover_preview_share_failed),
+                                            context.getString(
+                                                if (saved) R.string.cover_preview_saved
+                                                else R.string.cover_preview_save_failed
+                                            ),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
                                 }
-                            }
-                        )
+                            )
+                            Spacer(modifier = Modifier.size(8.dp))
+                            CoverPreviewAction(
+                                text = "↗",
+                                contentDescription = stringResource(R.string.cover_preview_share),
+                                onClick = {
+                                    scope.launch {
+                                        val shared = writeAndShareCover(context, model, title)
+                                        if (!shared) {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.cover_preview_share_failed),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                     resolution?.takeIf { it.width > 0 && it.height > 0 }?.let { size ->
                         Text(
@@ -267,14 +368,7 @@ private suspend fun writeAndShareCover(context: Context, model: Any, title: Stri
         // Coil may hand us the same Bitmap object that is currently rendered by the preview/player.
         // Sharing must only recycle a private copy; recycling the source made the preview black and
         // could later crash the player when it attempted to reuse its cover.
-        val sharedBitmap = withContext(Dispatchers.IO) {
-            val source = (model as? Bitmap) ?: context.imageLoader.execute(
-                ImageRequest.Builder(context)
-                    .data(model)
-                    .build()
-            ).image?.toBitmap()
-            source?.copy(Bitmap.Config.ARGB_8888, false)
-        } ?: return false
+        val sharedBitmap = loadCoverBitmapCopy(context, model) ?: return false
         val uri = withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "cover_share").apply { mkdirs() }
             // Keep existing files valid while a target app is still reading their content URI.
@@ -303,6 +397,56 @@ private suspend fun writeAndShareCover(context: Context, model: Any, title: Stri
         true
     }.getOrElse { false }
 }
+
+private suspend fun saveCoverToPictures(context: Context, model: Any, title: String): Boolean {
+    val bitmap = loadCoverBitmapCopy(context, model) ?: return false
+    return withContext(Dispatchers.IO) {
+        var uri: Uri? = null
+        try {
+            val safeTitle = title
+                .ifBlank { "cover" }
+                .replace(Regex("""[\\/:*?\"<>|]"""), "_")
+                .take(80)
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "Halcyon_$safeTitle.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}${File.separator}Halcyon"
+                )
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+            uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return@withContext false
+            val output = context.contentResolver.openOutputStream(uri)
+                ?: error("Unable to open the saved cover output stream")
+            output.use { stream ->
+                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                    "Unable to encode cover image"
+                }
+            }
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            context.contentResolver.update(uri, values, null, null)
+            true
+        } catch (_: Throwable) {
+            uri?.let { context.contentResolver.delete(it, null, null) }
+            false
+        } finally {
+            bitmap.recycle()
+        }
+    }
+}
+
+private suspend fun loadCoverBitmapCopy(context: Context, model: Any): Bitmap? =
+    withContext(Dispatchers.IO) {
+        val source = (model as? Bitmap) ?: context.imageLoader.execute(
+            ImageRequest.Builder(context)
+                .data(model)
+                .build()
+        ).image?.toBitmap()
+        source?.copy(Bitmap.Config.ARGB_8888, false)
+    }
 
 private fun coverPreviewPanBounds(
     resolution: CoverResolution?,
@@ -338,8 +482,55 @@ private fun Offset.coerceWithin(bounds: Offset): Offset = Offset(
     y = y.coerceIn(-bounds.y, bounds.y)
 )
 
+private fun coverPreviewZoomOffsetForFocalPoint(
+    currentOffset: Offset,
+    currentScale: Float,
+    targetScale: Float,
+    focalPoint: Offset,
+    viewportSize: ComposeIntSize
+): Offset {
+    if (currentScale <= 0f) return currentOffset
+    val center = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
+    val focalOffset = focalPoint - center
+    val scaleRatio = targetScale / currentScale
+    return (currentOffset + focalOffset) * scaleRatio - focalOffset
+}
+
+private suspend fun animateCoverTransform(
+    initialScale: Float,
+    targetScale: Float,
+    initialOffset: Offset,
+    targetOffset: Offset,
+    onFrame: (scale: Float, offset: Offset) -> Unit
+) {
+    if (initialScale == targetScale) {
+        onFrame(targetScale, targetOffset)
+        return
+    }
+    animate(
+        initialValue = initialScale,
+        targetValue = targetScale,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    ) { animatedScale, _ ->
+        val progress = ((animatedScale - initialScale) / (targetScale - initialScale))
+            .coerceIn(0f, 1f)
+        onFrame(
+            animatedScale,
+            Offset(
+                x = initialOffset.x + (targetOffset.x - initialOffset.x) * progress,
+                y = initialOffset.y + (targetOffset.y - initialOffset.y) * progress
+            )
+        )
+    }
+}
+
 private data class CoverResolution(val width: Int, val height: Int)
 
 private const val COVER_MIN_SCALE = 0.82f
-private const val COVER_MAX_SCALE = 4f
+private const val COVER_MAX_SCALE = 6f
+private const val COVER_GESTURE_MAX_SCALE = 6.75f
+private const val COVER_DOUBLE_TAP_SCALE = COVER_MAX_SCALE
 private const val COVER_SHARE_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L

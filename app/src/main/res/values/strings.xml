@@ -95,7 +95,7 @@
     <string name="common_unfavorite">取消收藏</string>
     <string name="common_unknown">未知</string>
     <string name="common_all">全部</string>
-    <string name="common_select_artist">选择歌手</string>
+    <string name="common_select_artist">选择艺术家</string>
     <string name="common_add_to_queue">添加到队列</string>
     <string name="common_pin_to_top">置顶</string>
     <string name="common_unpin">取消置顶</string>
@@ -1293,6 +1293,8 @@
     <string name="player_playback_mode_in_order">顺序播放</string>
     <string name="player_locate_current_song">定位当前歌曲</string>
     <string name="player_clear_queue">清空播放列表</string>
+    <string name="player_lock_queue">锁定播放列表</string>
+    <string name="player_unlock_queue">解除播放列表锁定</string>
     <string name="player_remove_from_queue">从播放列表移除</string>
     <string name="player_queue_empty">暂无歌曲</string>
     <string name="player_sleep_timer_title">定时关闭</string>
@@ -1415,7 +1417,7 @@
     <string name="song_more_added_to_queue">已添加到播放队列</string>
     <string name="song_more_no_artist_jump">这首歌没有可跳转的歌手信息</string>
     <string name="song_more_no_album_jump">这首歌没有可跳转的专辑信息</string>
-    <string name="song_more_select_artist">选择歌手</string>
+    <string name="song_more_select_artist">选择艺术家</string>
     <string name="song_more_add_to_playlist_title">添加到歌单</string>
     <string name="song_more_remove_from_playlist_message">确定要从当前歌单移除《%1$s》吗？不会删除本地文件。</string>
     <string name="song_more_delete_song_title">永久删除歌曲</string>
@@ -1736,6 +1738,9 @@
     <string name="cover_preview_share">分享封面</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">封面分享失败</string>
+    <string name="cover_preview_save">保存图片</string>
+    <string name="cover_preview_saved">图片已保存到系统相册</string>
+    <string name="cover_preview_save_failed">保存图片失败</string>
     <string name="settings_player_bg_theme">播放页背景</string>
 
     <!-- Shown by MIUI/HyperOS in the uninstall confirmation dialog (an easter egg). -->

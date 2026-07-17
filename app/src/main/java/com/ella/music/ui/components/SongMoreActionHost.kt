@@ -305,6 +305,7 @@ fun SongMoreActionHost(
         ) {
             ArtistPickerContent(
                 artists = artistChoices,
+                mainViewModel = mainViewModel,
                 onArtistSelected = { artist ->
                     artistChoices = emptyList()
                     onNavigateToArtist(artist)

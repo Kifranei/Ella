@@ -892,6 +892,7 @@ fun LibraryScreen(
             ) {
                 ArtistPickerSheet(
                     artists = artistChoices,
+                    mainViewModel = mainViewModel,
                     onArtistSelected = { artist ->
                         artistChoices = emptyList()
                         onNavigateToArtist(artist)

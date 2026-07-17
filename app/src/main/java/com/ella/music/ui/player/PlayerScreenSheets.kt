@@ -73,6 +73,7 @@ internal fun PlayerScreenSheetHost(
         ) {
             ArtistPickerSheet(
                 artists = artistChoices,
+                mainViewModel = mainViewModel,
                 onArtistSelected = { artist ->
                     onArtistChoicesChange(emptyList())
                     onNavigateToArtist(artist)

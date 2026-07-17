@@ -14,7 +14,10 @@ class DesktopLibraryStoreTest {
                 libraryRoots = listOf("/music"),
                 songs = listOf(DesktopSong(id = "song", path = "/music/song.flac", title = "Song")),
                 playlists = listOf(DesktopPlaylist(id = "playlist", name = "Favorites", songIds = listOf("song"))),
-                floatingLyricsEnabled = true
+                floatingLyricsEnabled = true,
+                shuffleEnabled = true,
+                repeatMode = DesktopRepeatMode.ONE,
+                playbackVolume = 0.65f
             )
 
             DesktopLibraryStore(stateFile).save(expected)
@@ -24,5 +27,12 @@ class DesktopLibraryStoreTest {
             Files.deleteIfExists(stateFile)
             Files.deleteIfExists(directory)
         }
+    }
+
+    @Test
+    fun `cycles repeat mode through all supported choices`() {
+        assertEquals(DesktopRepeatMode.ALL, DesktopRepeatMode.OFF.next())
+        assertEquals(DesktopRepeatMode.ONE, DesktopRepeatMode.ALL.next())
+        assertEquals(DesktopRepeatMode.OFF, DesktopRepeatMode.ONE.next())
     }
 }

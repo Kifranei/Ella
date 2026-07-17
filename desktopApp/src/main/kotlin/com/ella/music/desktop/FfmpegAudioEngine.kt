@@ -24,21 +24,28 @@ class FfmpegAudioEngine(
     }
     private val gate = Object()
     private val requestedSeekMs = AtomicLong(NO_SEEK_REQUEST)
+    private val playbackGeneration = AtomicLong(0L)
 
     @Volatile private var stopRequested = false
     @Volatile private var paused = false
     @Volatile private var outputLine: SourceDataLine? = null
     @Volatile private var currentSongId: String? = null
     @Volatile private var lastReportedPositionMs = 0L
+    @Volatile private var volume = 1f
 
     fun play(song: DesktopSong, startPositionMs: Long = 0L) {
         stop()
+        val generation = playbackGeneration.incrementAndGet()
         currentSongId = song.id
         stopRequested = false
         paused = false
         lastReportedPositionMs = startPositionMs.coerceAtLeast(0L)
         requestedSeekMs.set(lastReportedPositionMs)
-        executor.execute { runPlayback(song) }
+        executor.execute { runPlayback(song, generation) }
+    }
+
+    fun setVolume(value: Float) {
+        volume = value.coerceIn(0f, 1f)
     }
 
     fun pause() {
@@ -51,6 +58,7 @@ class FfmpegAudioEngine(
         if (currentSongId == null) return
         paused = false
         outputLine?.start()
+        onState(true, lastReportedPositionMs)
         synchronized(gate) { gate.notifyAll() }
     }
 
@@ -60,6 +68,7 @@ class FfmpegAudioEngine(
     }
 
     fun stop() {
+        playbackGeneration.incrementAndGet()
         stopRequested = true
         paused = false
         outputLine?.let { line ->
@@ -76,10 +85,11 @@ class FfmpegAudioEngine(
         executor.shutdownNow()
     }
 
-    private fun runPlayback(song: DesktopSong) {
+    private fun runPlayback(song: DesktopSong, generation: Long) {
         var grabber: FFmpegFrameGrabber? = null
         var line: SourceDataLine? = null
-        var lastPositionMs = 0L
+        var lastPositionMs = lastReportedPositionMs
+        var lastUiUpdateMs = Long.MIN_VALUE
         try {
             grabber = FFmpegFrameGrabber(song.path).apply {
                 audioChannels = 2
@@ -94,11 +104,12 @@ class FfmpegAudioEngine(
                 start()
             }
             outputLine = line
-            onState(true, 0L)
+            onState(true, lastPositionMs)
+            lastUiUpdateMs = lastPositionMs
 
-            while (!stopRequested && currentSongId == song.id) {
+            while (isCurrentPlayback(song, generation)) {
                 awaitIfPaused(lastPositionMs)
-                if (stopRequested || currentSongId != song.id) break
+                if (!isCurrentPlayback(song, generation)) break
 
                 val seek = requestedSeekMs.getAndSet(NO_SEEK_REQUEST)
                 if (seek != NO_SEEK_REQUEST) {
@@ -106,23 +117,28 @@ class FfmpegAudioEngine(
                     line.flush()
                     lastPositionMs = seek
                     lastReportedPositionMs = seek
+                    onState(!paused, seek)
+                    lastUiUpdateMs = seek
                 }
 
                 val frame = grabber.grabSamples() ?: break
                 val samples = frame.samples?.firstOrNull() as? ShortBuffer ?: continue
-                val bytes = samples.asLittleEndianBytes()
+                val bytes = samples.asLittleEndianBytes(volume)
                 if (bytes.isNotEmpty()) line.write(bytes, 0, bytes.size)
                 lastPositionMs = (grabber.timestamp / 1_000L).coerceAtLeast(0L)
                 lastReportedPositionMs = lastPositionMs
-                onState(!paused, lastPositionMs)
+                if (lastPositionMs - lastUiUpdateMs >= PLAYBACK_STATE_INTERVAL_MS) {
+                    onState(!paused, lastPositionMs)
+                    lastUiUpdateMs = lastPositionMs
+                }
             }
 
-            if (!stopRequested && currentSongId == song.id) {
+            if (isCurrentPlayback(song, generation)) {
                 line.drain()
-                onCompleted()
+                if (isCurrentPlayback(song, generation)) onCompleted()
             }
         } catch (error: Throwable) {
-            if (!stopRequested && currentSongId == song.id) {
+            if (isCurrentPlayback(song, generation)) {
                 onError("Unable to play ${song.title}: ${error.message ?: error.javaClass.simpleName}")
             }
         } finally {
@@ -143,12 +159,17 @@ class FfmpegAudioEngine(
         }
     }
 
-    private fun ShortBuffer.asLittleEndianBytes(): ByteArray {
+    private fun isCurrentPlayback(song: DesktopSong, generation: Long): Boolean =
+        !stopRequested && currentSongId == song.id && playbackGeneration.get() == generation
+
+    private fun ShortBuffer.asLittleEndianBytes(volume: Float): ByteArray {
         val source = duplicate()
         val bytes = ByteArray(source.remaining() * 2)
         var index = 0
+        val gain = volume.coerceIn(0f, 1f)
         while (source.hasRemaining()) {
-            val sample = source.get().toInt()
+            val sample = (source.get().toInt() * gain).toInt()
+                .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
             bytes[index++] = (sample and 0xFF).toByte()
             bytes[index++] = ((sample ushr 8) and 0xFF).toByte()
         }
@@ -157,5 +178,6 @@ class FfmpegAudioEngine(
 
     private companion object {
         const val NO_SEEK_REQUEST = Long.MIN_VALUE
+        const val PLAYBACK_STATE_INTERVAL_MS = 80L
     }
 }

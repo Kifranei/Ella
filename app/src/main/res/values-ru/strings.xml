@@ -1039,6 +1039,8 @@
     <string name="player_playback_mode_in_order">В порядке</string>
     <string name="player_locate_current_song">Найти текущую песню</string>
     <string name="player_clear_queue">Очистить очередь</string>
+    <string name="player_lock_queue">Заблокировать очередь</string>
+    <string name="player_unlock_queue">Разблокировать очередь</string>
     <string name="player_remove_from_queue">Удалить из очереди</string>
     <string name="player_queue_empty">Нет песен</string>
     <string name="player_sleep_timer_title">Таймер сна</string>
@@ -1457,6 +1459,9 @@
     <string name="cover_preview_share">Поделиться обложкой</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">Не удалось поделиться обложкой</string>
+    <string name="cover_preview_save">Сохранить изображение</string>
+    <string name="cover_preview_saved">Изображение сохранено в галерею</string>
+    <string name="cover_preview_save_failed">Не удалось сохранить изображение</string>
     <string name="player_enable_lyrics_word_lift">Включить подъём слов текста</string>
     <string name="player_disable_lyrics_word_lift">Выключить подъём слов текста</string>
     <string name="lyric_match_format_enhanced_lrc">Поэлементный ELRC</string>

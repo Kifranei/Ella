@@ -1061,6 +1061,8 @@
     <string name="player_playback_mode_in_order">依序播放</string>
     <string name="player_locate_current_song">定位目前歌曲</string>
     <string name="player_clear_queue">清空播放佇列</string>
+    <string name="player_lock_queue">鎖定播放佇列</string>
+    <string name="player_unlock_queue">解除播放佇列鎖定</string>
     <string name="player_remove_from_queue">從播放佇列移除</string>
     <string name="player_queue_empty">沒有歌曲</string>
     <string name="player_sleep_timer_title">睡眠計時器</string>
@@ -1491,6 +1493,9 @@
     <string name="cover_preview_share">分享封面</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
     <string name="cover_preview_share_failed">封面分享失敗</string>
+    <string name="cover_preview_save">儲存圖片</string>
+    <string name="cover_preview_saved">圖片已儲存至相簿</string>
+    <string name="cover_preview_save_failed">儲存圖片失敗</string>
     <string name="player_enable_lyrics_word_lift">開啟歌詞逐詞上浮</string>
     <string name="player_disable_lyrics_word_lift">關閉歌詞逐詞上浮</string>
     <string name="lyric_match_format_enhanced_lrc">逐字 ELRC</string>

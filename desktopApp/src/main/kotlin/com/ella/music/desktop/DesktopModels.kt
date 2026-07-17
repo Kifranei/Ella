@@ -51,8 +51,25 @@ data class DesktopLibraryState(
     val libraryRoots: List<String> = emptyList(),
     val songs: List<DesktopSong> = emptyList(),
     val playlists: List<DesktopPlaylist> = emptyList(),
-    val floatingLyricsEnabled: Boolean = false
+    val floatingLyricsEnabled: Boolean = false,
+    // Preserve the desktop player's old continuous-queue behavior while making it configurable.
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: DesktopRepeatMode = DesktopRepeatMode.ALL,
+    val playbackVolume: Float = 1f
 )
+
+@Serializable
+enum class DesktopRepeatMode(val label: String) {
+    OFF("Off"),
+    ALL("All"),
+    ONE("One");
+
+    fun next(): DesktopRepeatMode = when (this) {
+        OFF -> ALL
+        ALL -> ONE
+        ONE -> OFF
+    }
+}
 
 enum class DesktopSection(val label: String) {
     LIBRARY("Library"),
