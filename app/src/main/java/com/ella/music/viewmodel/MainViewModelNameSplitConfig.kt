@@ -4,40 +4,45 @@ import com.ella.music.data.NameSplitConfigStore
 import com.ella.music.data.SettingsManager
 import com.ella.music.data.parseNameSplitSetting
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 internal fun CoroutineScope.launchNameSplitConfigObservers(
     settingsManager: SettingsManager,
-    onConfigChanged: () -> Unit
+    onNameSplitConfigChanged: () -> Unit,
+    onAlbumIdentityConfigChanged: suspend () -> Unit
 ) {
     launch {
-        settingsManager.artistSeparators.collect {
+        settingsManager.artistSeparators.distinctUntilChanged().collect {
             NameSplitConfigStore.artistCustomSeparators = parseNameSplitSetting(it)
-            onConfigChanged()
+            onNameSplitConfigChanged()
         }
     }
     launch {
-        settingsManager.artistProtectedNames.collect {
+        settingsManager.artistProtectedNames.distinctUntilChanged().collect {
             NameSplitConfigStore.artistProtectedNames = parseNameSplitSetting(it)
-            onConfigChanged()
+            onNameSplitConfigChanged()
         }
     }
     launch {
-        settingsManager.genreSeparators.collect {
+        settingsManager.genreSeparators.distinctUntilChanged().collect {
             NameSplitConfigStore.genreCustomSeparators = parseNameSplitSetting(it)
-            onConfigChanged()
+            onNameSplitConfigChanged()
         }
     }
     launch {
-        settingsManager.genreProtectedNames.collect {
+        settingsManager.genreProtectedNames.distinctUntilChanged().collect {
             NameSplitConfigStore.genreProtectedNames = parseNameSplitSetting(it)
-            onConfigChanged()
+            onNameSplitConfigChanged()
         }
     }
     launch {
-        settingsManager.tagIgnoreCase.collect {
+        settingsManager.tagIgnoreCase.distinctUntilChanged().collect {
             NameSplitConfigStore.tagIgnoreCase = it
-            onConfigChanged()
+            onNameSplitConfigChanged()
+            // Album identity is the only derived library model affected by this setting.
+            // Do not re-aggregate the entire library for unrelated preference writes.
+            onAlbumIdentityConfigChanged()
         }
     }
 }

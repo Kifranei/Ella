@@ -1261,8 +1261,12 @@ class MusicRepository(private val context: Context) {
     }
 
     /** Rebuilds album identities after a grouping rule changes without scanning media again. */
-    fun rebuildAlbumAggregation() {
-        _albums.value = _songs.value.toAlbums()
+    suspend fun rebuildAlbumAggregation() {
+        val currentSongs = _songs.value
+        val rebuiltAlbums = withContext(Dispatchers.Default) {
+            currentSongs.toAlbums()
+        }
+        _albums.value = rebuiltAlbums
     }
 
     fun clearCache() {

@@ -443,9 +443,24 @@ fun AlbumScreen(
             // reset to the top every time the user leaves and returns to the album grid, which
             // reads as "the page refreshed".
             val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+            // The pin list is restored asynchronously from DataStore. Lazy grids preserve the
+            // old first-item key while the list is reordered, leaving newly restored pins above
+            // the viewport until the user scrolls. On a fresh album-page entry, explicitly
+            // anchor the first resolved pinned ordering at index zero.
+            var needsInitialPinnedPosition by remember { mutableStateOf(true) }
             var fastScrollJob by remember { mutableStateOf<Job?>(null) }
             LaunchedEffect(scrollToTopRequest) {
                 if (scrollToTopRequest > 0) gridState.animateScrollToItem(0)
+            }
+            LaunchedEffect(pinnedAlbumKeys, sortedAlbums.size) {
+                if (
+                    needsInitialPinnedPosition &&
+                    pinnedAlbumKeys.isNotEmpty() &&
+                    sortedAlbums.isNotEmpty()
+                ) {
+                    gridState.scrollToItem(0)
+                    needsInitialPinnedPosition = false
+                }
             }
             val fastIndexLetters = remember(sortedAlbums, sortMode) {
                 sortedAlbums.map { it.indexLetter(sortMode) }

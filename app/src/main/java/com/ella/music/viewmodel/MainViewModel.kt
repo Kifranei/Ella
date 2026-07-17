@@ -105,10 +105,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val metadataCategoryItemsCache = ConcurrentHashMap<String, MetadataCategoryItemsCacheEntry>()
 
     init {
-        viewModelScope.launchNameSplitConfigObservers(settingsManager) {
-            metadataCategoryItemsCache.clear()
-            repository.rebuildAlbumAggregation()
-        }
+        viewModelScope.launchNameSplitConfigObservers(
+            settingsManager = settingsManager,
+            onNameSplitConfigChanged = { metadataCategoryItemsCache.clear() },
+            onAlbumIdentityConfigChanged = { repository.rebuildAlbumAggregation() }
+        )
         // Start restoring the persisted library before the first composition. Previously the
         // activity waited for a post-frame LaunchedEffect, so every cold start rendered empty
         // collections once and then visibly rebuilt them from cache.
