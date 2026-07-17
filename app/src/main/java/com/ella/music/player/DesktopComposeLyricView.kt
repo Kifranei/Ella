@@ -77,6 +77,14 @@ internal class DesktopComposeLyricView(context: Context) : FrameLayout(context) 
         )
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        // A WindowManager overlay is rooted in the service's LinearLayout rather than an
+        // Activity decor view. Compose resolves its recomposer from that root, so setting the
+        // owner only on this FrameLayout is not sufficient on every ROM.
+        rootView.setViewTreeLifecycleOwner(composeLifecycleOwner)
+    }
+
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean = true
 
     override fun onTouchEvent(event: MotionEvent): Boolean =

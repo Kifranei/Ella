@@ -1732,8 +1732,6 @@
     <string name="lyric_match_remote_not_supported">在线歌曲暂不支持写入歌词</string>
     <string name="settings_hide_system_bars">隐藏状态栏和导航栏</string>
     <string name="settings_hide_system_bars_summary">进入全屏沉浸，隐藏系统状态栏与导航栏，适合车机等场景</string>
-    <string name="settings_predictive_back">预测性返回动画</string>
-    <string name="settings_predictive_back_summary">在播放页使用跟手返回动画；Android 13/14 还需在系统开发者选项中启用预测性返回动画</string>
     <string name="cover_preview_back">返回</string>
     <string name="cover_preview_share">分享封面</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>

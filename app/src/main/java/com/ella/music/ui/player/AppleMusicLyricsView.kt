@@ -602,7 +602,12 @@ private fun TimedLyricText(
     statusBarMarquee: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val timedWords = remember(text, words) { words.toAppleMusicRenderWords(text) }
+    // TTML may encode the blank before a word as part of that word. Move it to the prior
+    // karaoke unit before wrapping so every v1 line, including wrapped continuations, starts
+    // at the same left edge. Right-aligned v2 rows are visually tolerant of this, but v1 is not.
+    val timedWords = remember(text, words) {
+        words.moveLeadingSpacesToPreviousWord().toAppleMusicRenderWords(text)
+    }
     if (timedWords.isEmpty()) {
         BasicText(
             text = text,

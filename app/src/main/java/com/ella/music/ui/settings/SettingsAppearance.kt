@@ -62,7 +62,6 @@ internal fun SettingsAppearanceSection(
         initial = SettingsManager.DEFAULT_BOTTOM_DOCK_ITEMS.split(',')
     )
     val hideSystemBars by settingsManager.hideSystemBars.collectAsState(initial = false)
-    val predictiveBackEnabled by settingsManager.predictiveBackEnabled.collectAsState(initial = true)
     val startupPosterEnabled by settingsManager.startupPosterEnabled.collectAsState(initial = false)
     val startupPosterUri by settingsManager.startupPosterUri.collectAsState(initial = "")
     val appWallpaperEnabled by settingsManager.appWallpaperEnabled.collectAsState(initial = false)
@@ -372,14 +371,6 @@ internal fun SettingsAppearanceSection(
                 checked = hideSystemBars,
                 onCheckedChange = {
                     scope.launch { settingsManager.setHideSystemBars(it) }
-                }
-            )
-            SwitchPreference(
-                title = stringResource(R.string.settings_predictive_back),
-                summary = stringResource(R.string.settings_predictive_back_summary),
-                checked = predictiveBackEnabled,
-                onCheckedChange = {
-                    scope.launch { settingsManager.setPredictiveBackEnabled(it) }
                 }
             )
             SwitchPreference(

@@ -168,7 +168,6 @@ class SettingsManager(private val context: Context) {
         val KEY_PLAYER_HDR_GLOW = booleanPreferencesKey("player_hdr_glow")
         val KEY_PLAYER_IMMERSIVE_COVER = booleanPreferencesKey("player_immersive_cover")
         val KEY_HIDE_SYSTEM_BARS = booleanPreferencesKey("hide_system_bars")
-        val KEY_PREDICTIVE_BACK_ENABLED = booleanPreferencesKey("predictive_back_enabled")
         val KEY_PLAYER_DYNAMIC_FLOW_ENABLED = booleanPreferencesKey("player_dynamic_flow_enabled")
         val KEY_AUDIO_VISUALIZER_ENABLED = booleanPreferencesKey("audio_visualizer_enabled")
         val KEY_AUDIO_VISUALIZER_OPACITY = intPreferencesKey("audio_visualizer_opacity")
@@ -796,9 +795,6 @@ class SettingsManager(private val context: Context) {
 
     val hideSystemBars: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_HIDE_SYSTEM_BARS] ?: false }
-    /** Enables the app's interactive player-dismiss handler for Android predictive back. */
-    val predictiveBackEnabled: Flow<Boolean> =
-        context.dataStore.data.map { it[KEY_PREDICTIVE_BACK_ENABLED] ?: true }
     val playerDynamicFlowEnabled: Flow<Boolean> =
         context.dataStore.data.map { it[KEY_PLAYER_DYNAMIC_FLOW_ENABLED] ?: false }
     val audioVisualizerEnabled: Flow<Boolean> =
@@ -1499,10 +1495,6 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setHideSystemBars(enabled: Boolean) {
         context.dataStore.edit { it[KEY_HIDE_SYSTEM_BARS] = enabled }
-    }
-
-    suspend fun setPredictiveBackEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[KEY_PREDICTIVE_BACK_ENABLED] = enabled }
     }
 
     suspend fun setPlayerDynamicFlowEnabled(enabled: Boolean) {
@@ -2543,7 +2535,6 @@ class SettingsManager(private val context: Context) {
             setBoolean(KEY_PLAYER_HDR_GLOW)
             setBoolean(KEY_PLAYER_IMMERSIVE_COVER)
             setBoolean(KEY_HIDE_SYSTEM_BARS)
-            setBoolean(KEY_PREDICTIVE_BACK_ENABLED)
             setBoolean(KEY_PLAYER_DYNAMIC_FLOW_ENABLED)
             setBoolean(KEY_AUDIO_VISUALIZER_ENABLED)
             setBoolean(KEY_DYNAMIC_COVER_ENABLED)

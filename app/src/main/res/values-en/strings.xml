@@ -1611,8 +1611,6 @@
     <string name="settings_lyric_plugin_source_imported">Imported</string>
     <string name="settings_hide_system_bars">Hide status &amp; navigation bars</string>
     <string name="settings_hide_system_bars_summary">Full-screen immersive — hides the system status and navigation bars, ideal for car displays</string>
-    <string name="settings_predictive_back">Predictive back animation</string>
-    <string name="settings_predictive_back_summary">Use an interactive back animation on the player screen. Android 13/14 also require the system developer option.</string>
     <string name="cover_preview_back">Back</string>
     <string name="cover_preview_share">Share cover</string>
     <string name="cover_preview_resolution">%1$d × %2$d</string>
