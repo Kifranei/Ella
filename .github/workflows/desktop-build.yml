@@ -1,0 +1,65 @@
+name: Desktop Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-desktop:
+    name: Package ${{ matrix.name }} desktop app
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            shell: pwsh
+            command: .\gradlew.bat --no-daemon --no-configuration-cache
+            task: :desktopApp:packageMsi
+            artifact: desktopApp/build/compose/binaries/main/msi/*.msi
+          - name: Linux
+            os: ubuntu-latest
+            shell: bash
+            command: ./gradlew --no-daemon --no-configuration-cache
+            task: :desktopApp:packageDeb
+            artifact: desktopApp/build/compose/binaries/main/deb/*.deb
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Halcyon
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew
+
+      - name: Build native installer
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.command }} ${{ matrix.task }} --stacktrace
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Halcyon-Desktop-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error

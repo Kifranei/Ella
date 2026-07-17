@@ -204,6 +204,31 @@ For daily development, use `assembleDebug` for validation. `fastRelease` / relea
 
 ---
 
+## 🖥️ Windows / Linux desktop app
+
+The standalone `desktopApp` module keeps the Android app intact and never reads or changes Android app data. It is built with Compose Desktop and packages the FFmpeg runtime for the current target platform, so users do not need a separate FFmpeg installation.
+
+The desktop client currently provides local-folder scanning, MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE playback, tag and artwork reading, album/artist/genre browsing, search, persistent playlists, sidecar LRC/ELRC/TTML lyrics, and an always-on-top lyrics window.
+
+Windows:
+
+```powershell
+.\gradlew.bat :desktopApp:run
+.\gradlew.bat :desktopApp:packageMsi
+```
+
+Linux:
+
+```bash
+chmod +x ./gradlew
+./gradlew :desktopApp:run
+./gradlew :desktopApp:packageDeb    # or :desktopApp:packageRpm
+```
+
+Build installers on their target OS: Windows produces MSI, while Linux produces DEB/RPM. Library data is stored in `%APPDATA%/Halcyon` on Windows and `$XDG_DATA_HOME/Halcyon` (defaulting to `~/.local/share/Halcyon`) on Linux.
+
+---
+
 ## 🎧 Native Libraries
 
 Prebuilt FFmpeg and lyrico-audiotag native libraries are located at:

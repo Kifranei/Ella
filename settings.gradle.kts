@@ -17,5 +17,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Halcyon"
 include(":app")
+include(":desktopApp")
 include(":ffmpeg-decoder")
 include(":lyrico-audiotag")

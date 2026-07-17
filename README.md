@@ -204,6 +204,31 @@ RELEASE_KEY_PASSWORD
 
 ---
 
+## 🖥️ Windows / Linux 桌面版
+
+桌面版位于独立的 `desktopApp` 模块，保留 Android 版且不会读取或修改 Android 应用数据。它使用 Compose Desktop，并随安装包带上当前平台的 FFmpeg 运行时；无需用户预先安装 FFmpeg。
+
+当前桌面端提供本地文件夹扫描、MP3/FLAC/M4A/AAC/WAV/AIFF/Ogg/Opus/WMA/APE 播放、标签和封面读取、按专辑/艺术家/流派浏览、搜索、歌单持久化、LRC/ELRC/TTML 边车歌词和悬浮歌词窗口。
+
+Windows：
+
+```powershell
+.\gradlew.bat :desktopApp:run
+.\gradlew.bat :desktopApp:packageMsi
+```
+
+Linux：
+
+```bash
+chmod +x ./gradlew
+./gradlew :desktopApp:run
+./gradlew :desktopApp:packageDeb    # 或 :desktopApp:packageRpm
+```
+
+安装包必须在对应目标系统上构建：Windows 产出 MSI，Linux 产出 DEB/RPM。Windows 的曲库和歌单保存在 `%APPDATA%/Halcyon`；Linux 保存在 `$XDG_DATA_HOME/Halcyon`（默认 `~/.local/share/Halcyon`）。
+
+---
+
 ## 🎧 native 库
 
 预编译的 FFmpeg 与 lyrico-audiotag native 库默认位于：
