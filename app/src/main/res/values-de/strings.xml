@@ -1463,6 +1463,15 @@
     <string name="settings_lyric_plugin_source_imported">Importiert</string>
     <string name="settings_hide_system_bars">Status- und Navigationsleiste ausblenden</string>
     <string name="settings_hide_system_bars_summary">Vollbild-Immersiv – blendet System-Status- und Navigationsleiste aus, ideal für Autodisplays</string>
+    <string name="settings_crossfade">Überblendung</string>
+    <string name="settings_crossfade_summary">Blendet den aktuellen Titel vor dem Ende aus und den nächsten ein; 0 Sekunden deaktiviert die Funktion</string>
+    <string name="settings_crossfade_value">%1$d Sek.</string>
+    <string name="cover_preview_back">Zurück</string>
+    <string name="cover_preview_share">Cover teilen</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">Cover konnte nicht geteilt werden</string>
+    <string name="player_enable_lyrics_word_lift">Wortweises Anheben aktivieren</string>
+    <string name="player_disable_lyrics_word_lift">Wortweises Anheben deaktivieren</string>
     <string name="lyric_match_format_enhanced_lrc">Wort-für-Wort-ELRC</string>
     <string name="lyric_match_format_plain_lrc">Zeilen-LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>

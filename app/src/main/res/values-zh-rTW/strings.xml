@@ -1484,6 +1484,15 @@
     <string name="settings_lyric_plugin_source_imported">已匯入</string>
     <string name="settings_hide_system_bars">隱藏狀態列和導覽列</string>
     <string name="settings_hide_system_bars_summary">進入全螢幕沉浸，隱藏系統狀態列與導覽列，適合車機等場景</string>
+    <string name="settings_crossfade">交叉淡入淡出</string>
+    <string name="settings_crossfade_summary">目前歌曲結束前淡出，同時淡入下一首；0 秒為關閉</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="cover_preview_back">返回</string>
+    <string name="cover_preview_share">分享封面</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">封面分享失敗</string>
+    <string name="player_enable_lyrics_word_lift">開啟歌詞逐詞上浮</string>
+    <string name="player_disable_lyrics_word_lift">關閉歌詞逐詞上浮</string>
     <string name="lyric_match_format_enhanced_lrc">逐字 ELRC</string>
     <string name="lyric_match_format_plain_lrc">逐行 LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>

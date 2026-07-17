@@ -1463,6 +1463,15 @@
     <string name="settings_lyric_plugin_source_imported">Importé</string>
     <string name="settings_hide_system_bars">Masquer les barres d’état et de navigation</string>
     <string name="settings_hide_system_bars_summary">Plein écran immersif — masque les barres système, idéal pour les écrans de voiture</string>
+    <string name="settings_crossfade">Fondu enchaîné</string>
+    <string name="settings_crossfade_summary">Fait disparaître le titre en cours et apparaître le suivant avant la fin ; 0 seconde désactive l’option</string>
+    <string name="settings_crossfade_value">%1$d s</string>
+    <string name="cover_preview_back">Retour</string>
+    <string name="cover_preview_share">Partager la pochette</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">Échec du partage de la pochette</string>
+    <string name="player_enable_lyrics_word_lift">Activer le soulèvement mot à mot</string>
+    <string name="player_disable_lyrics_word_lift">Désactiver le soulèvement mot à mot</string>
     <string name="lyric_match_format_enhanced_lrc">ELRC mot à mot</string>
     <string name="lyric_match_format_plain_lrc">LRC par ligne</string>
     <string name="lyric_match_format_ttml">TTML</string>

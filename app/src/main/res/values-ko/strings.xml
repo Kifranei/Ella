@@ -1463,6 +1463,15 @@
     <string name="settings_lyric_plugin_source_imported">가져옴</string>
     <string name="settings_hide_system_bars">상태 표시줄 및 탐색 모음 숨기기</string>
     <string name="settings_hide_system_bars_summary">전체 화면 몰입 모드 — 시스템 상태 표시줄과 탐색 모음을 숨깁니다. 차량용 디스플레이에 적합</string>
+    <string name="settings_crossfade">크로스페이드</string>
+    <string name="settings_crossfade_summary">현재 곡이 끝나기 전에 페이드아웃하고 다음 곡을 페이드인합니다. 0초는 끄기</string>
+    <string name="settings_crossfade_value">%1$d초</string>
+    <string name="cover_preview_back">뒤로</string>
+    <string name="cover_preview_share">커버 공유</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">커버를 공유하지 못했습니다</string>
+    <string name="player_enable_lyrics_word_lift">가사 단어별 떠오름 켜기</string>
+    <string name="player_disable_lyrics_word_lift">가사 단어별 떠오름 끄기</string>
     <string name="lyric_match_format_enhanced_lrc">글자별 ELRC</string>
     <string name="lyric_match_format_plain_lrc">줄별 LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>

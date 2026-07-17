@@ -1463,6 +1463,15 @@
     <string name="settings_lyric_plugin_source_imported">インポート済み</string>
     <string name="settings_hide_system_bars">ステータスバーとナビゲーションバーを非表示</string>
     <string name="settings_hide_system_bars_summary">全画面の没入表示。システムのステータスバーとナビゲーションバーを隠します。車載ディスプレイなどに最適</string>
+    <string name="settings_crossfade">クロスフェード</string>
+    <string name="settings_crossfade_summary">曲の終わり前に現在の曲をフェードアウトし、次の曲をフェードインします。0 秒で無効</string>
+    <string name="settings_crossfade_value">%1$d 秒</string>
+    <string name="cover_preview_back">戻る</string>
+    <string name="cover_preview_share">カバーを共有</string>
+    <string name="cover_preview_resolution">%1$d × %2$d</string>
+    <string name="cover_preview_share_failed">カバーを共有できませんでした</string>
+    <string name="player_enable_lyrics_word_lift">歌詞の単語ごとの浮き上がりを有効化</string>
+    <string name="player_disable_lyrics_word_lift">歌詞の単語ごとの浮き上がりを無効化</string>
     <string name="lyric_match_format_enhanced_lrc">文字単位 ELRC</string>
     <string name="lyric_match_format_plain_lrc">行単位 LRC</string>
     <string name="lyric_match_format_ttml">TTML</string>
